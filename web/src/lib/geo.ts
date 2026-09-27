@@ -36,8 +36,8 @@ const PINNED: Record<string, LatLng> = {
   OUT043: [6.8511, 79.8659], // Dehiwala
 }
 
-/** Degrees per unit of the stylised network plane. */
-const SCALE = 0.0055
+/** Degrees per unit of the stylised network plane (outlets sit on a spiral a few units round each district centre). */
+const SCALE = 0.012
 
 /** Stylised plane → degrees, the inverse of the projection in core/reference (for districts without a centre). */
 const unproject = (x: number, y: number): LatLng => [8.15 - (y * 2.3) / 100, 79.6 + (x * 1.3) / 100]

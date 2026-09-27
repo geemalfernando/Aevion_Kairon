@@ -57,10 +57,6 @@
   --series-chilled: #0284c7;
   --series-ambient: #85979a;
   --series-total: #106c6c;
-  /* Brand categories on the outlet map — always paired with a shape (circle, square, diamond). */
-  --cat-fresh: #1a9a8a;
-  --cat-style: #2b6fd6;
-  --cat-tech: #d66d32;
 
   --shadow: 0 1px 2px rgb(10 19 21 / 0.08), 0 6px 20px rgb(10 19 21 / 0.07);
   --shadow-lg: 0 12px 40px rgb(15 27 29 / 0.16);
@@ -104,9 +100,6 @@
   --series-chilled: #38a3dc;
   --series-ambient: #8fa3a6;
   --series-total: #2aa3a3;
-  --cat-fresh: #1fa08e;
-  --cat-style: #4c8bea;
-  --cat-tech: #d66d32;
 
   --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.25);
   --shadow-lg: 0 12px 40px rgb(0 0 0 / 0.5);
@@ -612,8 +605,9 @@ img.splash-tile {
   display: none;
 }
 .kairon-map .km-depot-label {
-  background: var(--attention);
-  color: #fff;
+  /* Depots are neutral: chocolate is reserved for "needs attention". */
+  background: var(--ink);
+  color: var(--bg);
   font-weight: 700;
   font-size: 11px;
   padding: 2px 8px;
@@ -650,8 +644,9 @@ img.splash-tile {
   width: 34px;
   height: 34px;
   border-radius: 10px;
-  background: var(--attention);
-  border: 2px solid #fff;
+  background: var(--ink);
+  color: var(--bg);
+  border: 2px solid var(--surface);
   box-shadow: 0 3px 10px rgb(0 0 0 / 0.3);
 }
 .km-vehicle {
@@ -710,8 +705,9 @@ img.splash-tile {
   }
 }
 
-/* Outlet markers: colour AND shape per brand */
+/* Outlet markers: brand is shown by shape (and name in tooltips), never colour — colour is kept for status. */
 .km-outlet {
+  --c: var(--ink);
   display: inline-block;
   width: var(--s, 13px);
   height: var(--s, 13px);
@@ -720,15 +716,6 @@ img.splash-tile {
   border: 2px solid var(--surface);
   box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
   transition: transform 0.15s;
-}
-.km-fresh {
-  --c: var(--cat-fresh);
-}
-.km-style {
-  --c: var(--cat-style);
-}
-.km-tech {
-  --c: var(--cat-tech);
 }
 .km-shape-circle {
   border-radius: 999px;
@@ -741,7 +728,8 @@ img.splash-tile {
   transform: rotate(45deg) scale(0.9);
 }
 .km-o-selected {
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 35%, transparent), 0 2px 8px rgb(0 0 0 / 0.4);
+  --c: var(--brand);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 35%, transparent), 0 2px 8px rgb(0 0 0 / 0.4);
 }
 .km-o-flagged {
   box-shadow: 0 0 0 3px var(--attention), 0 2px 6px rgb(0 0 0 / 0.35);

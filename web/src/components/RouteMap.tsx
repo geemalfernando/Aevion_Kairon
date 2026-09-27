@@ -43,7 +43,7 @@ const depotIcon = (name: string) =>
     className: '',
     iconSize: [34, 34],
     iconAnchor: [17, 17],
-    html: `<div class="km-depot" title="${esc(name)} depot"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-6h6v6"/></svg></div>`,
+    html: `<div class="km-depot" title="${esc(name)} depot"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-6h6v6"/></svg></div>`,
   })
 
 const vehicleIcon = (label: string) =>
@@ -54,7 +54,7 @@ const vehicleIcon = (label: string) =>
     html: `<div class="km-vehicle"><span class="km-vehicle-ping"></span><span class="km-vehicle-dot"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6H3v12h2"/><path d="M14 9h4l3 4v5h-2"/><circle cx="7.5" cy="18" r="2"/><circle cx="16.5" cy="18" r="2"/></svg></span><span class="km-vehicle-label">${esc(label)}</span></div>`,
   })
 
-/** Brand is encoded twice — colour and shape — so it never depends on colour alone. */
+/** Brand is shown by shape (Fresh circle, Style square, Tech diamond), never colour: colour means status. */
 export const BRAND_SHAPE: Record<Brand, string> = { Fresh: 'circle', Style: 'square', Tech: 'diamond' }
 
 const outletIcon = (o: Outlet, state: 'normal' | 'selected' | 'flagged' | 'muted', size: number) =>
