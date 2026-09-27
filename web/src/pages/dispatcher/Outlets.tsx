@@ -2,7 +2,7 @@ import { Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Badge, Card, PageHeader, StatusBadge } from '../../components/ui'
-import { fmtWindow } from '../../domain/time'
+import { fmtWindow } from '@core/time'
 import { useOps } from '../../store'
 
 export function Outlets() {

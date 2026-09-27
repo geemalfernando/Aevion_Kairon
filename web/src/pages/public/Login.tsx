@@ -5,8 +5,8 @@ import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { isStandalone } from '../../components/Pwa'
 import { HOME, ROLE_LABEL } from '../../components/shell/nav'
 import { Button, Callout, cn, Field, Input, Logo } from '../../components/ui'
-import { DEMO_USERS } from '../../domain/seed'
-import type { Role } from '../../domain/types'
+import { DEMO_USERS } from '@core/users'
+import type { Role } from '@core/types'
 import { useSession } from '../../store'
 
 const DEMO_PASSWORD = 'kairon-demo'
@@ -100,7 +100,7 @@ export function Login() {
                   onClick={() => enter(r)}
                   className={cn('group flex items-center gap-3 rounded-xl border p-3 text-left transition hover:border-brand hover:bg-brand-soft', hinted === r ? 'border-brand bg-brand-soft' : 'border-line')}
                 >
-                  <span className="grid size-9 place-items-center rounded-lg bg-surface-2 text-muted group-hover:bg-brand group-hover:text-white">
+                  <span className="grid size-9 place-items-center rounded-lg bg-surface-2 text-muted group-hover:bg-brand-fill group-hover:text-white">
                     <Icon className="size-4" />
                   </span>
                   <span className="min-w-0 flex-1">

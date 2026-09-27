@@ -1,7 +1,7 @@
 import { MessageSquareWarning } from 'lucide-react'
 import { useState } from 'react'
 import { Badge, Button, Card, EmptyState, PageHeader, SeverityBadge } from '../../components/ui'
-import { timeAgo } from '../../domain/time'
+import { timeAgo } from '@core/time'
 import { storeOrders } from '../../lib/select'
 import { useSession, useView } from '../../store'
 import { ReportIssueModal } from './shared'
@@ -40,7 +40,7 @@ export function Issues() {
                 <div className="text-sm text-muted">{i.detail}</div>
               </div>
               {i.resolved ? <Badge tone="success">{i.resolved.decision}</Badge> : <Badge tone="warning">With dispatcher</Badge>}
-              <span className="text-xs text-faint">{timeAgo(i.createdAt)}</span>
+              <span className="text-xs text-faint">{timeAgo(i.createdAt, Date.now())}</span>
             </div>
           ))}
         </Card>

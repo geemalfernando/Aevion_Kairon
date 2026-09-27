@@ -1,3 +1,14 @@
-
 # Local Vercel project metadata
 .vercel/
+
+# Dependencies and builds
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Secrets
+.env
+
+# Competition datasets must not be redistributed (Challenge Booklet · Terms and Conditions)
+data/**/*.csv
+data/**/*.zip

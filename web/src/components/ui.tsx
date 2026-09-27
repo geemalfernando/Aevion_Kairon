@@ -1,7 +1,8 @@
-import { Check, Loader2, X } from 'lucide-react'
+import { Check, Cpu, FlaskConical, Leaf, Loader2, Shirt, Snowflake, X } from 'lucide-react'
 import { useEffect, useId, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { useTranslation } from 'react-i18next'
 import { create } from 'zustand'
-import type { OrderStatus, Severity } from '../domain/types'
+import type { Brand, OrderStatus, Severity, Temp } from '@core/types'
 
 export const cn = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ')
 
@@ -65,11 +66,11 @@ export function Button({ variant = 'primary', size = 'md', icon, loading, block,
       className={cn(
         'inline-flex select-none items-center justify-center gap-2 rounded-lg font-semibold whitespace-nowrap transition-[background,color,box-shadow,transform] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100',
         {
-          primary: 'bg-brand text-on-brand shadow-sm hover:bg-brand-hover',
+          primary: 'bg-brand-fill text-on-brand shadow-sm hover:bg-brand-hover',
           secondary: 'border border-line-strong bg-surface text-ink hover:bg-surface-2',
           ghost: 'text-muted hover:bg-surface-2 hover:text-ink',
-          danger: 'bg-critical text-white hover:brightness-110',
-          attention: 'bg-attention text-white hover:brightness-110',
+          danger: 'bg-critical-fill text-white hover:brightness-95',
+          attention: 'bg-attention-fill text-white hover:brightness-95',
           inverse: 'bg-white text-teal hover:bg-platinum',
         }[variant],
         { sm: 'h-8 px-3 text-xs', md: 'h-10 px-4 text-sm', lg: 'h-12 px-5 text-[15px]', xl: 'h-14 px-6 text-base' }[size],
@@ -108,25 +109,61 @@ export function SeverityBadge({ s }: { s: Severity }) {
   )
 }
 
-export const orderStatusMeta: Record<OrderStatus, { label: string; tone: Tone }> = {
-  CONFIRMED: { label: 'Confirmed', tone: 'neutral' },
-  PLANNED: { label: 'Scheduled', tone: 'brand' },
-  DEFERRED: { label: 'Deferred', tone: 'attention' },
-  LOADED: { label: 'Loaded', tone: 'info' },
-  IN_TRANSIT: { label: 'On the way', tone: 'info' },
-  ARRIVED: { label: 'Arrived', tone: 'info' },
-  DELIVERED: { label: 'Delivered', tone: 'success' },
-  PARTIAL: { label: 'Partial', tone: 'warning' },
-  FAILED: { label: 'Failed attempt', tone: 'critical' },
-  RECEIVED: { label: 'Received', tone: 'success' },
+/** One status vocabulary for all four roles: the same state has the same word and colour everywhere. */
+export const orderStatusTone: Record<OrderStatus, Tone> = {
+  CONFIRMED: 'neutral',
+  PLANNED: 'brand',
+  DEFERRED: 'attention',
+  LOADED: 'info',
+  IN_TRANSIT: 'info',
+  ARRIVED: 'info',
+  DELIVERED: 'success',
+  PARTIAL: 'attention',
+  FAILED: 'critical',
+  RECEIVED: 'success',
 }
 
 export function StatusBadge({ s }: { s: OrderStatus }) {
-  const m = orderStatusMeta[s]
+  const { t } = useTranslation()
   return (
-    <Badge tone={m.tone} dot>
-      {m.label}
+    <Badge tone={orderStatusTone[s]} dot>
+      {t(`status.${s}`)}
     </Badge>
+  )
+}
+
+const BRAND_ICON: Record<Brand, typeof Leaf> = { Fresh: Leaf, Style: Shirt, Tech: Cpu }
+
+/** Brands are told apart by icon and name — never by colour (team decision). */
+export function BrandTag({ brand, className, iconOnly }: { brand: Brand; className?: string; iconOnly?: boolean }) {
+  const Icon = BRAND_ICON[brand]
+  return (
+    <span className={cn('inline-flex items-center gap-1 text-[12px] font-medium text-muted', className)} title={brand}>
+      <Icon className="size-3.5 shrink-0" aria-hidden />
+      {iconOnly ? <span className="sr-only">{brand}</span> : brand}
+    </span>
+  )
+}
+
+/** Chilled goods are always ocean blue with a snowflake. */
+export function TempTag({ temp, className }: { temp: Temp; className?: string }) {
+  const { t } = useTranslation()
+  if (temp !== 'CHILLED') return null
+  return (
+    <Badge tone="info" className={className}>
+      <Snowflake className="size-3" aria-hidden /> {t('temp.chilled')}
+    </Badge>
+  )
+}
+
+/** Marks a value that will come from the Datathon models (placeholder until they're loaded). */
+export function ModelChip({ source = 'placeholder', className }: { source?: 'model' | 'placeholder'; className?: string }) {
+  const { t } = useTranslation()
+  return (
+    <span className={cn('inline-flex items-center gap-1 rounded-full border border-dashed border-line-strong px-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted', className)} title={source === 'model' ? t('risk.model') : t('risk.placeholder')}>
+      <FlaskConical className="size-3" aria-hidden />
+      {t('risk.model')}
+    </span>
   )
 }
 
@@ -347,10 +384,10 @@ export function Timeline({ items }: { items: { label: ReactNode; sub?: ReactNode
           <span
             className={cn(
               'relative z-10 mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border-2',
-              it.state === 'done' && 'border-brand bg-brand text-white',
+              it.state === 'done' && 'border-brand bg-brand-fill text-white',
               it.state === 'current' && 'animate-pulse-dot border-info bg-surface text-info',
               it.state === 'todo' && 'border-line-strong bg-surface',
-              it.state === 'problem' && 'border-attention bg-attention text-white',
+              it.state === 'problem' && 'border-attention bg-attention-fill text-white',
             )}
           >
             {it.state === 'done' && <Check className="size-3" strokeWidth={3} />}

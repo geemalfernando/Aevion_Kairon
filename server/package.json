@@ -1,0 +1,25 @@
+{
+  "name": "@kairon/server",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Kairon API: authoritative operation state in PostgreSQL, command and field-event endpoints, live updates over SSE.",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "tsx --test test/*.test.ts",
+    "plan:check": "tsx scripts/plan-check.ts"
+  },
+  "dependencies": {
+    "@fastify/static": "^10.1.4",
+    "fastify": "^5.4.0",
+    "pg": "^8.16.3",
+    "tsx": "^4.20.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.15.4",
+    "typescript": "~5.9.2"
+  }
+}

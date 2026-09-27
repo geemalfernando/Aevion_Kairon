@@ -1,7 +1,7 @@
 import { FlaskConical, Snowflake, Truck } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Button, Card, CardHeader, cn, PageHeader, Segmented } from '../../components/ui'
-import { isReefer } from '../../domain/seed'
+import { isReefer } from '@core/rules'
 import { useOps } from '../../store'
 
 export function Simulator() {

@@ -1,7 +1,7 @@
 import { ClipboardList, Search, Store, Truck } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { vehicleLabel } from '../../domain/seed'
+import { vehicleLabel } from '@core/rules'
 import { useSession, useView } from '../../store'
 import { cn, Modal, StatusBadge } from '../ui'
 

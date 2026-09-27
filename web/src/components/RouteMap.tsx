@@ -1,5 +1,5 @@
-import { DEPOTS } from '../domain/seed'
-import type { Depot, Outlet } from '../domain/types'
+import { DEPOT_POS as DEPOTS } from '@core/reference'
+import type { Depot, Outlet } from '@core/types'
 import { cn } from './ui'
 
 export interface MapRoute {
@@ -12,7 +12,7 @@ export interface MapRoute {
 }
 
 /** Stylised network map: depot, outlets and routes — no external tiles, works offline. */
-export function RouteMap({ routes, outlets = [], className, focus = 'routes' }: { routes: MapRoute[]; outlets?: Outlet[]; className?: string; focus?: 'routes' | 'network' }) {
+export function RouteMap({ routes, outlets = [], className, focus = 'routes', label = 'Route map' }: { routes: MapRoute[]; outlets?: Outlet[]; className?: string; focus?: 'routes' | 'network'; label?: string }) {
   const pts = routes.flatMap((r) => [DEPOTS[r.depot], ...r.stops.map((s) => s.outlet)])
   const all = focus === 'network' || pts.length === 0 ? [...outlets, ...Object.values(DEPOTS)] : pts
   const xs = all.map((p) => p.x)
@@ -25,7 +25,7 @@ export function RouteMap({ routes, outlets = [], className, focus = 'routes' }: 
   const s = Math.max(w, h) / 100 // scale marks to the zoom level
   return (
     <div className={cn('relative overflow-hidden rounded-xl border border-line bg-surface-2', className)}>
-      <svg viewBox={`${minX} ${minY} ${w} ${h}`} className="size-full" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Route map">
+      <svg viewBox={`${minX} ${minY} ${w} ${h}`} className="size-full" preserveAspectRatio="xMidYMid meet" role="img" aria-label={label}>
         <defs>
           <pattern id="grid" width={5 * s} height={5 * s} patternUnits="userSpaceOnUse">
             <path d={`M ${5 * s} 0 L 0 0 0 ${5 * s}`} fill="none" stroke="var(--line)" strokeWidth={0.15 * s} />
@@ -80,7 +80,7 @@ export function RouteMap({ routes, outlets = [], className, focus = 'routes' }: 
           const d = DEPOTS[k]
           return (
             <g key={k}>
-              <rect x={d.x - 1.6 * s} y={d.y - 1.6 * s} width={3.2 * s} height={3.2 * s} rx={0.6 * s} fill="var(--attention)" />
+              <rect x={d.x - 1.6 * s} y={d.y - 1.6 * s} width={3.2 * s} height={3.2 * s} rx={0.6 * s} fill="var(--muted)" />
               <text x={d.x + 2.4 * s} y={d.y + 0.6 * s} fontSize={1.8 * s} fontWeight={600} fill="var(--muted)">
                 {k}
               </text>

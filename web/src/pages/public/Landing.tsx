@@ -21,7 +21,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { HOME } from '../../components/shell/nav'
 import { DeliverVignette, DeliveryScene, LaptopMock, LoadVignette, OrderVignette, PhoneMock, PlanVignette, Reveal, TabletMock } from '../../components/illustrations'
 import { Button, cn } from '../../components/ui'
-import { DEPOTS } from '../../domain/seed'
+import { DEPOT_POS as DEPOTS } from '@core/reference'
 import { useOps, useSession } from '../../store'
 
 export function Landing() {
@@ -330,7 +330,7 @@ function RouteScene() {
         <DeliveryScene className="shadow-pop ring-1 ring-white/5" />
         <div className="mt-4 grid gap-3 text-sm text-muted sm:grid-cols-3">
           {[
-            ['03:45', 'Reefer VEH014 leaves Peliyagoda with the stops loaded last-first.'],
+            ['04:36', 'Reefer VEH014 leaves Peliyagoda with the stops loaded last-first.'],
             ['05:10', 'Signal drops on the way — the route, proof capture and issues keep working.'],
             ['06:12', 'OUT032 delivered, signed and photographed. It syncs the moment coverage returns.'],
           ].map(([t, d]) => (
@@ -600,14 +600,14 @@ function OfflineDemo() {
             </div>
           </div>
           <div className="rounded-[2.2rem] border-8 border-ink/90 bg-surface p-4 shadow-pop">
-            <div className={cn('mb-3 flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors duration-500', offline ? 'bg-ink text-bg' : k >= 5 && k < 8 ? 'bg-info text-white' : 'bg-success-soft text-success-ink')}>
+            <div className={cn('mb-3 flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors duration-500', offline ? 'bg-ink text-bg' : k >= 5 && k < 8 ? 'bg-info-fill text-white' : 'bg-success-soft text-success-ink')}>
               {offline ? <CloudOff className="size-4" /> : k >= 5 && k < 8 ? <RefreshCw className="size-4 animate-spin" /> : <Cloud className="size-4" />}
               {offline ? `Offline · ${Math.max(0, k - 2)} updates waiting` : k >= 5 && k < 8 ? 'Synchronizing…' : 'Online'}
             </div>
             <ol className="space-y-1">
               {OFFLINE_STEPS.map((s, i) => (
                 <li key={s.label} className={cn('flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-500', i === k ? 'bg-brand-soft font-semibold text-brand-ink' : i < k ? 'text-ink' : 'text-faint')}>
-                  <span className={cn('grid size-5 place-items-center rounded-full border-2 transition', i < k ? 'border-brand bg-brand text-white' : i === k ? 'border-brand' : 'border-line-strong')}>{i < k && <Check className="size-3" strokeWidth={3} />}</span>
+                  <span className={cn('grid size-5 place-items-center rounded-full border-2 transition', i < k ? 'border-brand bg-brand-fill text-white' : i === k ? 'border-brand' : 'border-line-strong')}>{i < k && <Check className="size-3" strokeWidth={3} />}</span>
                   {s.label}
                 </li>
               ))}

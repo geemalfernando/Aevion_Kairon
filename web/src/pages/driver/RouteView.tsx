@@ -1,20 +1,24 @@
-import { Check, Clock, Navigation, Route as RouteIcon, TriangleAlert } from 'lucide-react'
+import { Check, Clock, Navigation, Route as RouteIcon, Timer, TriangleAlert, Truck } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
+import { riskBand } from '@core/predict'
+import { fmtMin, fmtWindow } from '@core/time'
 import { RouteMap } from '../../components/RouteMap'
-import { Badge, Button, Callout, Card, cn, EmptyState, StatusBadge } from '../../components/ui'
-import { fmtMin, fmtWindow } from '../../domain/time'
+import { Badge, Button, Callout, Card, cn, EmptyState, ModelChip, StatusBadge, TempTag } from '../../components/ui'
 import { isDone } from '../../lib/select'
 import { useDriverRoute } from './common'
 
 export function RouteView() {
   const { trip, vehicle, stops, nextIdx, done } = useDriverRoute()
-  if (!trip) return <EmptyState icon={<RouteIcon className="size-5" />} title="No route assigned yet" />
+  const { t } = useTranslation()
+  if (!trip) return <EmptyState icon={<RouteIcon className="size-5" />} title={t('driver.no_route')} />
   const next = nextIdx >= 0 ? stops[nextIdx] : undefined
+  const band = next?.pred && riskBand(next.pred.lateProb)
   return (
     <div className="mx-auto max-w-xl">
-      <div className="flex items-baseline justify-between">
+      <div className="flex items-baseline justify-between gap-2">
         <h1 className="font-display text-3xl font-bold">
-          {done} / {stops.length} <span className="text-lg font-semibold text-muted">complete</span>
+          {done} / {stops.length} <span className="text-lg font-semibold text-muted">{t('driver.complete')}</span>
         </h1>
         <span className="id text-muted">{trip.id}</span>
       </div>
@@ -23,50 +27,71 @@ export function RouteView() {
       </div>
 
       {trip.status === 'PAUSED' && (
-        <Callout tone="critical" title="Route paused" className="mt-4">
-          A vehicle issue was reported. Wait for the dispatcher’s recovery plan.
+        <Callout tone="critical" title={t('driver.paused')} className="mt-4">
+          {t('driver.paused_body')}
         </Callout>
       )}
 
       {next && trip.status !== 'PAUSED' && (
         <Card className="mt-6 overflow-hidden">
-          <div className="border-b border-line bg-brand-soft px-5 py-2 text-xs font-bold uppercase tracking-[0.14em] text-brand-ink">Next stop</div>
+          <div className="border-b border-line bg-brand-soft px-5 py-2 text-xs font-bold uppercase tracking-[0.14em] text-brand-ink">{t('driver.next_stop')}</div>
           <div className="p-5">
-            <div className="id text-3xl">{next.outlet.id}</div>
-            <div className="text-muted">{next.outlet.name}</div>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="id text-3xl">{next.outlet.id}</div>
+                <div className="text-muted">{next.outlet.name}</div>
+              </div>
+              <TempTag temp={next.order.temp} />
+            </div>
             <div className="mt-4 grid grid-cols-3 gap-3">
               <div>
-                <div className="text-xs text-muted">ETA</div>
-                <div className="font-display text-2xl font-semibold tabular-nums">{fmtMin(next.plan.start)}</div>
+                <div className="text-xs text-muted">{t('common.eta')}</div>
+                <div className="font-display text-2xl font-semibold tabular-nums">{fmtMin(next.plan.eta)}</div>
               </div>
               <div>
-                <div className="text-xs text-muted">Window</div>
-                <div className="font-display text-lg font-semibold tabular-nums">{fmtWindow(next.outlet.window)}</div>
+                <div className="text-xs text-muted">{t('common.window')}</div>
+                <div className="font-display text-lg font-semibold tabular-nums leading-tight">{fmtWindow(next.outlet.window)}</div>
               </div>
               <div>
-                <div className="text-xs text-muted">Service</div>
-                <div className="font-display text-lg font-semibold">{next.plan.service} min</div>
+                <div className="text-xs text-muted">{t('common.service')}</div>
+                <div className="font-display text-lg font-semibold">{t('risk.service', { min: Math.round(next.pred?.serviceMin ?? next.plan.service) })}</div>
               </div>
             </div>
+            {next.pred && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                <span className="inline-flex items-center gap-1 text-muted">
+                  <Timer className="size-3.5" /> {t('risk.label')}:
+                </span>
+                <Badge tone={band === 'high' ? 'critical' : band === 'medium' ? 'attention' : 'success'}>
+                  {t(`risk.${band}`)} · {Math.round(next.pred.lateProb * 100)}%
+                </Badge>
+                <ModelChip source={next.pred.source} />
+              </div>
+            )}
             {next.plan.late && (
-              <Callout tone="warning" icon={<TriangleAlert className="size-5" />} title="Delivery window will be missed" className="mt-4">
-                Continue only if the outlet agrees to receive the delivery.
+              <Callout tone="attention" icon={<TriangleAlert className="size-5" />} title={t('driver.window_will_miss')} className="mt-4">
+                {t('driver.window_will_miss_body')}
               </Callout>
             )}
             {next.outlet.mall && (
-              <Callout tone="info" icon={<Clock className="size-5" />} title={`Mall access window ${fmtWindow(next.outlet.window)}`} className="mt-4">
-                Security only admits deliveries inside this window.
+              <Callout tone="info" icon={<Clock className="size-5" />} title={t('driver.mall_title', { window: fmtWindow(next.outlet.window) })} className="mt-4">
+                {t('driver.mall_body')}
               </Callout>
+            )}
+            {next.outlet.vanOnly && (
+              <p className="mt-3 inline-flex items-center gap-1.5 text-sm text-muted">
+                <Truck className="size-4" /> {t('driver.van_only')} · {t(`access.${next.outlet.dock}`)}
+              </p>
             )}
             <div className="mt-5 grid grid-cols-2 gap-2">
               <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(next.outlet.name + ' Sri Lanka')}`} target="_blank" rel="noreferrer">
                 <Button variant="secondary" size="xl" block icon={<Navigation className="size-5" />}>
-                  Navigate
+                  {t('driver.navigate')}
                 </Button>
               </a>
               <Link to={`/driver/stop/${next.order.id}`}>
                 <Button size="xl" block>
-                  {next.order.status === 'ARRIVED' ? 'Deliver' : 'Open stop'}
+                  {next.order.status === 'ARRIVED' ? t('driver.deliver') : t('driver.open_stop')}
                 </Button>
               </Link>
             </div>
@@ -82,15 +107,15 @@ export function RouteView() {
             return (
               <li key={s.order.id}>
                 <Link to={`/driver/stop/${s.order.id}`} className={cn('flex items-center gap-4 px-5 py-4', cur && 'bg-surface-2')}>
-                  <span className={cn('grid size-8 shrink-0 place-items-center rounded-full border-2 text-sm font-bold', d ? 'border-success bg-success text-white' : cur ? 'border-info text-info' : 'border-line-strong text-muted')}>
+                  <span className={cn('grid size-8 shrink-0 place-items-center rounded-full border-2 text-sm font-bold', d ? 'border-brand bg-brand-fill text-white' : cur ? 'border-info text-info-ink' : 'border-line-strong text-muted')}>
                     {d ? <Check className="size-4" strokeWidth={3} /> : i + 1}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="id">{s.outlet.id}</span>
                     <span className="block truncate text-xs text-muted">{s.outlet.name}</span>
                   </span>
-                  {d ? <StatusBadge s={s.order.status} /> : <span className="text-sm tabular-nums text-muted">{fmtMin(s.plan.start)}</span>}
-                  {s.order.delivery?.offline && !d && <Badge>Saved</Badge>}
+                  {d ? <StatusBadge s={s.order.status} /> : <span className="text-sm tabular-nums text-muted">{fmtMin(s.plan.eta)}</span>}
+                  {s.order.delivery?.offline && !d && <Badge>{t('driver.saved')}</Badge>}
                 </Link>
               </li>
             )
@@ -100,6 +125,7 @@ export function RouteView() {
 
       <RouteMap
         className="mt-4 aspect-[4/3]"
+        label={t('driver.map')}
         routes={[
           {
             id: trip.id,

@@ -1,5 +1,5 @@
-import { fmtClock, fmtDate } from '../domain/time'
-import type { AuditEvent } from '../domain/types'
+import { fmtClock, fmtDate } from '@core/time'
+import type { AuditEvent } from '@core/types'
 import { ROLE_LABEL } from './shell/nav'
 
 export function AuditTimeline({ events, empty = 'No recorded events yet.' }: { events: AuditEvent[]; empty?: string }) {

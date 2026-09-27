@@ -1,14 +1,15 @@
-import { CalendarClock, Snowflake } from 'lucide-react'
+import { CalendarClock } from 'lucide-react'
 import { useState } from 'react'
-import { Badge, Button, Card, EmptyState, PageHeader, Segmented, toast } from '../../components/ui'
-import { timeAgo } from '../../domain/time'
-import type { Order } from '../../domain/types'
+import { Badge, BrandTag, Button, Card, EmptyState, PageHeader, Segmented, TempTag, toast } from '../../components/ui'
+import { timeAgo } from '@core/time'
+import type { Order } from '@core/types'
 import { outletOf } from '../../lib/select'
-import { ops, useOps } from '../../store'
+import { ops, useNow, useOps } from '../../store'
 import { DeferModal, OrderDrawer } from './shared'
 
 export function Deferred() {
   const d = useOps((s) => s.data)
+  const now = useNow()
   const [view, setView] = useState<'proposed' | 'confirmed'>('proposed')
   const [drawer, setDrawer] = useState<Order>()
   const [deferring, setDeferring] = useState<Order>()
@@ -19,7 +20,7 @@ export function Deferred() {
       <PageHeader
         eyebrow="Monitoring"
         title="Deferred orders"
-        subtitle="Every deferral carries a reason, a priority and the next recommended run — and the store sees why."
+        subtitle="On a normal day demand exceeds capacity. Every deferral names the constraint that stopped it, the calculation behind it and the next run — and the store sees why."
         actions={
           view === 'proposed' &&
           list.length > 0 && (
@@ -64,22 +65,20 @@ export function Deferred() {
                   </div>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1">
-                  <Badge>{o.brand}</Badge>
-                  {o.temp === 'CHILLED' && (
-                    <Badge tone="info">
-                      <Snowflake className="size-3" /> Chilled
-                    </Badge>
-                  )}
-                  {out.vanOnly && <Badge tone="warning">Van only</Badge>}
+                  <BrandTag brand={o.brand} />
+                  <TempTag temp={o.temp} />
+                  {out.vanOnly && <Badge tone="attention">Van only</Badge>}
+                  {o.deferral?.repeat && <Badge tone="critical">Skipped yesterday too</Badge>}
                 </div>
                 <div className="mt-4 rounded-lg bg-attention-soft p-3">
                   <div className="text-xs text-attention-ink">Reason</div>
                   <div className="font-semibold text-attention-ink">{o.deferral?.reason}</div>
+                  {o.deferral?.detail && <p className="mt-1 text-xs text-ink">{o.deferral.detail}</p>}
                 </div>
                 <dl className="mt-3 grid grid-cols-3 gap-2 text-sm">
                   <div>
-                    <dt className="text-xs text-muted">Deferred before</dt>
-                    <dd className="font-medium">{out.deferralsThisWeek > (o.deferral?.confirmed ? 1 : 0) ? 'Yes' : 'No'}</dd>
+                    <dt className="text-xs text-muted">Skipped runs</dt>
+                    <dd className="font-medium">{o.runsDeferred ?? 0}</dd>
                   </div>
                   <div>
                     <dt className="text-xs text-muted">Last served</dt>
@@ -90,7 +89,7 @@ export function Deferred() {
                     <dd className="font-medium">{o.deferral?.nextRecommendation}</dd>
                   </div>
                 </dl>
-                {o.deferral?.confirmed && <p className="mt-3 text-xs text-muted">Confirmed {timeAgo(o.deferral.at)}{o.deferral.acknowledged ? ' · acknowledged by store' : ''}</p>}
+                {o.deferral?.confirmed && <p className="mt-3 text-xs text-muted">Confirmed {timeAgo(o.deferral.at, now)}{o.deferral.acknowledged ? ' · acknowledged by store' : ''}</p>}
                 <div className="mt-auto flex gap-2 pt-4">
                   <Button variant="secondary" className="flex-1" onClick={() => setDrawer(o)}>
                     Reallocate

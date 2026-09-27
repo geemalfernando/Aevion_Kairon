@@ -2,17 +2,19 @@ import { AlertTriangle, ArrowLeft, Check, Clock, Snowflake, Truck } from 'lucide
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Badge, Button, Callout, Card, CardHeader, cn, EmptyState, PageHeader, Segmented, SeverityBadge, severityTone, toast, toneBorder } from '../../components/ui'
-import { recoveryPlan } from '../../domain/rules'
-import { isReefer, vehicleLabel } from '../../domain/seed'
-import { fmtClock, fmtMin, timeAgo } from '../../domain/time'
-import type { Issue } from '../../domain/types'
+import { recoveryPlan } from '@core/rules'
+import { isReefer, vehicleLabel } from '@core/rules'
+import { fmtClock, fmtMin, timeAgo } from '@core/time'
+import type { Issue } from '@core/types'
 import { orderOf, outletOf, scheduleOf, tripOf, vehicleOf } from '../../lib/select'
-import { ops, useOps } from '../../store'
-import { severityRank } from '../../store/events'
+import { opMinutes } from '@core/ops'
+import { ops, useNow, useOps } from '../../store'
+import { severityRank } from '@core/ops'
 import { DeferModal } from './shared'
 
 export function Issues() {
   const d = useOps((s) => s.data)
+  const now = useNow()
   const [show, setShow] = useState<'open' | 'resolved'>('open')
   const list = d.issues.filter((i) => (show === 'open' ? !i.resolved : i.resolved)).sort((a, b) => severityRank(a.severity) - severityRank(b.severity) || b.createdAt - a.createdAt)
   return (
@@ -37,7 +39,7 @@ export function Issues() {
                   <div className="font-semibold">{i.title}</div>
                   <div className="text-sm text-muted">{i.resolved ? i.resolved.decision : i.detail}</div>
                 </div>
-                <span className="text-xs text-faint">{timeAgo(i.createdAt)}</span>
+                <span className="text-xs text-faint">{timeAgo(i.createdAt, now)}</span>
               </Card>
             </Link>
           ))}
@@ -50,7 +52,9 @@ export function Issues() {
 export function IssueDetail() {
   const { id } = useParams()
   const d = useOps((s) => s.data)
-  const i = d.issues.find((x) => x.id === id)
+  const now = useNow()
+  // /dispatcher/issues/breakdown opens the latest open breakdown (stable link for previews).
+  const i = d.issues.find((x) => x.id === id) ?? (id === 'breakdown' ? d.issues.find((x) => x.kind === 'BREAKDOWN' || x.kind === 'REEFER_FAILURE') : undefined)
   if (!i) return <EmptyState icon={<AlertTriangle className="size-5" />} title="Issue not found" />
   return (
     <>
@@ -59,7 +63,7 @@ export function IssueDetail() {
       </Link>
       {i.resolved && (
         <Callout tone="success" icon={<Check className="size-5" />} title="Resolved" className="mb-6">
-          {i.resolved.decision} · {timeAgo(i.resolved.at)}
+          {i.resolved.decision} · {timeAgo(i.resolved.at, now)}
         </Callout>
       )}
       {i.kind === 'BREAKDOWN' || i.kind === 'REEFER_FAILURE' ? <Incident i={i} /> : i.kind === 'SHORTFALL' ? <Shortfall i={i} /> : i.kind === 'LATE_RISK' ? <LateRisk i={i} /> : <Generic i={i} />}
@@ -72,7 +76,7 @@ function Incident({ i }: { i: Issue }) {
   const navigate = useNavigate()
   const trip = tripOf(d, i.tripId)
   const v = vehicleOf(d, i.vehicleId)!
-  const plan = trip && !i.resolved ? recoveryPlan(trip.id, d) : null
+  const plan = trip && !i.resolved ? recoveryPlan(trip.id, d, opMinutes(d)) : null
   const affected = i.orderIds ?? []
   const chilled = affected.some((id) => orderOf(d, id)?.temp === 'CHILLED')
   return (
@@ -108,9 +112,9 @@ function Incident({ i }: { i: Issue }) {
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <div className="flex items-center gap-2">
-                          <Truck className="size-4 text-brand" />
+                          <Truck className="size-4 text-brand-ink" />
                           <span className="id text-lg">{rv.id}</span>
-                          {rv.standby && <Badge tone="info">Standby</Badge>}
+                          {rv.reserve && <Badge tone="info">Recovery reserve</Badge>}
                         </div>
                         <div className="text-sm text-muted">
                           {vehicleLabel(rv.type)} · {rv.driver}
@@ -147,7 +151,6 @@ function Incident({ i }: { i: Issue }) {
               {plan.options.length === 0 && plan.defer.length === 0 && <Callout tone="success" title="All stops already delivered">Nothing to recover.</Callout>}
               <Button
                 size="lg"
-                variant="danger"
                 block
                 onClick={() => {
                   ops('applyRecovery', i.id)
@@ -221,8 +224,8 @@ function LateRisk({ i }: { i: Issue }) {
       <Card className="max-w-2xl p-6">
         <div className="grid grid-cols-3 gap-3 text-center">
           <Metric label="Window closes" value={st ? fmtMin(st.window[1]) : '—'} />
-          <Metric label="Projected arrival" value={st ? fmtMin(st.start + 18) : '—'} />
-          <Metric label="Late" value="12 min" tone="text-attention-ink" />
+          <Metric label="Projected arrival" value={st ? fmtMin(st.eta + 18) : '—'} />
+          <Metric label="Past close" value={st ? `${Math.max(0, Math.round(st.eta + 18 - st.window[1]))} min` : '—'} tone="text-attention-ink" />
         </div>
         {!i.resolved && (
           <>
