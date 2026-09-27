@@ -1,11 +1,12 @@
-import { ArrowRight, Clock, PackagePlus, TriangleAlert } from 'lucide-react'
+import { ArrowRight, Clock, PackagePlus, TriangleAlert, Truck } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { LocationMap } from '../../components/RouteMap'
 import { Button, Callout, Card, CardHeader, EmptyState, PageHeader, StatusBadge, Timeline } from '../../components/ui'
-import { fmtDate, fmtWindow, greeting } from '../../domain/time'
+import { fmtDate, fmtWindow, greeting } from '@core/time'
 import { outletOf, storeOrders, unitsOf } from '../../lib/select'
-import { useSession, useView } from '../../store'
+import { MODAL } from '../../demo/mode'
+import { useNow, useSession, useView } from '../../store'
 import { useCutoff } from './NewOrder'
 import { deliveryTimeline, etaFor, OrderSummary, ReceiptForm, ReportIssueModal, RescheduledCard } from './shared'
 
@@ -15,7 +16,8 @@ export function Dashboard() {
   const out = outletOf(d, user.assignedOutlet)!
   const orders = storeOrders(d, out.id)
   const cutoff = useCutoff()
-  const [reporting, setReporting] = useState(false)
+  const now = useNow()
+  const [reporting, setReporting] = useState(MODAL === 'report-issue')
   // Focus on the order that needs attention most, soonest delivery first.
   const byDate = [...orders].sort((a, b) => a.deliveryDate.localeCompare(b.deliveryDate) || b.createdAt - a.createdAt)
   const focus =
@@ -24,11 +26,14 @@ export function Dashboard() {
     byDate.find((o) => ['ARRIVED', 'IN_TRANSIT', 'LOADED', 'FAILED'].includes(o.status)) ??
     byDate.find((o) => !['RECEIVED', 'DEFERRED'].includes(o.status)) ??
     orders[0]
+  // The dispatcher moved this order to another vehicle mid-route.
+  const trip = focus && d.trips.find((t) => t.id === focus.tripId)
+  const moved = trip?.rescue?.from && focus && !['DELIVERED', 'PARTIAL', 'RECEIVED'].includes(focus.status) ? { to: trip.vehicleId, from: d.trips.find((t) => t.id === trip.rescue!.from)?.vehicleId, reason: trip.rescue.reason } : undefined
 
   return (
     <>
       <PageHeader
-        eyebrow={`${greeting()}, ${user.name}`}
+        eyebrow={`${greeting(now)}, ${user.name}`}
         title={out.name}
         subtitle={
           <>
@@ -56,13 +61,18 @@ export function Dashboard() {
                     <LocationMap outlet={out} depot={out.depot} vehicle={['IN_TRANSIT', 'ARRIVED'].includes(focus.status) ? etaFor(d, focus)?.vehicle : undefined} className="h-56" />
                     <div className="text-sm text-muted">{unitsOf(focus)} units · {focus.items.map((i) => `${i.qty} ${i.name}`).join(' · ')}</div>
                     {focus.shortfall && (
-                      <Callout tone="warning" icon={<TriangleAlert className="size-5" />} title={`${focus.shortfall.missing} × ${focus.shortfall.item} unavailable at loading`}>
+                      <Callout tone="attention" icon={<TriangleAlert className="size-5" />} title={`${focus.shortfall.missing} × ${focus.shortfall.item} unavailable at loading`}>
                         {focus.shortfall.decision ? `Dispatcher decision: ${focus.shortfall.decision}.` : 'The dispatcher is deciding how to proceed.'}
+                      </Callout>
+                    )}
+                    {moved && (
+                      <Callout tone="info" icon={<Truck className="size-5" />} title={`Delivery vehicle changed: now ${moved.to}${moved.from ? ` instead of ${moved.from}` : ''}`}>
+                        {moved.reason} The arrival time above is for the new vehicle — no need to wait for the original truck.
                       </Callout>
                     )}
                     {focus.status === 'FAILED' && <Callout tone="critical" title="Delivery attempt failed">{focus.delivery?.notes || 'The driver recorded a failed attempt. The dispatcher will reschedule.'}</Callout>}
                     {['DELIVERED', 'PARTIAL'].includes(focus.status) ? (
-                      <div className="rounded-xl border border-success/40 p-4">
+                      <div className="rounded-xl border border-brand/40 p-4">
                         <ReceiptForm o={focus} />
                         <button onClick={() => setReporting(true)} className="mt-3 w-full text-center text-sm font-medium text-muted underline">
                           Something wrong? Report an issue
@@ -83,10 +93,10 @@ export function Dashboard() {
         <div className="space-y-6">
           <Card className="p-5">
             <div className="flex items-center gap-2 text-sm font-semibold">
-              <Clock className="size-4 text-attention" /> Order cutoff · today 16:00
+              <Clock className="size-4 text-attention-ink" /> Order cutoff · 16:00
             </div>
             <div className="mt-2 font-display text-4xl font-semibold tabular-nums">{cutoff.passed ? 'Closed' : cutoff.label}</div>
-            <p className="mt-1 text-sm text-muted">{cutoff.passed ? `New orders are delivered ${fmtDate(cutoff.deliveryDate, { weekday: 'long', day: 'numeric', month: 'long' })}.` : 'Time remaining to order for tomorrow.'}</p>
+            <p className="mt-1 text-sm text-muted">{cutoff.passed ? `New orders are delivered ${fmtDate(cutoff.deliveryDate, { weekday: 'long', day: 'numeric', month: 'long' })}.` : `Time remaining to order for ${fmtDate(cutoff.deliveryDate, { weekday: 'long' })}.`}</p>
             <Link to="/store/orders/new" className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-brand-ink">
               New order <ArrowRight className="size-4" />
             </Link>

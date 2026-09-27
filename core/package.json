@@ -1,0 +1,8 @@
+{
+  "name": "@kairon/core",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Shared Kairon domain: CSV schemas, reference data, planning rules, commands and field events. Plain TypeScript, no runtime dependencies; consumed as source by web/ and server/.",
+  "exports": { "./*": "./src/*.ts" }
+}

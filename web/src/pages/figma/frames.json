@@ -1,0 +1,355 @@
+{
+  "boards": [
+    {
+      "id": "dispatcher",
+      "title": "Dispatcher — Geemal",
+      "subtitle": "Large screen, Peliyagoda planning office, stable connection · 1440 × 900"
+    },
+    {
+      "id": "loader",
+      "title": "Loader — Kamal",
+      "subtitle": "Shared tablet or terminal at the loading dock · designed for 390 × 844"
+    },
+    {
+      "id": "driver",
+      "title": "Driver — Nimal",
+      "subtitle": "Personal phone in the cab, night theme, often offline · 390 × 844, used when safely stopped"
+    },
+    {
+      "id": "store",
+      "title": "Store manager — Dilini",
+      "subtitle": "Outlet counter, desktop or phone · 1440 × 900 and 390 × 844"
+    }
+  ],
+  "frames": [
+    {
+      "id": "D1-overview",
+      "board": "dispatcher",
+      "title": "Overview",
+      "url": "/dispatcher?demo=orders-open",
+      "w": 1440,
+      "h": 900,
+      "rationale": "Geemal’s day starts here at 15:20, forty minutes before the cutoff. The stage bar answers “where are we in the day” and the single primary button always names the next job (close orders, generate, publish, watch). Six figures cover what he actually juggles: orders, available vehicles, planned, deferred, late risk and how much refrigerated time is used. Alerts are ranked by severity so a breakdown never hides behind a fuel note. Delivery sessions are labelled with brand icons and names, never brand colours, so colour stays free to mean status."
+    },
+    {
+      "id": "D2-close-orders",
+      "board": "dispatcher",
+      "title": "Closing orders at 16:00",
+      "url": "/dispatcher/orders?demo=close-orders&close=1",
+      "w": 1440,
+      "h": 900,
+      "rationale": "Today orders arrive by phone and are re-typed into a spreadsheet. Here every store order is already confirmed in the system, so closing orders is one deliberate step that turns them into a single planning queue. The dialog shows what is being committed — orders per brand, total and chilled volume — because chilled volume is what decides how tight the morning will be. Anything placed after the cutoff is dated to the next run automatically, which the brief requires and which stores see on their own screen."
+    },
+    {
+      "id": "D3-planning",
+      "board": "dispatcher",
+      "title": "Planning — the over-capacity day",
+      "url": "/dispatcher/planning?demo=plan-draft",
+      "w": 1440,
+      "h": 1500,
+      "rationale": "The most important office screen. On most days the fleet cannot serve everyone, so the plan leads with “What limited today” — the binding resource, how many deferrals it caused, and the resources behind it (reefer minutes before 08:00, van trips, dry volume, fuel). The recovery-reserve note puts the day’s real trade-off in front of Geemal instead of hiding it in the algorithm. Each vehicle shows both daily budgets from the brief — 270 Fresh minutes and 480 Style + Tech minutes — and its two trips, each one brand and one district. Deferrals sit in their own column with the calculation that caused them, and a red flag if the outlet was also skipped yesterday."
+    },
+    {
+      "id": "D4-blocked",
+      "board": "dispatcher",
+      "title": "Allocation blocked",
+      "url": "/dispatcher/planning?demo=blocked&modal=blocked",
+      "w": 1440,
+      "h": 900,
+      "rationale": "Manual planning is allowed, but never manual rule-breaking. When Geemal drops a chilled order on a dry-box truck, the headline says why in plain words, the full checklist shows every operating rule with its numbers, and there is deliberately no “continue anyway”. Instead the dialog offers vehicles that do fit. This keeps his network knowledge in the loop while making sure the plan the loader receives is always feasible."
+    },
+    {
+      "id": "D5-deferrals",
+      "board": "dispatcher",
+      "title": "Deferral review",
+      "url": "/dispatcher/deferred?demo=deferrals",
+      "w": 1440,
+      "h": 900,
+      "rationale": "The brief’s third problem: deferrals made under pressure leave no record and the same outlet can be skipped twice. Every card here carries a reason code, the calculation behind it (for example “the 8 reefers at Peliyagoda are fully booked in the Fresh window; the earliest any could reach OUT019 is 07:39, after its 07:30 close”), the next run, how many runs the outlet has already missed, and the exact message the store will read. Geemal confirms deferrals knowingly; nothing is silently dropped."
+    },
+    {
+      "id": "D6-move-stop",
+      "board": "dispatcher",
+      "title": "Move a stop mid-route — only when it helps",
+      "url": "/dispatcher/routes/TRP-014-1?demo=move-stop&modal=move-stop&stop=OUT032",
+      "w": 1440,
+      "h": 1250,
+      "rationale": "The trigger of our main degradation scenario. Losing signal is normal on Waypoint’s routes, so silence alone never moves a stop. What moves it is evidence: at 05:22 Nimal reported that the road to Borella is flooded (~90 min detour), then lost signal. The dialog puts the two choices side by side — stay on VEH014 and arrive 07:41, after OUT032’s 07:30 close, or send the reserve van and arrive 06:30 — with the extra 20 km and fuel it costs. It recommends moving only when staying is late and the other vehicle is genuinely earlier; otherwise it recommends keeping the stop. It prompts a call or SMS first, and explains that if the driver’s delivery syncs before the van leaves, the re-pick is cancelled and no trip is wasted."
+    },
+    {
+      "id": "D7-live",
+      "board": "dispatcher",
+      "title": "Live operations — driver back online",
+      "url": "/dispatcher/live?demo=synced",
+      "w": 1440,
+      "h": 900,
+      "rationale": "Once vehicles leave the depot, the dispatcher today has no shared view. Live operations shows every vehicle’s next stop, arrival time and late risk (a model estimate slot for the Datathon), and flags vehicles that have gone quiet. The “Back online” card closes the loop on offline work: who was offline, for how long, what synced, whether any offline delivery collided with a dispatcher change — and whether the driver has actually seen the route change."
+    },
+    {
+      "id": "D8-breakdown",
+      "board": "dispatcher",
+      "title": "Breakdown recovery",
+      "url": "/dispatcher/issues/breakdown?demo=breakdown",
+      "w": 1440,
+      "h": 900,
+      "rationale": "When a truck stops with chilled goods on board, minutes matter. The incident screen lists the affected stops, then proposes a recovery using the reserve reefer first, with the checks it passes and the delay each store will see. Stops no vehicle can reach in time are recommended for deferral with the reason ready. One button applies the plan and notifies the drivers, loader and stores involved."
+    },
+    {
+      "id": "D9-forecast",
+      "board": "dispatcher",
+      "title": "Capacity forecast",
+      "url": "/dispatcher/capacity?demo=forecast",
+      "w": 1440,
+      "h": 900,
+      "rationale": "Waypoint can’t see paydays and festivals coming. This screen shows ten weeks of order volume per depot, split into chilled and ambient, against the weekly refrigerated capacity of the usable reefers. Weeks where chilled demand exceeds capacity are called out with concrete options. The numbers are the Datathon Task 2A outputs (total and chilled m³ per depot × brand × ISO week) and are clearly marked as model estimates."
+    },
+    {
+      "id": "L1-today",
+      "board": "loader",
+      "title": "Loading bay today",
+      "url": "/loader?demo=loading",
+      "w": 390,
+      "h": 844,
+      "rationale": "Printed loading lists go stale as soon as the plan changes. Kamal’s home screen is the live list of trips for his depot, ordered by departure, with the one that needs attention first. Three numbers tell him how the shift is going. A trip whose plan changed after loading jumps to the top with an orange badge, so a change can’t be missed on a shared tablet."
+    },
+    {
+      "id": "L2-load",
+      "board": "loader",
+      "title": "Load in stop order",
+      "url": "/loader/load/TRP-014-1?demo=loading",
+      "w": 390,
+      "h": 844,
+      "rationale": "The loader needs the stop sequence so the first delivery comes off first. The sequence is shown reversed — “load first” at the top, “unload first” at the bottom — and on a phone the stop being counted comes first. Large plus and minus buttons and an “All” shortcut make counting fast with gloves on. A stop is only confirmed when every item is counted or a shortfall is reported, so nothing leaves half-checked."
+    },
+    {
+      "id": "L3-shortfall",
+      "board": "loader",
+      "title": "Shortfall before departure",
+      "url": "/loader/load/TRP-014-1?demo=shortfall&modal=shortfall",
+      "w": 390,
+      "h": 844,
+      "rationale": "The brief asks for a way to flag missing or damaged items before the vehicle leaves. Expected, available and shortfall are shown as three big numbers, the reason is one tap, and a photo is optional. The dispatcher decides (continue, modify, replace stock or defer), the store is told what will be missing, and the loader sees the decision on the same stop. It works offline and says so on the button."
+    },
+    {
+      "id": "L4-plan-changed",
+      "board": "loader",
+      "title": "Plan changed after loading started",
+      "url": "/loader/load/TRP-014-1?demo=plan-changed",
+      "w": 390,
+      "h": 1500,
+      "degradation": true,
+      "rationale": "Second degradation screen. When the dispatcher changes a trip that is already being loaded, the loader sees exactly what comes off (with its items and where it goes) and what goes on (and where to place it in the load order). Each line is ticked when it is physically done, and only then can the new load be confirmed. The driver can’t start the route until this is confirmed, so a truck never leaves with the wrong goods."
+    },
+    {
+      "id": "L5-repick",
+      "board": "loader",
+      "title": "Re-pick for the rescue van",
+      "url": "/loader/load/TRP-031-M1?demo=conflict",
+      "w": 390,
+      "h": 844,
+      "rationale": "When the dispatcher moves a stop off a truck that is already on the road, the goods have to be picked again. That arrives on the loader’s tablet as a normal one-stop trip for the reserve van, with its departure time — the same screen, the same counting, no special procedure to learn."
+    },
+    {
+      "id": "R1-ready",
+      "board": "driver",
+      "title": "Ready to leave (04:25, night theme)",
+      "url": "/driver?demo=ready",
+      "w": 390,
+      "h": 844,
+      "rationale": "Fresh runs leave around 03:30–04:40, so the driver app is dark by default. The first screen answers three questions: which trip, when do I leave, when will I finish. Start route unlocks only when the loader has confirmed every stop. The offline readiness card shows that the route, outlet access rules and proof capture are on the phone and how many updates are waiting — trust that the app will keep working without signal."
+    },
+    {
+      "id": "R2-route",
+      "board": "driver",
+      "title": "Route and next stop",
+      "url": "/driver/route?demo=in-route",
+      "w": 390,
+      "h": 844,
+      "rationale": "Designed for a quick glance when safely stopped. The next stop is the biggest thing on screen with its arrival time, delivery window and expected time at the stop; mall access windows and van-only streets are called out before the driver gets there. Late risk and service time are the Datathon Task 1 predictions, marked as model estimates. Below: every stop in order and a simple offline map."
+    },
+    {
+      "id": "R3-proof",
+      "board": "driver",
+      "title": "Proof of delivery",
+      "url": "/driver/stop/next?demo=at-stop&modal=proof",
+      "w": 390,
+      "h": 1500,
+      "rationale": "So disputes don’t depend on memory. The outcome is one large choice (delivered, partial, refused, closed, no access), items are confirmed or counted for a partial delivery, and a receiver name plus a photo or signature is required. The whole record is saved on the phone first and sent when signal allows; the store then sees the same record and confirms receipt."
+    },
+    {
+      "id": "R4-issue",
+      "board": "driver",
+      "title": "Report a vehicle issue",
+      "url": "/driver/issues?demo=in-route",
+      "w": 390,
+      "h": 844,
+      "rationale": "A breakdown or refrigeration failure is reported in two taps, with a confirmation step that shows what is at stake (remaining stops, chilled goods on board); the dispatcher gets a critical alert with a ready-made recovery plan. “Road blocked / long delay” is different: the vehicle still works, so the driver only says which stop will be late and roughly by how much, and keeps driving. That report is the evidence the dispatcher needs before moving a stop — without it, a driver who simply loses signal is assumed to be on plan."
+    },
+    {
+      "id": "R5-offline",
+      "board": "driver",
+      "title": "Working offline",
+      "url": "/driver/route?demo=offline",
+      "w": 390,
+      "h": 844,
+      "degradation": true,
+      "rationale": "Coverage drops in hill country, the Kandy corridor and rural districts. When it does, a persistent strip says the driver is offline and that work is being saved on the phone, and the sync count grows with each record. Nothing is blocked: arrivals, deliveries, photos and signatures all work, and replay automatically in order when signal returns."
+    },
+    {
+      "id": "R6-reconcile",
+      "board": "driver",
+      "title": "Back online — your route changed",
+      "url": "/driver/reconcile?demo=conflict",
+      "w": 390,
+      "h": 1500,
+      "degradation": true,
+      "rationale": "Hero degradation screen. After 56 minutes without signal the phone syncs and finds the dispatcher moved OUT032 — the stop behind the flooded road Nimal reported — to the reserve van. The screen leads with reassurance (everything recorded is saved), then says what was kept, what was taken off the route, where it went and why, what to do with the goods still on board, and what the route is now, with live arrival times. The driver must confirm before continuing, and the dispatcher sees that confirmation."
+    },
+    {
+      "id": "R7-collided",
+      "board": "driver",
+      "title": "Delivered before the change arrived",
+      "url": "/driver/reconcile?demo=conflict-collided",
+      "w": 390,
+      "h": 1500,
+      "degradation": true,
+      "rationale": "The case the design has to get right: the road reopened, Nimal went straight to Borella and delivered OUT032 offline — after the dispatcher had moved it, but before the change could reach his phone. The goods are already at the store, so his delivery record wins. Because his phone synced at 06:00, before the van’s 06:05 departure, the re-pick is cancelled and the van never leaves: no duplicate delivery, no lost proof and no wasted fuel. Had the van already left, it is called back at once and the dispatcher sees the cost."
+    },
+    {
+      "id": "R8-waiting-loader",
+      "board": "driver",
+      "title": "Waiting for the loader to re-check",
+      "url": "/driver?demo=change-pending",
+      "w": 390,
+      "h": 844,
+      "degradation": true,
+      "rationale": "The driver’s side of the second degradation scenario. If the plan changed during loading, the driver sees why they can’t leave yet and when the change was made; Start route stays locked until the loader confirms the new load."
+    },
+    {
+      "id": "R9-sinhala",
+      "board": "driver",
+      "title": "Same screen in Sinhala",
+      "url": "/driver/reconcile?demo=conflict&lang=si",
+      "w": 390,
+      "h": 1500,
+      "rationale": "Driver and loader screens switch between English, Sinhala and Tamil, each label written in its own script (EN · සිං · த) so anyone can find theirs. Fonts are bundled so the scripts render with no network. Sinhala and Tamil copy is marked for native-speaker review before release."
+    },
+    {
+      "id": "S1-order",
+      "board": "store",
+      "title": "Place an order before the cutoff",
+      "url": "/store/orders/new?demo=store-ordering",
+      "w": 1440,
+      "h": 900,
+      "rationale": "Store managers order by phone today with no confirmation. Here the countdown to 16:00 is always visible, the delivery date skips non-operating days, and a Fresh basket visibly splits into a chilled delivery (refrigerated vehicle) and a dry delivery — the store understands why two vehicles may come. Submitting gives an order number immediately."
+    },
+    {
+      "id": "S2-scheduled",
+      "board": "store",
+      "title": "Delivery scheduled with an arrival time",
+      "url": "/store?demo=store-scheduled",
+      "w": 1440,
+      "h": 900,
+      "rationale": "The brief says the manager needs an expected arrival time to schedule staff. As soon as the plan is published the store sees the vehicle, a 20-minute arrival slot and the delivery window, with a simple tracking timeline that uses the same status words as every other role."
+    },
+    {
+      "id": "S3-deferred",
+      "board": "store",
+      "title": "Order moved to the next run",
+      "url": "/store?demo=store-deferred",
+      "w": 1440,
+      "h": 900,
+      "rationale": "Clear notice, not silence. The card shows the original and new delivery dates, the reason in plain words, and that the order has high priority on the next run. The manager acknowledges it, and that acknowledgement is part of the order’s history."
+    },
+    {
+      "id": "S4-receipt",
+      "board": "store",
+      "title": "Confirm receipt",
+      "url": "/store?demo=store-delivered",
+      "w": 1440,
+      "h": 900,
+      "rationale": "The driver’s delivery record becomes something the store can act on: expected units, the driver’s proof and whether it was recorded offline. The manager enters what was received and its condition; anything other than “good” opens an issue for the dispatcher automatically."
+    },
+    {
+      "id": "S5-issue",
+      "board": "store",
+      "title": "Report a delivery issue",
+      "url": "/store?demo=store-issue&modal=report-issue",
+      "w": 1440,
+      "h": 900,
+      "rationale": "Missing, damaged or wrong goods are reported in one dialog with a type, a description and a photo. The issue lands in the dispatcher’s issue centre linked to the order, its delivery record and its full history."
+    },
+    {
+      "id": "S6-phone",
+      "board": "store",
+      "title": "Store on a phone",
+      "url": "/store?demo=store-scheduled",
+      "w": 390,
+      "h": 844,
+      "rationale": "Many managers will check on a phone from the shop floor. The same screen reflows to a single column with the most time-sensitive card — the next delivery and its arrival time — first."
+    },
+    {
+      "id": "S7-changed",
+      "board": "store",
+      "title": "Delivery vehicle changed",
+      "url": "/store?demo=conflict",
+      "w": 1440,
+      "h": 900,
+      "rationale": "When the dispatcher moves a stop mid-route, the store is told at once which vehicle now brings the order, when, and why. Dilini doesn’t wait at the back door for a truck that is no longer coming; the arrival slot on her overview is already the new vehicle’s, and the order history records the change and its reason."
+    }
+  ],
+  "degradation": {
+    "hero": {
+      "name": "Offline driver, changed route",
+      "why": "Mobile coverage drops across hill country, the Kandy corridor and rural districts, so a driver going quiet is normal — the design assumes he is still on plan. The real problem is when something goes wrong while he is unreachable. Today the dispatcher either waits and the supermarket misses its morning stock, or sends another truck on a hunch and wastes fuel when the first driver had already delivered. Kairon moves a stop only on evidence (the driver’s own report), shows staying against moving with the fuel cost, cancels the rescue if the driver’s delivery syncs before it leaves, keeps every offline record, and makes the change impossible to miss when the phone reconnects.",
+      "steps": [
+        {
+          "time": "05:22",
+          "frame": "R5-offline",
+          "caption": "Nimal reports the road to Borella is flooded (~90 min), then loses signal. He keeps delivering; records are saved on the phone."
+        },
+        {
+          "time": "05:40",
+          "frame": "D6-move-stop",
+          "caption": "Geemal compares: stay = 07:41, after the 07:30 close; reserve van = 06:30 for +20 km. The app recommends moving."
+        },
+        {
+          "time": "05:45",
+          "frame": "L5-repick",
+          "caption": "Kamal re-picks OUT032’s order for VEH031, leaving 06:05."
+        },
+        {
+          "time": "05:45",
+          "frame": "S7-changed",
+          "caption": "Dilini sees the new vehicle, arrival time and reason."
+        },
+        {
+          "time": "06:20",
+          "frame": "R6-reconcile",
+          "caption": "Nimal’s phone reconnects: kept, moved, what to do, route now. He confirms."
+        },
+        {
+          "time": "06:21",
+          "frame": "D7-live",
+          "caption": "Geemal sees how long he was offline, what synced, and that he saw the change."
+        }
+      ],
+      "edge": "Edge case: if the road had reopened and Nimal delivered OUT032 offline, his phone syncs at 06:00 — before the van leaves at 06:05 — so his record wins and the re-pick is cancelled. No duplicate delivery and no wasted trip (frame R7)."
+    },
+    "second": {
+      "name": "Plan changed after loading started",
+      "why": "Plans change late — a store calls, a vehicle goes to the workshop, a chilled order needs a reefer. If the loader is working from a printed list, the truck leaves with goods for a stop it no longer serves and without goods for one it does. Kairon turns a late change into a checklist on the loader’s tablet and blocks departure until the new load is confirmed.",
+      "frames": [
+        "L4-plan-changed",
+        "R8-waiting-loader"
+      ]
+    },
+    "third": {
+      "name": "Breakdown recovery",
+      "why": "A truck stopping with chilled goods before 08:00 costs the morning’s sales at several outlets. The two reefers kept in reserve exist for exactly this moment.",
+      "frames": [
+        "D8-breakdown"
+      ]
+    }
+  }
+}

@@ -1,3 +1,4 @@
+import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
@@ -37,31 +38,31 @@ export default defineConfig({
       },
       workbox: {
         // The whole app shell is precached, so every screen opens without a network.
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
+        // Fonts are bundled (no CDN), so even the first offline launch renders Latin, Sinhala and Tamil.
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest,woff2}'],
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//],
         cleanupOutdatedCaches: true,
+        // Map tiles the driver has already seen stay available without signal.
         runtimeCaching: [
           {
-            // Map tiles the driver has already seen stay available without signal.
             urlPattern: ({ url }) => url.host === 'tile.openstreetmap.org',
             handler: 'CacheFirst',
             options: { cacheName: 'osm-tiles', expiration: { maxEntries: 600, maxAgeSeconds: 60 * 60 * 24 * 14 }, cacheableResponse: { statuses: [0, 200] } },
-          },
-          {
-            urlPattern: ({ url }) => url.origin === 'https://fonts.googleapis.com',
-            handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'google-fonts-css' },
-          },
-          {
-            urlPattern: ({ url }) => url.origin === 'https://fonts.gstatic.com',
-            handler: 'CacheFirst',
-            options: { cacheName: 'google-fonts', expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 }, cacheableResponse: { statuses: [0, 200] } },
           },
         ],
       },
       devOptions: { enabled: false },
     }),
   ],
+  // The shared domain core (rules, planner, commands) lives next to the app and is used as source.
+  resolve: { alias: { '@core': path.resolve(import.meta.dirname, '../core/src') } },
+  server: {
+    fs: { allow: ['..'] },
+    // In development, /api goes to a locally running server (cd server && npm run dev).
+    proxy: { '/api': { target: process.env.API_PROXY ?? 'http://localhost:8080', changeOrigin: true } },
+  },
   // One bundle on purpose: after a single visit the whole app is cached for offline use.
-  build: { chunkSizeWarningLimit: 800 },
+  build: { chunkSizeWarningLimit: 1400 },
 })

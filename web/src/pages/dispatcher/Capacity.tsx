@@ -1,154 +1,184 @@
 import { Snowflake, Table2, TrendingUp } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { Callout, Card, CardHeader, cn, PageHeader, Segmented, Stat } from '../../components/ui'
-import { isReefer } from '../../domain/seed'
+import { opNow } from '@core/ops'
+import { demandForecast, weeklyReeferCapacity } from '@core/predict'
+import { colomboDate } from '@core/time'
+import type { Brand, Depot } from '@core/types'
+import { BrandTag, Callout, Card, CardHeader, cn, ModelChip, PageHeader, Segmented, Stat } from '../../components/ui'
 import { useOps } from '../../store'
-import { forecastFresh } from './forecast'
+
+const BRANDS: Brand[] = ['Fresh', 'Style', 'Tech']
 
 export function Capacity() {
   const d = useOps((s) => s.data)
-  const data = useMemo(() => forecastFresh(d), [d])
-  // One morning trip per reefer per day, six operating days.
-  const reeferWeekly = useMemo(() => d.vehicles.filter((v) => isReefer(v.type) && v.depot === 'Peliyagoda' && v.status === 'AVAILABLE').reduce((s, v) => s + v.capacityM3 * 0.85, 0) * 6, [d])
+  const [depot, setDepot] = useState<Depot>('Peliyagoda')
   const [view, setView] = useState<'chart' | 'table'>('chart')
   const [hover, setHover] = useState<number | null>(null)
-  const max = Math.max(...data.map((w) => w.chilled + w.ambient), reeferWeekly) * 1.1
-  const short = data.filter((w) => w.chilled > reeferWeekly)
-  const ticks = niceTicks(max)
+  const rows = useMemo(() => demandForecast(d, colomboDate(opNow(d))), [d])
+  const reefer = useMemo(() => weeklyReeferCapacity(d, depot), [d, depot])
+  const weeks = useMemo(() => {
+    const keys = [...new Set(rows.map((r) => `${r.iso_year}-${r.iso_week}`))]
+    return keys.map((k) => {
+      const [y, w] = k.split('-').map(Number)
+      const mine = rows.filter((r) => r.depot === depot && r.iso_year === y && r.iso_week === w)
+      return {
+        key: k,
+        week: w,
+        year: y,
+        total: Math.round(mine.reduce((s, r) => s + r.pred_total_volume_m3, 0)),
+        chilled: Math.round(mine.reduce((s, r) => s + r.pred_chilled_volume_m3, 0)),
+        byBrand: Object.fromEntries(BRANDS.map((b) => [b, mine.find((r) => r.brand === b)])) as Record<Brand, (typeof rows)[number] | undefined>,
+        note: mine.find((r) => r.note)?.note,
+      }
+    })
+  }, [rows, depot])
+  const source = rows.some((r) => r.source === 'model') ? 'model' : 'placeholder'
+  const short = weeks.filter((w) => w.chilled > reefer)
+  const peak = weeks.reduce((a, b) => (b.total > a.total ? b : a), weeks[0])
 
+  // SVG chart geometry
+  const W = 720
   const H = 260
-  const y = (v: number) => H - (v / ticks[ticks.length - 1]) * H
+  const pad = { l: 44, r: 12, t: 12, b: 28 }
+  const max = Math.max(...weeks.map((w) => w.total), reefer) * 1.1
+  const step = niceStep(max)
+  const top = Math.ceil(max / step) * step
+  const y = (v: number) => pad.t + (1 - v / top) * (H - pad.t - pad.b)
+  const bw = (W - pad.l - pad.r) / weeks.length
 
   return (
     <>
-      <PageHeader eyebrow="Planning" title="Capacity forecast" subtitle="Fresh volume at Peliyagoda for the next ten weeks, split by temperature." />
+      <PageHeader
+        eyebrow="Planning ahead"
+        title="Capacity forecast"
+        subtitle="Weekly order volume per depot and brand for the next ten weeks — to plan vehicles, drivers and refrigerated capacity ahead of paydays and festivals."
+        actions={
+          <Segmented
+            value={depot}
+            onChange={setDepot}
+            options={[
+              { value: 'Peliyagoda', label: 'Peliyagoda' },
+              { value: 'Kandy', label: 'Kandy' },
+            ]}
+          />
+        }
+      />
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Next week" value={`${data[0].chilled + data[0].ambient} m³`} sub="Fresh total" />
-        <Stat label="Peak week" value={`W${data.reduce((a, b) => (b.chilled + b.ambient > a.chilled + a.ambient ? b : a)).week}`} sub="highest demand" tone="brand" icon={<TrendingUp className="size-4" />} />
-        <Stat label="Reefer capacity" value={`${Math.round(reeferWeekly)} m³`} sub="per week, available fleet" tone="info" icon={<Snowflake className="size-4" />} />
+        <Stat label="Next week" value={`${weeks[0]?.total ?? 0} m³`} sub={`${weeks[0]?.chilled ?? 0} m³ chilled`} />
+        <Stat label="Peak week" value={`W${peak?.week}`} sub={`${peak?.total} m³${peak?.note ? ` · ${peak.note}` : ''}`} tone="brand" icon={<TrendingUp className="size-4" />} />
+        <Stat label="Reefer capacity" value={`${reefer} m³`} sub="per week · usable reefers × 1.5 trips × 6 days" tone="info" icon={<Snowflake className="size-4" />} />
         <Stat label="Weeks short on reefer" value={short.length} sub={short.length ? short.map((w) => `W${w.week}`).join(', ') : 'none'} tone={short.length ? 'attention' : 'success'} />
       </div>
       {short.length > 0 && (
-        <Callout tone="warning" title={`Chilled demand exceeds reefer capacity in ${short.length} week${short.length > 1 ? 's' : ''}`} className="mb-6">
-          Plan rental reefers or shift ambient Fresh items to dry trucks for W{short.map((w) => w.week).join(', W')}.
+        <Callout tone="attention" title={`Chilled demand exceeds ${depot} reefer capacity in ${short.length} week${short.length > 1 ? 's' : ''}`} className="mb-6">
+          Book rental reefers, release the recovery reserve for those weeks, or move chilled deliveries to second Fresh trips for W{short.map((w) => w.week).join(', W')}.
         </Callout>
       )}
       <Card>
         <CardHeader
-          eyebrow="Next 10 weeks"
-          title="Fresh volume by temperature (m³)"
+          eyebrow={
+            <span className="inline-flex items-center gap-2">
+              Next 10 weeks · {depot} <ModelChip source={source} />
+            </span>
+          }
+          title="Total and chilled volume (m³)"
           action={<Segmented size="sm" value={view} onChange={setView} options={[{ value: 'chart', label: 'Chart' }, { value: 'table', label: <span className="inline-flex items-center gap-1"><Table2 className="size-3.5" /> Table</span> }]} />}
         />
         {view === 'chart' ? (
           <div className="p-5">
-            <div className="mb-4 flex flex-wrap gap-4 text-xs text-muted">
-              <Legend color="var(--series-chilled)" label="Chilled" />
-              <Legend color="var(--series-ambient)" label="Ambient" />
+            <div className="mb-3 flex flex-wrap gap-4 text-xs text-muted">
+              <Legend color="var(--series-ambient)" label="Ambient (total − chilled)" />
+              <Legend color="var(--series-chilled)" label="Chilled" icon />
               <span className="inline-flex items-center gap-2">
-                <span className="h-0 w-5 border-t-2 border-ink" /> Reefer capacity
+                <span className="h-0 w-5 border-t-2 border-dashed border-ink" /> Reefer capacity
               </span>
             </div>
-            <div className="relative flex gap-3">
-              <div className="relative w-10 shrink-0 text-right text-[11px] tabular-nums text-muted" style={{ height: H }}>
-                {ticks.map((t) => (
-                  <span key={t} className="absolute right-0 -translate-y-1/2" style={{ top: y(t) }}>
-                    {t.toLocaleString()}
-                  </span>
-                ))}
-              </div>
-              <div className="relative flex-1" style={{ height: H }} onMouseLeave={() => setHover(null)}>
-                {ticks.map((t) => (
-                  <div key={t} className="absolute inset-x-0 border-t border-line" style={{ top: y(t) }} />
-                ))}
-                <div className="absolute inset-x-0 z-10 border-t-2 border-ink" style={{ top: y(reeferWeekly) }}>
-                  <span className="absolute -top-5 right-0 rounded bg-surface px-1 text-[11px] font-semibold">Reefer capacity {Math.round(reeferWeekly)}</span>
-                </div>
-                <div className="absolute inset-0 flex items-end">
-                  {data.map((w, i) => {
-                    const hC = (w.chilled / ticks[ticks.length - 1]) * H
-                    const hA = (w.ambient / ticks[ticks.length - 1]) * H
-                    return (
-                      <div key={w.week} className="relative flex h-full flex-1 flex-col items-center justify-end" onMouseEnter={() => setHover(i)} onFocus={() => setHover(i)} tabIndex={0} aria-label={`Week ${w.week}: chilled ${w.chilled} m³, ambient ${w.ambient} m³`}>
-                        <div className={cn('flex w-full max-w-6 flex-col transition-opacity', hover !== null && hover !== i && 'opacity-45')}>
-                          <div className="rounded-t-[4px]" style={{ height: hA, background: 'var(--series-ambient)' }} />
-                          <div className="border-t-2 border-surface" style={{ height: hC, background: 'var(--series-chilled)' }} />
-                        </div>
-                        {hover === i && (
-                          <div className={cn('pointer-events-none absolute z-20 w-44 rounded-lg border border-line bg-surface p-3 text-xs shadow-pop', i > data.length - 3 ? 'right-1/2' : 'left-1/2')} style={{ bottom: hA + hC + 12 }}>
-                            <div className="mb-1.5 font-semibold">Week {w.week}{w.note ? ` · ${w.note}` : ''}</div>
-                            <Row color="var(--series-chilled)" label="Chilled" v={w.chilled} />
-                            <Row color="var(--series-ambient)" label="Ambient" v={w.ambient} />
-                            <div className="mt-1 flex justify-between border-t border-line pt-1 font-semibold">
-                              <span>Total</span>
-                              <span className="tabular-nums">{w.chilled + w.ambient} m³</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-            <div className="ml-[52px] mt-2 flex">
-              {data.map((w) => (
-                <div key={w.week} className="flex-1 text-center text-[11px] text-muted">
-                  W{w.week}
-                  {w.note && <span className="mx-auto mt-0.5 block size-1 rounded-full bg-muted" title={w.note} />}
-                </div>
+            <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={`Weekly forecast for ${depot}`} onMouseLeave={() => setHover(null)}>
+              {Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step).map((v) => (
+                <g key={v}>
+                  <line x1={pad.l} x2={W - pad.r} y1={y(v)} y2={y(v)} stroke="var(--line)" />
+                  <text x={pad.l - 6} y={y(v) + 4} textAnchor="end" fontSize="11" fill="var(--muted)">
+                    {v}
+                  </text>
+                </g>
               ))}
-            </div>
+              {weeks.map((w, i) => {
+                const x = pad.l + i * bw + bw * 0.22
+                const width = bw * 0.56
+                return (
+                  <g key={w.key} onMouseEnter={() => setHover(i)} opacity={hover !== null && hover !== i ? 0.45 : 1}>
+                    <rect x={x} y={y(w.total)} width={width} height={y(w.chilled) - y(w.total)} rx="3" fill="var(--series-ambient)" />
+                    <rect x={x} y={y(w.chilled)} width={width} height={y(0) - y(w.chilled)} fill="var(--series-chilled)" />
+                    <text x={x + width / 2} y={H - 10} textAnchor="middle" fontSize="11" fill="var(--muted)">
+                      W{w.week}
+                    </text>
+                    {w.note && <circle cx={x + width / 2} cy={H - 2} r="2" fill="var(--attention)" />}
+                    {hover === i && (
+                      <text x={x + width / 2} y={y(w.total) - 6} textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--ink)">
+                        {w.total} · {w.chilled} chilled
+                      </text>
+                    )}
+                  </g>
+                )
+              })}
+              <line x1={pad.l} x2={W - pad.r} y1={y(reefer)} y2={y(reefer)} stroke="var(--ink)" strokeWidth="1.5" strokeDasharray="5 4" />
+              <text x={W - pad.r} y={y(reefer) - 5} textAnchor="end" fontSize="11" fontWeight="600" fill="var(--ink)">
+                Reefer capacity {reefer}
+              </text>
+            </svg>
+            <p className="mt-2 text-xs text-muted">Dots mark festival or payday weeks. Values are pred_total_volume_m3 and pred_chilled_volume_m3 (Datathon Task 2A); placeholder estimates until the team’s model is loaded.</p>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-surface-2 text-left text-xs text-muted">
-              <tr>
-                {['Week', 'Chilled m³', 'Ambient m³', 'Total m³', 'Note'].map((h) => (
-                  <th key={h} className="px-5 py-2.5 font-semibold">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line tabular-nums">
-              {data.map((w) => (
-                <tr key={w.week}>
-                  <td className="px-5 py-2.5 font-semibold">W{w.week}</td>
-                  <td className={cn('px-5 py-2.5', w.chilled > reeferWeekly && 'font-semibold text-attention-ink')}>{w.chilled}</td>
-                  <td className="px-5 py-2.5">{w.ambient}</td>
-                  <td className="px-5 py-2.5">{w.chilled + w.ambient}</td>
-                  <td className="px-5 py-2.5 text-muted">{w.note ?? ''}</td>
+          <div className="scroll-thin overflow-x-auto">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead className="bg-surface-2 text-left text-xs text-muted">
+                <tr>
+                  <th className="px-4 py-2.5 font-semibold">ISO week</th>
+                  {BRANDS.map((b) => (
+                    <th key={b} className="px-4 py-2.5 font-semibold">
+                      <BrandTag brand={b} /> total · chilled
+                    </th>
+                  ))}
+                  <th className="px-4 py-2.5 font-semibold">Depot total</th>
+                  <th className="px-4 py-2.5 font-semibold">Note</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-line tabular-nums">
+                {weeks.map((w) => (
+                  <tr key={w.key}>
+                    <td className="px-4 py-2.5 font-semibold">
+                      {w.year}-W{w.week}
+                    </td>
+                    {BRANDS.map((b) => (
+                      <td key={b} className="px-4 py-2.5">
+                        {w.byBrand[b]?.pred_total_volume_m3 ?? '—'} <span className="text-muted">· {w.byBrand[b]?.pred_chilled_volume_m3 ?? 0}</span>
+                      </td>
+                    ))}
+                    <td className={cn('px-4 py-2.5 font-semibold', w.chilled > reefer && 'text-attention-ink')}>
+                      {w.total} <span className="font-normal text-muted">· {w.chilled} chilled</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-muted">{w.note ?? ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
     </>
   )
 }
 
-function niceTicks(max: number) {
-  const step = Math.pow(10, Math.floor(Math.log10(max / 4)))
-  const nice = [1, 2, 2.5, 5, 10].map((m) => m * step).find((s) => max / s <= 5)!
-  const out = []
-  for (let v = 0; v <= max + nice * 0.001 || out.length < 2; v += nice) out.push(Math.round(v))
-  if (out[out.length - 1] < max) out.push(out[out.length - 1] + Math.round(nice))
-  return out
+function niceStep(max: number) {
+  const raw = max / 5
+  const pow = Math.pow(10, Math.floor(Math.log10(raw)))
+  return [1, 2, 2.5, 5, 10].map((m) => m * pow).find((s) => s >= raw)!
 }
 
-const Legend = ({ color, label }: { color: string; label: string }) => (
+const Legend = ({ color, label, icon }: { color: string; label: string; icon?: boolean }) => (
   <span className="inline-flex items-center gap-2">
     <span className="size-2.5 rounded-sm" style={{ background: color }} />
+    {icon && <Snowflake className="size-3 text-info" />}
     {label}
   </span>
-)
-const Row = ({ color, label, v }: { color: string; label: string; v: number }) => (
-  <div className="flex items-center justify-between gap-3">
-    <span className="inline-flex items-center gap-1.5">
-      <span className="size-2 rounded-sm" style={{ background: color }} />
-      {label}
-    </span>
-    <span className="tabular-nums">{v} m³</span>
-  </div>
 )

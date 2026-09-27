@@ -4,13 +4,15 @@
 
 /*
  * Kairon design tokens.
- * Palette: Stormy Teal #106C6C (primary) · Chocolate #D66D32 (attention)
- *          Cool Steel #85979A (neutral) · Platinum #E5E7EB (surfaces) · Ocean Blue #0284C7 (info)
- * Red is reserved for CRITICAL; green for success.
+ * Palette (team decision): Stormy Teal #106C6C = primary and "done" · Chocolate #D66D32 = needs attention, deferred, at risk
+ *   · Ocean Blue #0284C7 = info, in transit, chilled (always with a snowflake) · Cool Steel #85979A = borders, icons, secondary
+ *   · Platinum #E5E7EB = surfaces · a muted brick for failed / late / over capacity.
+ * Brands are shown with an icon and name, never a colour.
+ * Contrast: chocolate, ocean and steel fail WCAG AA for small text on white, so text uses the darker *-ink shades,
+ * and any solid fill that carries white text uses a *-fill shade (≥ 4.5:1 with white, in both themes).
  */
 :root {
   color-scheme: light;
-  /* Platinum page, white cards: surfaces separate clearly */
   --bg: #e5e7eb;
   --surface: #ffffff;
   --surface-2: #eef0f2;
@@ -19,41 +21,42 @@
   --line-strong: #a9b3b6;
   --ink: #0a1315;
   --muted: #3f4f52;
-  --faint: #66777a;
+  --faint: #5a6b6e;
+  --steel: #85979a;
 
   --brand: #106c6c;
   --brand-hover: #0b5555;
+  --brand-fill: #106c6c;
   --brand-soft: #d4e8e8;
   --brand-ink: #0a4f4f;
   --on-brand: #ffffff;
 
   --attention: #d66d32;
+  --attention-fill: #b4541f;
   --attention-soft: #f8e1d3;
   --attention-ink: #8f3d11;
 
-  --warning: #d49a12;
-  --warning-soft: #fcf3dc;
-  --warning-ink: #8a6200;
-
   --info: #0284c7;
+  --info-fill: #0369a1;
   --info-soft: #d7ecf8;
   --info-ink: #025b8a;
 
-  --critical: #d92d2d;
-  --critical-soft: #fde8e8;
-  --critical-ink: #b01e1e;
+  --critical: #a63a2c;
+  --critical-fill: #a63a2c;
+  --critical-soft: #f6e2de;
+  --critical-ink: #8a2e22;
 
-  --success: #1f8a4c;
-  --success-soft: #e3f4ea;
-  --success-ink: #176b3a;
+  /* "Done" is teal, "warning" is chocolate: the palette has no separate green or yellow. */
+  --success: var(--brand);
+  --success-soft: var(--brand-soft);
+  --success-ink: var(--brand-ink);
+  --warning: var(--attention);
+  --warning-soft: var(--attention-soft);
+  --warning-ink: var(--attention-ink);
 
-  /* Chart series (validated for CVD + contrast against light surface) */
-  --series-chilled: #2b6fd6;
-  --series-ambient: #1a9a8a;
-  /* Brand categories on maps (validated for CVD + contrast) */
-  --cat-fresh: #1a9a8a;
-  --cat-style: #2b6fd6;
-  --cat-tech: #d66d32;
+  --series-chilled: #0284c7;
+  --series-ambient: #85979a;
+  --series-total: #106c6c;
 
   --shadow: 0 1px 2px rgb(10 19 21 / 0.08), 0 6px 20px rgb(10 19 21 / 0.07);
   --shadow-lg: 0 12px 40px rgb(15 27 29 / 0.16);
@@ -70,38 +73,33 @@
   --ink: #f1f3f5;
   --muted: #b2c0c2;
   --faint: #8a9c9f;
+  --steel: #8fa3a6;
 
   --brand: #2aa3a3;
-  --brand-hover: #35b5b5;
+  --brand-hover: #0f6969;
+  --brand-fill: #137a7a;
   --brand-soft: rgb(42 163 163 / 0.2);
   --brand-ink: #7fd8d8;
   --on-brand: #ffffff;
 
   --attention: #e57f45;
+  --attention-fill: #b4541f;
   --attention-soft: rgb(229 127 69 / 0.15);
   --attention-ink: #f2a275;
 
-  --warning: #e3ae2c;
-  --warning-soft: rgb(227 174 44 / 0.14);
-  --warning-ink: #f0c867;
-
-  --info: #2ea4e0;
-  --info-soft: rgb(46 164 224 / 0.15);
+  --info: #38a3dc;
+  --info-fill: #0369a1;
+  --info-soft: rgb(56 163 220 / 0.15);
   --info-ink: #7cc6ee;
 
-  --critical: #f05252;
-  --critical-soft: rgb(240 82 82 / 0.15);
-  --critical-ink: #f89494;
+  --critical: #d9695a;
+  --critical-fill: #a63a2c;
+  --critical-soft: rgb(217 105 90 / 0.15);
+  --critical-ink: #f0a095;
 
-  --success: #34c27a;
-  --success-soft: rgb(52 194 122 / 0.14);
-  --success-ink: #7bdaa8;
-
-  --series-chilled: #4c8bea;
-  --series-ambient: #1fa08e;
-  --cat-fresh: #1fa08e;
-  --cat-style: #4c8bea;
-  --cat-tech: #d66d32;
+  --series-chilled: #38a3dc;
+  --series-ambient: #8fa3a6;
+  --series-total: #2aa3a3;
 
   --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.25);
   --shadow-lg: 0 12px 40px rgb(0 0 0 / 0.5);
@@ -117,23 +115,28 @@
   --color-ink: var(--ink);
   --color-muted: var(--muted);
   --color-faint: var(--faint);
+  --color-steel: var(--steel);
 
   --color-brand: var(--brand);
   --color-brand-hover: var(--brand-hover);
+  --color-brand-fill: var(--brand-fill);
   --color-brand-soft: var(--brand-soft);
   --color-brand-ink: var(--brand-ink);
   --color-on-brand: var(--on-brand);
 
   --color-attention: var(--attention);
+  --color-attention-fill: var(--attention-fill);
   --color-attention-soft: var(--attention-soft);
   --color-attention-ink: var(--attention-ink);
   --color-warning: var(--warning);
   --color-warning-soft: var(--warning-soft);
   --color-warning-ink: var(--warning-ink);
   --color-info: var(--info);
+  --color-info-fill: var(--info-fill);
   --color-info-soft: var(--info-soft);
   --color-info-ink: var(--info-ink);
   --color-critical: var(--critical);
+  --color-critical-fill: var(--critical-fill);
   --color-critical-soft: var(--critical-soft);
   --color-critical-ink: var(--critical-ink);
   --color-success: var(--success);
@@ -143,12 +146,11 @@
   /* Fixed palette swatches, for brand moments that must not shift with theme */
   --color-teal: #106c6c;
   --color-chocolate: #d66d32;
-  --color-steel: #85979a;
   --color-platinum: #e5e7eb;
   --color-ocean: #0284c7;
 
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-display: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Inter', 'Noto Sans Sinhala', 'Noto Sans Tamil', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Space Grotesk', 'Noto Sans Sinhala', 'Noto Sans Tamil', 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
 
   --shadow-card: var(--shadow);
@@ -545,10 +547,19 @@ img.splash-tile {
   transform-origin: center;
 }
 
-/* A condensed display face gives the landing-page name its own identity. */
+/* The landing-page name uses the display face at its heaviest weight (every font here is available in Figma). */
 .landing-wordmark {
-  font-family: 'Barlow Condensed', 'Arial Narrow', Impact, sans-serif;
-  font-weight: 800;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* Sinhala and Tamil need a little more line height than Latin. */
+:lang(si),
+:lang(ta) {
+  line-height: 1.6;
+  /* Long Tamil and Sinhala words must wrap on a 390 px phone instead of widening the page. */
+  overflow-wrap: anywhere;
 }
 
 /* ---------- Maps (Leaflet + OpenStreetMap, recoloured to the Kairon palette) ---------- */
@@ -594,8 +605,9 @@ img.splash-tile {
   display: none;
 }
 .kairon-map .km-depot-label {
-  background: var(--attention);
-  color: #fff;
+  /* Depots are neutral: chocolate is reserved for "needs attention". */
+  background: var(--ink);
+  color: var(--bg);
   font-weight: 700;
   font-size: 11px;
   padding: 2px 8px;
@@ -632,8 +644,9 @@ img.splash-tile {
   width: 34px;
   height: 34px;
   border-radius: 10px;
-  background: var(--attention);
-  border: 2px solid #fff;
+  background: var(--ink);
+  color: var(--bg);
+  border: 2px solid var(--surface);
   box-shadow: 0 3px 10px rgb(0 0 0 / 0.3);
 }
 .km-vehicle {
@@ -692,8 +705,9 @@ img.splash-tile {
   }
 }
 
-/* Outlet markers: colour AND shape per brand */
+/* Outlet markers: brand is shown by shape (and name in tooltips), never colour — colour is kept for status. */
 .km-outlet {
+  --c: var(--ink);
   display: inline-block;
   width: var(--s, 13px);
   height: var(--s, 13px);
@@ -702,15 +716,6 @@ img.splash-tile {
   border: 2px solid var(--surface);
   box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
   transition: transform 0.15s;
-}
-.km-fresh {
-  --c: var(--cat-fresh);
-}
-.km-style {
-  --c: var(--cat-style);
-}
-.km-tech {
-  --c: var(--cat-tech);
 }
 .km-shape-circle {
   border-radius: 999px;
@@ -723,7 +728,8 @@ img.splash-tile {
   transform: rotate(45deg) scale(0.9);
 }
 .km-o-selected {
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 35%, transparent), 0 2px 8px rgb(0 0 0 / 0.4);
+  --c: var(--brand);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 35%, transparent), 0 2px 8px rgb(0 0 0 / 0.4);
 }
 .km-o-flagged {
   box-shadow: 0 0 0 3px var(--attention), 0 2px 6px rgb(0 0 0 / 0.35);

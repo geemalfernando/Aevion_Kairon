@@ -1,5 +1,5 @@
-import { DISTRICTS } from './seed'
-import type { Depot, District, Outlet } from './types'
+import { districtPosition } from '@core/reference'
+import type { Depot, Outlet } from '@core/types'
 
 export type LatLng = [number, number]
 
@@ -10,15 +10,21 @@ export const DEPOT_GEO: Record<Depot, LatLng> = {
 }
 
 /** District centres, nudged inland on the coast so outlets never land in the sea. */
-const CENTRE: Record<District, LatLng> = {
+const CENTRE: Record<string, LatLng> = {
   Colombo: [6.895, 79.885],
   Gampaha: [7.06, 79.97],
   Kalutara: [6.63, 79.98],
   Galle: [6.07, 80.24],
-  Kurunegala: [7.4818, 80.3609],
+  Matara: [5.96, 80.56],
+  Puttalam: [8.03, 79.85],
+  Kegalle: [7.25, 80.35],
+  Ratnapura: [6.68, 80.4],
   Kandy: [7.2906, 80.6337],
+  Matale: [7.47, 80.62],
+  Kurunegala: [7.4818, 80.3609],
+  'Nuwara Eliya': [6.97, 80.78],
 }
-const COASTAL: District[] = ['Colombo', 'Gampaha', 'Kalutara', 'Galle']
+const COASTAL = ['Colombo', 'Gampaha', 'Kalutara', 'Galle', 'Matara', 'Puttalam']
 
 /** Known neighbourhoods for the demo story outlets. */
 const PINNED: Record<string, LatLng> = {
@@ -30,13 +36,16 @@ const PINNED: Record<string, LatLng> = {
   OUT043: [6.8511, 79.8659], // Dehiwala
 }
 
-/** Degrees per unit of the stylised network plane. */
-const SCALE = 0.0055
+/** Degrees per unit of the stylised network plane (outlets sit on a spiral a few units round each district centre). */
+const SCALE = 0.012
+
+/** Stylised plane → degrees, the inverse of the projection in core/reference (for districts without a centre). */
+const unproject = (x: number, y: number): LatLng => [8.15 - (y * 2.3) / 100, 79.6 + (x * 1.3) / 100]
 
 export function outletGeo(o: Outlet): LatLng {
   if (PINNED[o.id]) return PINNED[o.id]
-  const d = DISTRICTS[o.district]
-  const [lat, lng] = CENTRE[o.district]
+  const d = districtPosition(o.district, o.depot)
+  const [lat, lng] = CENTRE[o.district] ?? unproject(d.x, d.y)
   const dx = o.x - d.x
   const dy = o.y - d.y
   // On the west coast only spread eastwards (inland).
