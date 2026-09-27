@@ -5,6 +5,7 @@ import { customerMessageFor, DEFERRAL_LABEL, suggestVehicles, validate, vehicleL
 import { fmtMin, fmtWindow } from '@core/time'
 import type { DeferralCode, Order } from '@core/types'
 import { AuditTimeline } from '../../components/AuditTimeline'
+import { LocationMap } from '../../components/RouteMap'
 import { Badge, BrandTag, Button, CheckRow, ChoiceList, cn, Field, IconButton, ModelChip, Modal, StatusBadge, TempTag, Textarea, toast } from '../../components/ui'
 import { auditFor, outletOf, tripOf } from '../../lib/select'
 import { ops, useOps } from '../../store'
@@ -242,6 +243,7 @@ export function OrderDrawer({ order, onClose, onDefer }: { order?: Order; onClos
               ))}
             </ul>
           </div>
+          <LocationMap outlet={out} depot={out.depot} vehicle={o.status === 'IN_TRANSIT' ? trip?.vehicleId : undefined} className="h-48" />
           {o.deferral && (
             <div className="rounded-xl border border-attention/40 bg-attention-soft p-4 text-sm">
               <div className="font-semibold text-attention-ink">

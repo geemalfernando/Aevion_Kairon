@@ -57,6 +57,10 @@
   --series-chilled: #0284c7;
   --series-ambient: #85979a;
   --series-total: #106c6c;
+  /* Brand categories on the outlet map — always paired with a shape (circle, square, diamond). */
+  --cat-fresh: #1a9a8a;
+  --cat-style: #2b6fd6;
+  --cat-tech: #d66d32;
 
   --shadow: 0 1px 2px rgb(10 19 21 / 0.08), 0 6px 20px rgb(10 19 21 / 0.07);
   --shadow-lg: 0 12px 40px rgb(15 27 29 / 0.16);
@@ -100,6 +104,9 @@
   --series-chilled: #38a3dc;
   --series-ambient: #8fa3a6;
   --series-total: #2aa3a3;
+  --cat-fresh: #1fa08e;
+  --cat-style: #4c8bea;
+  --cat-tech: #d66d32;
 
   --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.25);
   --shadow-lg: 0 12px 40px rgb(0 0 0 / 0.5);
@@ -560,4 +567,212 @@ img.splash-tile {
   line-height: 1.6;
   /* Long Tamil and Sinhala words must wrap on a 390 px phone instead of widening the page. */
   overflow-wrap: anywhere;
+}
+
+/* ---------- Maps (Leaflet + OpenStreetMap, recoloured to the Kairon palette) ---------- */
+.kairon-map .leaflet-container {
+  background: var(--surface-2);
+  font-family: var(--font-sans);
+}
+/* Monochrome OSM tinted towards Stormy Teal */
+.kairon-map .leaflet-tile-pane {
+  filter: grayscale(1) sepia(0.22) hue-rotate(130deg) saturate(1.25) brightness(1.04) contrast(0.92);
+}
+[data-theme='dark'] .kairon-map .leaflet-tile-pane {
+  filter: invert(1) grayscale(1) sepia(0.5) hue-rotate(130deg) saturate(1.8) brightness(0.72) contrast(1.2);
+}
+.kairon-map .leaflet-control-zoom {
+  border: 1px solid var(--line) !important;
+  border-radius: 10px !important;
+  overflow: hidden;
+  box-shadow: var(--shadow) !important;
+}
+.kairon-map .leaflet-control-zoom a {
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+  border-bottom-color: var(--line) !important;
+}
+.kairon-map .leaflet-control-attribution {
+  background: color-mix(in srgb, var(--surface) 85%, transparent) !important;
+  color: var(--muted) !important;
+  font-size: 10px;
+}
+.kairon-map .leaflet-control-attribution a {
+  color: var(--brand-ink) !important;
+}
+.kairon-map .leaflet-tooltip {
+  background: var(--ink);
+  color: var(--bg);
+  border: 0;
+  border-radius: 8px;
+  font-size: 12px;
+  box-shadow: var(--shadow-lg);
+}
+.kairon-map .leaflet-tooltip::before {
+  display: none;
+}
+.kairon-map .km-depot-label {
+  background: var(--attention);
+  color: #fff;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 2px 8px;
+}
+.km-stop {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  font: 700 12px var(--font-mono);
+  background: var(--surface);
+  color: var(--ink);
+  border: 3px solid var(--route);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.25);
+}
+.km-done {
+  background: var(--route);
+  color: #fff;
+}
+.km-problem {
+  background: var(--attention);
+  border-color: var(--attention);
+  color: #fff;
+}
+.km-current {
+  border-color: var(--info);
+  color: var(--info-ink);
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}
+.km-depot {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--attention);
+  border: 2px solid #fff;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 0.3);
+}
+.km-vehicle {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+}
+.km-vehicle-dot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--info);
+  border: 2.5px solid #fff;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 0.35);
+}
+.km-vehicle-ping {
+  position: absolute;
+  inset: 4px;
+  border-radius: 999px;
+  background: var(--info);
+  opacity: 0.35;
+  animation: km-ping 1.8s ease-out infinite;
+}
+.km-many .km-vehicle-label {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.km-many .km-vehicle:hover .km-vehicle-label {
+  opacity: 1;
+}
+.km-vehicle-label {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--bg);
+  font: 700 10px var(--font-mono);
+}
+@keyframes km-ping {
+  from {
+    transform: scale(0.8);
+    opacity: 0.45;
+  }
+  to {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+/* Outlet markers: colour AND shape per brand */
+.km-outlet {
+  display: inline-block;
+  width: var(--s, 13px);
+  height: var(--s, 13px);
+  margin: 5px;
+  background: var(--c);
+  border: 2px solid var(--surface);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+  transition: transform 0.15s;
+}
+.km-fresh {
+  --c: var(--cat-fresh);
+}
+.km-style {
+  --c: var(--cat-style);
+}
+.km-tech {
+  --c: var(--cat-tech);
+}
+.km-shape-circle {
+  border-radius: 999px;
+}
+.km-shape-square {
+  border-radius: 3px;
+}
+.km-shape-diamond {
+  border-radius: 2px;
+  transform: rotate(45deg) scale(0.9);
+}
+.km-o-selected {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 35%, transparent), 0 2px 8px rgb(0 0 0 / 0.4);
+}
+.km-o-flagged {
+  box-shadow: 0 0 0 3px var(--attention), 0 2px 6px rgb(0 0 0 / 0.35);
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}
+.km-o-muted {
+  opacity: 0.35;
+}
+.leaflet-marker-icon:hover .km-outlet:not(.km-shape-diamond) {
+  transform: scale(1.3);
+}
+.km-pin {
+  position: relative;
+  filter: drop-shadow(0 3px 6px rgb(0 0 0 / 0.35));
+  animation: km-drop 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+.km-pin-label {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--bg);
+  font: 700 11px var(--font-mono);
+  white-space: nowrap;
+}
+@keyframes km-drop {
+  from {
+    transform: translateY(-24px);
+    opacity: 0;
+  }
 }

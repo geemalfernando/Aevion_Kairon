@@ -18,6 +18,7 @@ import '@fontsource/noto-sans-tamil/400.css'
 import '@fontsource/noto-sans-tamil/600.css'
 import '@fontsource/noto-sans-tamil/700.css'
 import './i18n'
+import 'leaflet/dist/leaflet.css'
 import App from './App.tsx'
 import './index.css'
 

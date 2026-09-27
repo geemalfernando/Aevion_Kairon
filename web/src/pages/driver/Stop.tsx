@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { fmtClock, fmtMin, fmtWindow } from '@core/time'
 import type { DeliveryRecord } from '@core/types'
 import { PhotoCapture, SignaturePad } from '../../components/ProofCapture'
+import { directionsUrl, LocationMap } from '../../components/RouteMap'
 import { Badge, Button, Callout, Card, ChoiceList, EmptyState, Field, Input, TempTag, Textarea, toast } from '../../components/ui'
 import { isDone, unitsOf } from '../../lib/select'
 import { MODAL } from '../../demo/mode'
@@ -15,7 +16,7 @@ type Outcome = DeliveryRecord['outcome']
 
 export function Stop() {
   const { orderId } = useParams()
-  const { trip, stops, d, nextIdx } = useDriverRoute()
+  const { trip, stops, d, nextIdx, vehicle } = useDriverRoute()
   const record = useDevice((s) => s.record)
   const net = useNetwork()
   const now = useNow()
@@ -126,6 +127,11 @@ export function Stop() {
             <Info label={t('common.window')} value={fmtWindow(outlet.window)} />
             <Info label={t('common.items')} value={`${unitsOf(o)}`} />
           </div>
+          <LocationMap outlet={outlet} depot={vehicle.depot} className="mt-4 h-44" />
+          <a href={directionsUrl(outlet)} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-sm font-semibold text-brand-ink underline">
+            {t('driver.stop.directions')}
+          </a>
+          {o.brand === 'Fresh' && <p className="mt-3 rounded-lg bg-attention-soft px-3 py-2 text-sm font-semibold text-attention-ink">{t('driver.stop.fresh_by_8')}</p>}
           {late && <WindowClosed windowEnd={outlet.window[1]} />}
           <Button size="xl" block className="mt-5" disabled={paused || trip.status !== 'IN_PROGRESS'} onClick={arrive}>
             {t('driver.stop.arrived_btn')}

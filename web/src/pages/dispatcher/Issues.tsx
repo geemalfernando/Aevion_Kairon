@@ -1,6 +1,7 @@
 import { AlertTriangle, ArrowLeft, Check, Clock, Snowflake, Truck } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { RouteMap } from '../../components/RouteMap'
 import { Badge, Button, Callout, Card, CardHeader, cn, EmptyState, PageHeader, Segmented, SeverityBadge, severityTone, toast, toneBorder } from '../../components/ui'
 import { recoveryPlan } from '@core/rules'
 import { isReefer, vehicleLabel } from '@core/rules'
@@ -85,6 +86,27 @@ function Incident({ i }: { i: Issue }) {
       <div className="grid gap-6 lg:grid-cols-[1fr_1.5fr]">
         <Card className="self-start">
           <CardHeader title="Affected stops" eyebrow={trip ? `${trip.id}` : undefined} />
+          {trip && (
+            <div className="border-b border-line p-4">
+              <RouteMap
+                className="h-64"
+                routes={[
+                  {
+                    id: trip.id,
+                    depot: v.depot,
+                    color: 'var(--critical)',
+                    stops: trip.stops
+                      .concat(affected.filter((x) => !trip.stops.includes(x)))
+                      .map((id) => {
+                        const o = orderOf(d, id)!
+                        return { outlet: d.outlets.find((x) => x.id === o.outletId)!, state: affected.includes(id) ? 'problem' : 'done' }
+                      }),
+                    vehicle: { label: `${v.id} · stopped`, at: Math.max(0, trip.stops.length - affected.length) },
+                  },
+                ]}
+              />
+            </div>
+          )}
           <ul className="divide-y divide-line">
             {affected.map((oid) => {
               const o = orderOf(d, oid)!

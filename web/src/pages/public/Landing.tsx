@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { HOME } from '../../components/shell/nav'
 import { DeliverVignette, DeliveryScene, LaptopMock, LoadVignette, OrderVignette, PhoneMock, PlanVignette, Reveal, TabletMock } from '../../components/illustrations'
+import { BRAND_SHAPE, OutletMap } from '../../components/RouteMap'
 import { Button, cn } from '../../components/ui'
 import { DEPOT_POS as DEPOTS } from '@core/reference'
 import { useOps, useSession } from '../../store'
@@ -36,6 +37,7 @@ export function Landing() {
       <Intelligence />
       <Devices />
       <Roles />
+      <Coverage />
       <OfflineDemo />
       <FinalCta />
       <footer className="border-t border-line py-8">
@@ -51,14 +53,12 @@ export function Landing() {
   )
 }
 
+/** Landing-only brand: the route mark on its own, large. The app keeps mark + wordmark. */
 function LandingBrand({ inverse = false }: { inverse?: boolean }) {
   return (
-    <span className={cn('inline-flex shrink-0 items-center gap-2.5', inverse ? 'text-white' : 'text-ink')}>
-      <span className="inline-flex h-9 w-12 shrink-0" aria-hidden>
-        <img src="/brand/route-logo-dark.svg" alt="" width="680" height="486" className={cn('h-full w-full object-contain', !inverse && 'hidden dark:block')} />
-        {!inverse && <img src="/brand/route-logo-light.svg" alt="" width="680" height="486" className="h-full w-full object-contain dark:hidden" />}
-      </span>
-      <span className="landing-wordmark text-[34px] leading-none tracking-[0.03em] sm:text-[40px]">KAIRON</span>
+    <span className="inline-flex h-12 w-[4.25rem] shrink-0 sm:h-14 sm:w-20" role="img" aria-label="Kairon">
+      <img src="/brand/route-logo-dark.svg" alt="" width="680" height="486" className={cn('h-full w-full object-contain', !inverse && 'hidden dark:block')} />
+      {!inverse && <img src="/brand/route-logo-light.svg" alt="" width="680" height="486" className="h-full w-full object-contain dark:hidden" />}
     </span>
   )
 }
@@ -82,6 +82,7 @@ function Nav({ signedIn, home }: { signedIn: boolean; home: string }) {
             ['Platform', '#platform'],
             ['How it works', '#workflow'],
             ['Operations', '#roles'],
+            ['Coverage', '#coverage'],
             ['Offline', '#offline'],
             ['Insights', '#intelligence'],
           ].map(([l, h]) => (
@@ -529,6 +530,87 @@ const ROLES: { role: 'DISPATCHER' | 'LOADER' | 'DRIVER' | 'STORE_MANAGER'; name:
   { role: 'DRIVER', name: 'Driver', title: 'Route companion', body: 'Deliver reliably, even without connectivity.', device: 'Phone · works offline', icon: Smartphone },
   { role: 'STORE_MANAGER', name: 'Store manager', title: 'Store portal', body: 'Order, track and confirm deliveries.', device: 'Desktop or phone', icon: MonitorSmartphone },
 ]
+
+function Coverage() {
+  const outlets = useOps((s) => s.data.outlets)
+  const [selected, setSelected] = useState<string>()
+  const byDistrict = useMemo(() => {
+    const m = new Map<string, { total: number; Fresh: number; Style: number; Tech: number; depot: string }>()
+    for (const o of outlets) {
+      const r = m.get(o.district) ?? { total: 0, Fresh: 0, Style: 0, Tech: 0, depot: o.depot }
+      r.total++
+      r[o.brand]++
+      m.set(o.district, r)
+    }
+    return [...m.entries()].sort((a, b) => b[1].total - a[1].total)
+  }, [outlets])
+  const max = Math.max(...byDistrict.map(([, r]) => r.total))
+  const sel = outlets.find((o) => o.id === selected)
+  return (
+    <section id="coverage" className="py-24">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
+        <SectionHead eyebrow="Where we deliver" title="120 outlets across Sri Lanka, served from two depots." sub="Every Fresh, Style and Tech outlet on one live map — tap any store to see it." />
+        <div className="grid gap-6 lg:grid-cols-[1.35fr_1fr]">
+          <Reveal>
+            <OutletMap outlets={outlets} selected={selected} onSelect={setSelected} className="h-[440px] shadow-pop sm:h-[560px]" describe={(o) => `${o.district} · ${o.brand}`} />
+          </Reveal>
+          <Reveal delay={150} className="flex flex-col gap-4">
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                [outlets.length, 'Outlets'],
+                [byDistrict.length, 'Districts'],
+                [2, 'Depots'],
+              ].map(([v, l]) => (
+                <div key={l as string} className="rounded-2xl bg-teal p-4 text-white">
+                  <div className="font-display text-3xl font-bold">{v}</div>
+                  <div className="text-xs font-semibold uppercase tracking-wider text-white/75">{l}</div>
+                </div>
+              ))}
+            </div>
+            <div className="flex-1 rounded-2xl border border-line bg-surface p-5 shadow-card">
+              <div className="mb-3 flex items-baseline justify-between">
+                <h3 className="font-semibold">Outlets by district</h3>
+                <span className="text-xs text-muted">served from</span>
+              </div>
+              <ul className="space-y-3">
+                {byDistrict.map(([d, r]) => (
+                  <li key={d}>
+                    <div className="flex items-baseline justify-between text-sm">
+                      <span className="font-semibold">
+                        {d} <span className="font-display tabular-nums text-muted">· {r.total}</span>
+                      </span>
+                      <span className="text-xs text-muted">{r.depot}</span>
+                    </div>
+                    <div className="mt-1.5 flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-surface-2" style={{ width: `${(r.total / max) * 100}%` }}>
+                      {(['Fresh', 'Style', 'Tech'] as const).map((b) => (r[b] ? <span key={b} title={`${b}: ${r[b]}`} className={`km-${b.toLowerCase()} h-full`} style={{ flex: r[b], background: 'var(--c)' }} /> : null))}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-4 flex flex-wrap gap-3 border-t border-line pt-3 text-xs font-semibold">
+                {(['Fresh', 'Style', 'Tech'] as const).map((b) => (
+                  <span key={b} className="inline-flex items-center gap-1.5">
+                    <span className={`km-outlet km-${b.toLowerCase()} km-shape-${BRAND_SHAPE[b]}`} style={{ ['--s' as string]: '10px', margin: 0 }} />
+                    {b} · {outlets.filter((o) => o.brand === b).length}
+                  </span>
+                ))}
+              </div>
+            </div>
+            {sel && (
+              <div key={sel.id} className="animate-rise rounded-2xl bg-ink p-4 text-bg">
+                <div className="font-mono text-sm font-bold">{sel.id}</div>
+                <div className="font-display text-lg font-semibold">{sel.name}</div>
+                <div className="text-sm opacity-75">
+                  {sel.district} · {sel.depot} depot · {sel.vanOnly ? 'Van-only access' : sel.mall ? 'Mall delivery bay' : 'Any vehicle'}
+                </div>
+              </div>
+            )}
+          </Reveal>
+        </div>
+      </div>
+    </section>
+  )
+}
 
 const ROLE_TILE: Record<string, string> = { DISPATCHER: 'bg-teal', LOADER: 'bg-chocolate', DRIVER: 'bg-ocean', STORE_MANAGER: 'bg-[#0a1315] dark:bg-steel' }
 

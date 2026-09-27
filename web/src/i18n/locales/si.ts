@@ -153,6 +153,8 @@ const si: Messages = {
     saved: 'සුරැකුණා',
     map: 'මාර්ග සිතියම',
     stop: {
+      directions: 'OpenStreetMap හි මාර්ග උපදෙස්',
+      fresh_by_8: 'Fresh බෙදාහැරීම · 08:00 ට පෙර ලැබිය යුතුයි',
       of: 'නැවතුම {{total}}න් {{n}}',
       reassigned: 'මෙම නැවතුම වෙනත් වාහනයකට ගෙන ගියා',
       reassigned_body: 'එහි භාණ්ඩ වාහනයේම තබා ගබඩාවට ආපසු ගෙනයන්න. ඔබ දැනටමත් සටහන් කළ බෙදාහැරීම් සුරැකේ.',
@@ -294,6 +296,8 @@ const si: Messages = {
     sequence: 'පැටවීමේ පිළිවෙල',
     confirmed: '{{total}}න් {{done}}ක් තහවුරුයි',
     load_first: 'මුලින්ම පටවන්න',
+    map_title: 'මාර්ගයේ',
+    map_eyebrow: 'බෙදාහැරීමේ අනුපිළිවෙල — 1 නැවතුම මුලින්ම බාන්න',
     unload_first: 'මුලින්ම බාගන්න (නැවතුම 1)',
     shortfall: 'හිඟය',
     stop: 'නැවතුම {{n}}',

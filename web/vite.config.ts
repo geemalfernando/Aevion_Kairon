@@ -44,6 +44,14 @@ export default defineConfig({
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
         cleanupOutdatedCaches: true,
+        // Map tiles the driver has already seen stay available without signal.
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.host === 'tile.openstreetmap.org',
+            handler: 'CacheFirst',
+            options: { cacheName: 'osm-tiles', expiration: { maxEntries: 600, maxAgeSeconds: 60 * 60 * 24 * 14 }, cacheableResponse: { statuses: [0, 200] } },
+          },
+        ],
       },
       devOptions: { enabled: false },
     }),

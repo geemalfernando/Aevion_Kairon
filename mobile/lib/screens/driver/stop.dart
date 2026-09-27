@@ -10,6 +10,7 @@ import '../../state/app_state.dart';
 import '../../theme.dart';
 import '../../widgets/brand.dart';
 import '../../widgets/common.dart';
+import '../../widgets/osm_map.dart';
 
 /// Arrive → record outcome → proof → done. Every step works offline.
 class StopScreen extends StatefulWidget {
@@ -76,6 +77,8 @@ class _StopScreenState extends State<StopScreen> {
             _Info('Items', '${st.units}'),
           ]),
         ),
+        const SizedBox(height: 12),
+        OsmStopMap(stop: st, depot: s.user?.depot),
         if (st.late) ...[const SizedBox(height: 12), _windowClosed(context, st)],
         const SizedBox(height: 20),
         _PulseButton(
@@ -200,6 +203,7 @@ class _StopScreenState extends State<StopScreen> {
                   const SizedBox(height: 8),
                   Wrap(spacing: 6, children: [
                     if (st.chilled) Tag('Chilled', color: k.info, icon: Icons.ac_unit_rounded),
+                    if (t.brand == 'Fresh') Tag('Fresh · before 08:00', color: k.attention, icon: Icons.schedule_rounded),
                     if (st.mall) Tag('Mall bay', color: k.info),
                     if (st.shortfall != null) Tag('${st.shortfall!.missing} × ${st.shortfall!.item} short', color: k.attention),
                     if (reassigned) Tag('Reassigned to another vehicle', color: k.attention),

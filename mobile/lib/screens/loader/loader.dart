@@ -7,6 +7,7 @@ import '../../state/app_state.dart';
 import '../../theme.dart';
 import '../../widgets/brand.dart';
 import '../../widgets/common.dart';
+import '../../widgets/osm_map.dart';
 
 String tripLabel(TripStatus s) => switch (s) {
       TripStatus.planned => 'Ready to load',
@@ -240,6 +241,12 @@ class _LoadScreenState extends State<LoadScreen> {
             ),
           );
 
+    final roadMap = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Eyebrow('On the road · stop 1 comes off first'),
+      const SizedBox(height: 8),
+      OsmRouteMap(stops: t.stops, nextIndex: t.stops.length, depot: s.user?.depot, height: 240, moving: false),
+    ]);
+
     return Scaffold(
       appBar: AppBar(
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -256,10 +263,10 @@ class _LoadScreenState extends State<LoadScreen> {
               // Tablet at the bay: sequence on the left, the stop being loaded on the right.
               return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 SizedBox(width: c.maxWidth * 0.42, child: ListView(padding: const EdgeInsets.fromLTRB(20, 8, 10, 24), children: [sequence])),
-                Expanded(child: ListView(padding: const EdgeInsets.fromLTRB(10, 8, 20, 24), children: [detail, const SizedBox(height: 16), complete])),
+                Expanded(child: ListView(padding: const EdgeInsets.fromLTRB(10, 8, 20, 24), children: [detail, const SizedBox(height: 16), complete, const SizedBox(height: 16), roadMap])),
               ]);
             }
-            return ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 32), children: [detail, const SizedBox(height: 16), sequence, const SizedBox(height: 16), complete]);
+            return ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 32), children: [detail, const SizedBox(height: 16), sequence, const SizedBox(height: 16), complete, const SizedBox(height: 16), roadMap]);
           }),
         ),
       ]),

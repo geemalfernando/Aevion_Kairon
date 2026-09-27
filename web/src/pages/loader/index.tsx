@@ -7,6 +7,7 @@ import { fmtClock, fmtMin, greeting, timeAgo } from '@core/time'
 import type { OpsData, Order, Trip, TripChange } from '@core/types'
 import { AuditTimeline } from '../../components/AuditTimeline'
 import { PhotoCapture } from '../../components/ProofCapture'
+import { RouteMap } from '../../components/RouteMap'
 import { Badge, BrandTag, Button, Callout, Card, CardHeader, ChoiceList, cn, EmptyState, Modal, PageHeader, Segmented, SeverityBadge, Stat, TempTag, toast, type Tone } from '../../components/ui'
 import { MODAL } from '../../demo/mode'
 import { orderOf, outletOf, vehicleOf } from '../../lib/select'
@@ -260,6 +261,12 @@ export function Load() {
           </div>
         </Card>
       </div>
+      <Card className="mt-6">
+        <CardHeader title={t('loader.map_title')} eyebrow={t('loader.map_eyebrow')} />
+        <div className="p-4">
+          <RouteMap className="h-72" routes={[{ id: trip.id, depot: v.depot, stops: orders.map((o) => ({ outlet: outletOf(d, o.outletId)!, state: 'todo' as const })) }]} />
+        </div>
+      </Card>
       {short && <ShortfallModal {...short} onClose={() => setShort(null)} />}
     </>
   )

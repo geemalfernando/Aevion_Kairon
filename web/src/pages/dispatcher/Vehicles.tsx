@@ -2,6 +2,7 @@ import { ArrowLeft, Snowflake, Truck } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AuditTimeline } from '../../components/AuditTimeline'
+import { RouteMap } from '../../components/RouteMap'
 import { Badge, Card, CardHeader, cn, EmptyState, Meter, PageHeader, Segmented } from '../../components/ui'
 import { vehicleDay } from '@core/rules'
 import { isReefer, isVan, vehicleLabel } from '@core/rules'
@@ -126,6 +127,24 @@ export function VehicleDetail() {
         </Card>
         <Card className="lg:col-span-2">
           <CardHeader title="Trips" />
+          {trips.some((t) => t.stops.length) && (
+            <div className="border-b border-line p-4">
+              <RouteMap
+                className="h-72"
+                routes={trips
+                  .filter((t) => t.stops.length && t.status !== 'ABORTED')
+                  .map((t, i) => ({
+                    id: t.id,
+                    depot: v.depot,
+                    color: i ? 'var(--info)' : 'var(--brand)',
+                    stops: t.stops.map((id) => {
+                      const o = d.orders.find((x) => x.id === id)!
+                      return { outlet: d.outlets.find((x) => x.id === o.outletId)!, state: ['DELIVERED', 'PARTIAL', 'RECEIVED'].includes(o.status) ? 'done' : o.status === 'FAILED' ? 'problem' : 'todo' }
+                    }),
+                  }))}
+              />
+            </div>
+          )}
           {trips.length === 0 ? (
             <EmptyState icon={<Truck className="size-5" />} title="No trips assigned" />
           ) : (

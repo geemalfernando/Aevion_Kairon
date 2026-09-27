@@ -2,6 +2,7 @@ import { ArrowLeft, ClipboardList, PackagePlus } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AuditTimeline } from '../../components/AuditTimeline'
+import { LocationMap } from '../../components/RouteMap'
 import { Button, Card, CardHeader, EmptyState, PageHeader, StatusBadge, Timeline } from '../../components/ui'
 import { fmtDate } from '@core/time'
 import { auditFor, storeOrders, unitsOf } from '../../lib/select'
@@ -74,8 +75,9 @@ export function OrderDetail() {
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <div className="space-y-6">
           {o.status === 'DEFERRED' && o.deferral?.confirmed && <RescheduledCard o={o} />}
-          <Card className="p-5">
+          <Card className="space-y-4 p-5">
             <OrderSummary o={o} />
+            <LocationMap outlet={d.outlets.find((x) => x.id === o.outletId)!} depot={d.outlets.find((x) => x.id === o.outletId)!.depot} vehicle={['IN_TRANSIT', 'ARRIVED'].includes(o.status) ? d.trips.find((t) => t.id === o.tripId)?.vehicleId : undefined} className="h-56" />
           </Card>
           {['DELIVERED', 'PARTIAL'].includes(o.status) && (
             <Card className="p-5">

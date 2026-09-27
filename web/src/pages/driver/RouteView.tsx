@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { riskBand } from '@core/predict'
 import { fmtMin, fmtWindow } from '@core/time'
-import { RouteMap } from '../../components/RouteMap'
+import { directionsUrl, RouteMap } from '../../components/RouteMap'
 import { Badge, Button, Callout, Card, cn, EmptyState, ModelChip, StatusBadge, TempTag } from '../../components/ui'
 import { isDone } from '../../lib/select'
 import { useDriverRoute } from './common'
@@ -84,7 +84,7 @@ export function RouteView() {
               </p>
             )}
             <div className="mt-5 grid grid-cols-2 gap-2">
-              <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(next.outlet.name + ' Sri Lanka')}`} target="_blank" rel="noreferrer">
+              <a href={directionsUrl(next.outlet)} target="_blank" rel="noreferrer">
                 <Button variant="secondary" size="xl" block icon={<Navigation className="size-5" />}>
                   {t('driver.navigate')}
                 </Button>

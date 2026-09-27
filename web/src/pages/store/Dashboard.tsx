@@ -1,13 +1,14 @@
 import { ArrowRight, Clock, PackagePlus, TriangleAlert, Truck } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { LocationMap } from '../../components/RouteMap'
 import { Button, Callout, Card, CardHeader, EmptyState, PageHeader, StatusBadge, Timeline } from '../../components/ui'
 import { fmtDate, fmtWindow, greeting } from '@core/time'
 import { outletOf, storeOrders, unitsOf } from '../../lib/select'
 import { MODAL } from '../../demo/mode'
 import { useNow, useSession, useView } from '../../store'
 import { useCutoff } from './NewOrder'
-import { deliveryTimeline, OrderSummary, ReceiptForm, ReportIssueModal, RescheduledCard } from './shared'
+import { deliveryTimeline, etaFor, OrderSummary, ReceiptForm, ReportIssueModal, RescheduledCard } from './shared'
 
 export function Dashboard() {
   const d = useView()
@@ -57,6 +58,7 @@ export function Dashboard() {
                 ) : (
                   <>
                     <OrderSummary o={focus} />
+                    <LocationMap outlet={out} depot={out.depot} vehicle={['IN_TRANSIT', 'ARRIVED'].includes(focus.status) ? etaFor(d, focus)?.vehicle : undefined} className="h-56" />
                     <div className="text-sm text-muted">{unitsOf(focus)} units · {focus.items.map((i) => `${i.qty} ${i.name}`).join(' · ')}</div>
                     {focus.shortfall && (
                       <Callout tone="attention" icon={<TriangleAlert className="size-5" />} title={`${focus.shortfall.missing} × ${focus.shortfall.item} unavailable at loading`}>

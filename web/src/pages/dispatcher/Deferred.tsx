@@ -1,5 +1,6 @@
 import { CalendarClock } from 'lucide-react'
 import { useState } from 'react'
+import { OutletMap } from '../../components/RouteMap'
 import { Badge, BrandTag, Button, Card, EmptyState, PageHeader, Segmented, TempTag, toast } from '../../components/ui'
 import { timeAgo } from '@core/time'
 import type { Order } from '@core/types'
@@ -40,6 +41,16 @@ export function Deferred() {
           ]}
         />
       </div>
+      {all.length > 0 && (
+        <OutletMap
+          outlets={d.outlets}
+          flagged={new Set(all.map((o) => o.outletId))}
+          muted={new Set(d.outlets.filter((o) => !all.some((x) => x.outletId === o.id)).map((o) => o.id))}
+          flaggedLabel="Deferred"
+          className="mb-5 h-80"
+          describe={(o) => all.find((x) => x.outletId === o.id)?.deferral?.reason ?? o.district}
+        />
+      )}
       {list.length === 0 ? (
         <Card>
           <EmptyState icon={<CalendarClock className="size-5" />} title={view === 'proposed' ? 'No deferrals waiting for a decision' : 'No confirmed deferrals'} body="Deferrals appear here when the planner can’t fit an order, or when you defer one manually." />

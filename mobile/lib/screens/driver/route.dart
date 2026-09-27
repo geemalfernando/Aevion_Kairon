@@ -7,7 +7,7 @@ import 'package:provider/provider.dart';
 import '../../data/models.dart';
 import '../../state/app_state.dart';
 import '../../theme.dart';
-import '../../widgets/brand.dart';
+import '../../widgets/osm_map.dart';
 import '../../widgets/common.dart';
 import 'stop.dart';
 import 'today.dart';
@@ -97,7 +97,7 @@ class DriverRoute extends StatelessWidget {
     ];
 
     return LayoutBuilder(builder: (context, c) {
-      final map = ClipRRect(borderRadius: BorderRadius.circular(24), child: Container(color: k.surface, child: RouteMap(stops: t.stops, nextIndex: nextIdx, height: c.maxWidth > 700 ? 460 : 220, moving: t.status == TripStatus.inProgress)));
+      final map = OsmRouteMap(stops: t.stops, nextIndex: nextIdx, depot: s.user?.depot, height: c.maxWidth > 700 ? 460 : 260, moving: t.status == TripStatus.inProgress);
       if (c.maxWidth > 700) {
         // Tablet / landscape: list and map side by side.
         return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [

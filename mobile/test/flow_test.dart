@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kairon_mobile/data/api.dart';
 import 'package:kairon_mobile/data/models.dart';
@@ -26,7 +29,14 @@ Future<void> settle(AppState s) async {
 }
 
 void main() {
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    // flutter_map's on-disk tile cache asks path_provider for a folder.
+    TestWidgetsFlutterBinding.ensureInitialized().defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('plugins.flutter.io/path_provider'),
+      (_) async => Directory.systemTemp.path,
+    );
+  });
 
   testWidgets('driver completes a delivery with signature while offline', (tester) async {
     tester.view.physicalSize = const Size(1080, 2400);

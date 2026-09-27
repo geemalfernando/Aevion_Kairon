@@ -1,7 +1,7 @@
 import { CalendarClock, Check, ChevronDown, GripVertical, LifeBuoy, Lock, Repeat, Scale, Send, Snowflake, Sparkles, Truck, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { BUDGET, DEFERRAL_LABEL, isReefer, isVan, validate, vehicleDay, vehicleLabel, type Validation } from '@core/rules'
+import { BUDGET, DEFERRAL_LABEL, FRESH_END, isReefer, isVan, validate, vehicleDay, vehicleLabel, type Validation } from '@core/rules'
 import { fmtMin } from '@core/time'
 import type { Order, PlanAnalysis, Trip, Vehicle } from '@core/types'
 import { Badge, BrandTag, Button, Callout, Card, CheckRow, cn, EmptyState, Meter, Modal, PageHeader, Segmented, TempTag, toast } from '../../components/ui'
@@ -104,6 +104,16 @@ export function Planning() {
           Close orders at the 16:00 cutoff to generate the recommended plan. You can still allocate manually.
         </Callout>
       )}
+
+      <div className="mb-3 flex flex-wrap gap-2 text-xs font-semibold">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-fill px-3 py-1 text-white">
+          <Truck className="size-3.5" /> Max 2 trips per vehicle / day
+        </span>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-attention-fill px-3 py-1 text-white">
+          <Snowflake className="size-3.5" /> Fresh delivered before 08:00
+        </span>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-ink px-3 py-1 text-bg">Trip 2 leaves after Trip 1 returns</span>
+      </div>
 
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
         {[
@@ -473,6 +483,8 @@ function TripBlock({ t, v, onOpen }: { t: Trip; v: Vehicle; onOpen: (o: Order) =
   const d = useOps((s) => s.data)
   const s = scheduleOf(d, t)
   const late = s.stops.some((x) => x.late)
+  // A Fresh drop that finishes after 08:00 misses the store opening, even if it arrived inside its window.
+  const freshLate = t.brand === 'Fresh' && s.stops.some((x) => x.start + x.service > FRESH_END)
   const editable = ['DRAFT', 'PLANNED', 'LOADING', 'LOADED'].includes(t.status)
   const loading = t.status === 'LOADING' || t.status === 'LOADED'
   return (
@@ -523,6 +535,10 @@ function TripBlock({ t, v, onOpen }: { t: Trip; v: Vehicle; onOpen: (o: Order) =
         <Meter label="Volume" value={s.volumeM3} max={v.capacityM3} detail={`${s.volumeM3} / ${v.capacityM3} m³`} />
       </div>
       {late && <p className="mt-2 text-xs font-semibold text-critical-ink">A stop misses its delivery window.</p>}
+      {freshLate && <p className="mt-2 text-xs font-semibold text-critical-ink">A Fresh stop finishes after 08:00.</p>}
+      {t.brand === 'Fresh' && !freshLate && s.stops.length > 0 && (
+        <p className="mt-2 text-xs text-muted">Fresh done by {fmtMin(s.stops[s.stops.length - 1].start + s.stops[s.stops.length - 1].service)} · deadline 08:00</p>
+      )}
     </div>
   )
 }

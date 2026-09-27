@@ -46,16 +46,22 @@ class Stop {
     required this.items,
     required this.x,
     required this.y,
+    double? lat,
+    double? lng,
     this.mall = false,
     this.status = StopStatus.pending,
     Map<String, int>? loaded,
-  }) : loaded = loaded ?? {};
+  })  : loaded = loaded ?? {},
+        // Fallback keeps older saved data on the map around Colombo.
+        lat = lat ?? 6.95 - y * 0.1,
+        lng = lng ?? 79.85 + x * 0.1;
 
   final String orderId, outletId, outletName, district;
   final int windowStart, windowEnd, eta, serviceMin; // minutes since midnight
   final bool chilled, mall;
   final List<Item> items;
-  final double x, y; // 0..1 map position
+  final double x, y; // 0..1 position on the drawn route diagram
+  final double lat, lng; // real location for OpenStreetMap
 
   StopStatus status;
   int? arrivedAt, completedAt;
@@ -66,6 +72,9 @@ class Stop {
 
   bool get done => status == StopStatus.delivered || status == StopStatus.partial || status == StopStatus.failed;
   bool get late => eta > windowEnd;
+
+  /// Fresh stores must have their delivery completed before 08:00.
+  static const freshDeadline = 480;
   int get units => items.fold(0, (s, i) => s + i.qty);
   bool get loadConfirmed => items.every((i) => loaded.containsKey(i.name));
 
@@ -83,6 +92,8 @@ class Stop {
         'items': items.map((e) => e.toJson()).toList(),
         'x': x,
         'y': y,
+        'lat': lat,
+        'lng': lng,
         'status': status.name,
         'arrivedAt': arrivedAt,
         'completedAt': completedAt,
@@ -110,6 +121,8 @@ class Stop {
         items: (j['items'] as List).map((e) => Item.fromJson(Map<String, dynamic>.from(e))).toList(),
         x: (j['x'] as num).toDouble(),
         y: (j['y'] as num).toDouble(),
+        lat: (j['lat'] as num?)?.toDouble(),
+        lng: (j['lng'] as num?)?.toDouble(),
         status: StopStatus.values.byName(j['status']),
         loaded: Map<String, int>.from(j['loaded'] ?? {}),
       )

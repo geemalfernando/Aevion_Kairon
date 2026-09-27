@@ -153,6 +153,8 @@ const en = {
     saved: 'Saved',
     map: 'Route map',
     stop: {
+      directions: 'Directions on OpenStreetMap',
+      fresh_by_8: 'Fresh delivery · must be received before 08:00',
       of: 'Stop {{n}} of {{total}}',
       reassigned: 'This stop was moved to another vehicle',
       reassigned_body: 'Keep its goods on board and return them to the depot. Any delivery you already recorded is kept.',
@@ -294,6 +296,8 @@ const en = {
     sequence: 'Loading sequence',
     confirmed: '{{done}}/{{total}} confirmed',
     load_first: 'Load first',
+    map_title: 'On the road',
+    map_eyebrow: 'Delivery order — stop 1 comes off first',
     unload_first: 'Unload first (stop 1)',
     shortfall: 'Shortfall',
     stop: 'Stop {{n}}',
