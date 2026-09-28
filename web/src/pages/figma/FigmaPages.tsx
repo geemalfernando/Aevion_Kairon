@@ -812,7 +812,7 @@ export function FigmaDoc() {
               {[
                 "Ordering with confirmation and a visible cutoff",
                 "Planning an over-capacity day with explained deferrals",
-                "Loading in stop order with shortfalls before departure",
+                "Loading in stop order with shortfalls decided before departure",
                 "Delivering with proof, offline",
                 "Receipt confirmation and issue reporting",
                 "Three failure scenarios, one of them end to end across all four roles",
@@ -833,7 +833,7 @@ export function FigmaDoc() {
               {[
                 [
                   "Turn-by-turn navigation",
-                  "drivers already use Google Maps; we link to it.",
+                  "drivers already have navigation apps; we show the stop on a map and link to OpenStreetMap directions.",
                 ],
                 [
                   "Route optimisation maps",
