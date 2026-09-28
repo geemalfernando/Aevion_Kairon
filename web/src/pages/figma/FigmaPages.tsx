@@ -549,6 +549,106 @@ const PERSONAS = [
   },
 ];
 
+/** Working conditions → what arrives from other roles → the design response, per role (booklet p.6). */
+const CONTEXT: {
+  name: string;
+  role: string;
+  icon: typeof Monitor;
+  conditions: [string, string][];
+  fromOthers: [string, string][];
+  design: [string, string][];
+}[] = [
+  {
+    name: "Geemal",
+    role: "Dispatcher",
+    icon: Monitor,
+    conditions: [
+      ["Place and device", "Peliyagoda planning office, large screen, stable connection"],
+      ["Time pressure", "16:00 cutoff, plan published the same evening; Fresh runs watched from 03:30"],
+      ["Attention", "60 vehicles, 120 outlets, accountable for every deferral"],
+    ],
+    fromOthers: [
+      ["Shortfalls before departure", "L3 → D10"],
+      ["Delivery records and reconnects", "R6 → D7"],
+      ["Road problems from drivers", "R4 → D6"],
+      ["Receipt problems from stores", "S5 → Issues"],
+    ],
+    design: [
+      ["“What limited today” first, then vehicles and deferrals side by side", "D3"],
+      ["Rules can’t be overridden; vehicles that fit are suggested", "D4"],
+      ["Every deferral carries its reason and the store’s message", "D5"],
+      ["Quiet vehicles flagged; offline time and sync shown", "D7"],
+    ],
+  },
+  {
+    name: "Kamal",
+    role: "Loader",
+    icon: TabletSmartphone,
+    conditions: [
+      ["Place and device", "Cold dock at Peliyagoda or Kandy, shared tablet or terminal"],
+      ["Time pressure", "Loads 03:00–04:30 so Fresh trucks leave on time"],
+      ["Hands and attention", "Gloves on, cartons in hand, noisy dock, device shared by the team"],
+    ],
+    fromOthers: [
+      ["Published trips and stop order", "D3 → L1"],
+      ["Late plan changes", "D6 → L4, L5"],
+      ["Shortfall decisions", "D10 → L6"],
+    ],
+    design: [
+      ["Stop order reversed: last stop loads first", "L2"],
+      ["One stop at a time, large ± and “All” counters for gloves", "L2"],
+      ["Missing goods flagged in two taps, before the truck leaves", "L3"],
+      ["A change is a checklist that blocks departure until done", "L4"],
+    ],
+  },
+  {
+    name: "Nimal",
+    role: "Driver",
+    icon: Smartphone,
+    conditions: [
+      ["Place and device", "In the cab on his own phone, used only when safely stopped"],
+      ["Time and light", "Leaves around 04:30 in the dark; five stores before 08:00"],
+      ["Connectivity", "Signal drops in hill country and the Kandy corridor"],
+      ["Language", "Sinhala, Tamil or English"],
+    ],
+    fromOthers: [
+      ["A loaded, confirmed truck", "L2 → R1"],
+      ["Route changes", "D6 → R6"],
+      ["Outlet access rules and windows", "Outlets → R2"],
+    ],
+    design: [
+      ["Night theme by default, next stop largest on screen", "R1 · R2"],
+      ["Everything works offline; a strip counts what is waiting", "R5"],
+      ["Proof saved on the phone first, synced later", "R3"],
+      ["Reconnect screen must be acknowledged; the dispatcher sees it", "R6"],
+      ["EN · සිං · த, each written in its own script", "R9"],
+    ],
+  },
+  {
+    name: "Dilini",
+    role: "Store manager",
+    icon: StoreIcon,
+    conditions: [
+      ["Place and device", "Outlet counter PC, or a phone on the shop floor"],
+      ["Time pressure", "Orders before 16:00; receiving team at the back door before 08:00"],
+      ["Attention", "Running a store, not a logistics operation: needs plain language"],
+    ],
+    fromOthers: [
+      ["Arrival time for staffing", "D3 → S2"],
+      ["Deferral reason and new date", "D5 → S3"],
+      ["Vehicle changes and shortfalls", "D6 → S7 · D10 → S8"],
+      ["Delivery record and proof", "R3 → S4"],
+    ],
+    design: [
+      ["Countdown to 16:00; chilled and dry split explained", "S1"],
+      ["A 20-minute arrival slot to plan staff", "S2"],
+      ["Plain-language notices with the reason", "S3 · S7 · S8"],
+      ["Receipt check that opens an issue if anything is wrong", "S4"],
+      ["Same screens reflow for the phone", "S6"],
+    ],
+  },
+];
+
 const HANDOFFS: [string, string, string][] = [
   [
     "Store manager → Dispatcher",
@@ -796,6 +896,109 @@ export function FigmaDoc() {
             </div>
           ))}
         </div>
+      </Artboard>
+
+      {/* 4b · Working conditions → design */}
+      <Artboard
+        label="Working conditions"
+        title="Four places, four devices — each screen answers the conditions its user works in"
+      >
+        <div className="grid grid-cols-[220px_1fr_1fr_1.25fr] gap-x-8 border-b-2 border-ink pb-3 text-xs font-semibold uppercase tracking-wide text-muted">
+          <div>Who</div>
+          <div>Conditions (from the brief)</div>
+          <div>Needs from other roles · arrives on</div>
+          <div>So the design…</div>
+        </div>
+        {CONTEXT.map((c) => (
+          <div
+            key={c.name}
+            className="grid grid-cols-[220px_1fr_1fr_1.25fr] gap-x-8 border-b border-line py-7 text-[15px] leading-snug"
+          >
+            <div className="flex items-start gap-3">
+              <span className="grid size-12 shrink-0 place-items-center rounded-full bg-teal font-display text-xl font-semibold text-white">
+                {c.name[0]}
+              </span>
+              <div>
+                <div className="font-display text-xl font-semibold">{c.name}</div>
+                <div className="flex items-center gap-1.5 text-sm text-muted">
+                  <c.icon className="size-4" /> {c.role}
+                </div>
+              </div>
+            </div>
+            <dl className="space-y-3">
+              {c.conditions.map(([k, v]) => (
+                <div key={k}>
+                  <dt className="eyebrow">{k}</dt>
+                  <dd>{v}</dd>
+                </div>
+              ))}
+            </dl>
+            <ul className="space-y-3">
+              {c.fromOthers.map(([what, route]) => (
+                <li key={what}>
+                  {what}
+                  <span className="mt-0.5 block font-mono text-xs text-brand-ink">{route}</span>
+                </li>
+              ))}
+            </ul>
+            <ul className="space-y-3">
+              {c.design.map(([what, screen]) => (
+                <li key={what} className="flex gap-3">
+                  <span className="mt-0.5 h-fit shrink-0 rounded-md bg-brand-soft px-1.5 py-0.5 font-mono text-xs font-semibold text-brand-ink">
+                    {screen}
+                  </span>
+                  <span>{what}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+        <h3 className="mb-5 mt-12 font-display text-2xl font-semibold">Designed for the real device</h3>
+        <div className="grid grid-cols-[560px_1fr_1fr] items-end gap-8">
+          <figure>
+            <Shot f={frameById("L2-tablet")} width={560} />
+            <figcaption className="mt-3 text-sm">
+              <b>Kamal · shared dock tablet.</b> The same loading screen widens to a two-column layout: the stop being counted
+              beside the full load order, large enough to use with gloves at arm’s length.
+            </figcaption>
+          </figure>
+          <figure className="flex flex-col items-center">
+            <Shot f={frameById("R2-route")} width={220} />
+            <figcaption className="mt-3 text-sm">
+              <b>Nimal · own phone, 04:30.</b> Night theme, next stop largest, used only when safely stopped.
+            </figcaption>
+          </figure>
+          <figure className="flex flex-col items-center">
+            <Shot f={frameById("S6-phone")} width={220} />
+            <figcaption className="mt-3 text-sm">
+              <b>Dilini · phone on the shop floor.</b> The next delivery and its arrival slot come first.
+            </figcaption>
+          </figure>
+        </div>
+      </Artboard>
+
+      {/* 4c · One day, four people */}
+      <Artboard
+        label="One day, four people"
+        title="The work happens at different hours in different places — the system carries it between them"
+      >
+        <DayTimeline />
+        <div className="mt-6 flex flex-wrap gap-6 text-sm">
+          <span className="inline-flex items-center gap-2">
+            <span className="size-3 rounded-full bg-brand" /> Normal work · screen shown
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <span className="size-3 rounded-full bg-attention" /> Something goes wrong
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <span className="h-0 w-8 border-t-2 border-dashed border-steel" /> Information handed to another role
+          </span>
+        </div>
+        <p className="mt-6 max-w-5xl text-[16px] leading-relaxed text-muted">
+          The dispatcher and store manager work in the afternoon; the loader and driver work before dawn, when the office is
+          quiet and nobody is on the phone. Every handoff therefore has to arrive on the next person’s screen on its own — a
+          shortfall at 03:52 is decided by 03:58 and reaches both the loader and the store before the truck leaves.
+        </p>
       </Artboard>
 
       {/* 5 · Scope */}
@@ -1080,6 +1283,128 @@ function Scale() {
 }
 
 /** Swimlane diagram of the workflow — plain SVG so it imports into Figma as vectors. */
+/** A delivery day across the four roles: the afternoon before (ordering, planning) and the delivery morning. */
+function DayTimeline() {
+  const W = 1312;
+  const hm = (h: number, m = 0) => h * 60 + m;
+  // Two time segments with a break: 15:00–18:00 the day before, 03:00–08:30 the delivery morning.
+  const x = (t: number) => (t >= hm(15) ? 150 + ((t - hm(15)) * 320) / 180 : 530 + ((t - hm(3)) * 760) / 330);
+  const lanes = [
+    { name: "Store manager", who: "Dilini", y: 70 },
+    { name: "Dispatcher", who: "Geemal", y: 180 },
+    { name: "Loader", who: "Kamal", y: 290 },
+    { name: "Driver", who: "Nimal", y: 400 },
+  ];
+  type Item = { lane: number; from: number; to?: number; label: string; row: 0 | 1; alert?: boolean; left?: boolean };
+  const items: Item[] = [
+    { lane: 0, from: hm(15, 20), to: hm(16), label: "Orders before 16:00 · S1", row: 0 },
+    { lane: 0, from: hm(16, 30), label: "Sees arrival slot · S2", row: 1 },
+    { lane: 0, from: hm(4), label: "Told 3 dairy short · S8", row: 0, alert: true },
+    { lane: 0, from: hm(5, 45), label: "New vehicle and time · S7", row: 0, alert: true },
+    { lane: 0, from: hm(6, 30), to: hm(7), label: "Receives, confirms · S4", row: 1 },
+    { lane: 1, from: hm(16), label: "Closes orders · D2", row: 0 },
+    { lane: 1, from: hm(16, 5), to: hm(17), label: "Plans and publishes · D3", row: 1 },
+    { lane: 1, from: hm(3, 30), to: hm(8), label: "", row: 0 },
+    { lane: 1, from: hm(3, 58), label: "Decides shortfall · D10", row: 0, alert: true },
+    { lane: 1, from: hm(5, 40), label: "Compares, moves a stop · D6", row: 0, alert: true },
+    { lane: 1, from: hm(6, 21), label: "Sees driver confirmed · D7", row: 1 },
+    { lane: 2, from: hm(3), to: hm(4, 25), label: "", row: 0 },
+    { lane: 2, from: hm(3, 52), label: "Flags shortfall · L3", row: 0, alert: true },
+    { lane: 2, from: hm(4, 5), label: "Sees decision · L6", row: 1 },
+    { lane: 2, from: hm(5, 45), label: "Re-picks for the van · L5", row: 0, alert: true },
+    { lane: 3, from: hm(4, 36), label: "Leaves depot · R1", row: 0, left: true },
+    { lane: 3, from: hm(5), to: hm(7, 30), label: "", row: 0 },
+    { lane: 3, from: hm(5, 22), label: "Reports road blocked · R4", row: 0, alert: true },
+    { lane: 3, from: hm(5, 24), to: hm(6, 20), label: "", row: 0, alert: true },
+    { lane: 3, from: hm(6, 20), label: "Reconnects, confirms · R6", row: 1, alert: true },
+  ];
+  const bandNotes: { lane: number; at: number; text: string; alert?: boolean }[] = [
+    { lane: 1, at: hm(7, 5), text: "Watches live · D7" },
+    { lane: 2, at: hm(3, 3), text: "Loads in stop order · L2" },
+    { lane: 3, at: hm(5, 24), text: "No signal 05:24–06:20 · R5", alert: true },
+    { lane: 3, at: hm(7, 0), text: "Delivers with proof · R2 R3" },
+  ];
+  const dot = (lane: number, t: number) => ({ cx: x(t), cy: lanes[lane].y + 72 });
+  const handoffs: [number, number, number, number][] = [
+    [2, hm(3, 52), 1, hm(3, 58)],
+    [1, hm(3, 58), 2, hm(4, 5)],
+    [1, hm(3, 58), 0, hm(4)],
+    [3, hm(5, 22), 1, hm(5, 40)],
+    [1, hm(5, 40), 0, hm(5, 45)],
+    [1, hm(5, 40), 2, hm(5, 45)],
+    [1, hm(5, 40), 3, hm(6, 20)],
+    [3, hm(6, 20), 1, hm(6, 21)],
+  ];
+  const ticks = [hm(15), hm(16), hm(17), hm(18), hm(3), hm(4), hm(5), hm(6), hm(7), hm(8)];
+  const fmt = (t: number) => `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+  return (
+    <svg viewBox={`0 0 ${W} 540`} className="w-full" role="img" aria-label="A delivery day across the four roles">
+      <text x={310} y={28} textAnchor="middle" fontSize="14" fontWeight="700" fill="var(--ink)">
+        Day before · ordering and planning
+      </text>
+      <text x={910} y={28} textAnchor="middle" fontSize="14" fontWeight="700" fill="var(--ink)">
+        Delivery morning
+      </text>
+      {lanes.map((l) => (
+        <g key={l.name}>
+          <rect x="0" y={l.y} width={W} height="100" rx="14" fill="var(--surface-2)" />
+          <text x="18" y={l.y + 46} fontSize="15" fontWeight="700" fill="var(--ink)">
+            {l.who}
+          </text>
+          <text x="18" y={l.y + 66} fontSize="12" fill="var(--muted)">
+            {l.name}
+          </text>
+        </g>
+      ))}
+      {/* Break between the two segments */}
+      <rect x={484} y={60} width={30} height={450} fill="var(--surface)" />
+      <path d="M488 60 L498 510 M500 60 L510 510" stroke="var(--line-strong)" strokeWidth="1.5" />
+      {/* Stores open */}
+      <line x1={x(hm(8))} y1={50} x2={x(hm(8))} y2={506} stroke="var(--ink)" strokeWidth="1.5" strokeDasharray="4 4" />
+      <text x={x(hm(8)) - 6} y={56} textAnchor="end" fontSize="12" fontWeight="700" fill="var(--ink)">
+        08:00 stores open
+      </text>
+      {handoffs.map(([la, ta, lb, tb], i) => {
+        const a = dot(la, ta);
+        const b = dot(lb, tb);
+        return <path key={i} d={`M${a.cx} ${a.cy} C ${a.cx + 14} ${a.cy}, ${b.cx - 14} ${b.cy}, ${b.cx} ${b.cy}`} fill="none" stroke="var(--steel)" strokeWidth="1.5" strokeDasharray="5 4" />;
+      })}
+      {items.map((it, i) => {
+        const y = lanes[it.lane].y + 72;
+        const color = it.alert ? "var(--attention)" : "var(--brand)";
+        const soft = it.alert ? "var(--attention-soft)" : "var(--brand-soft)";
+        return (
+          <g key={i}>
+            {it.to ? (
+              <rect x={x(it.from)} y={y - 7} width={Math.max(6, x(it.to) - x(it.from))} height="14" rx="7" fill={soft} stroke={color} strokeWidth="1.5" />
+            ) : (
+              <circle cx={x(it.from)} cy={y} r="6" fill={color} stroke="var(--surface)" strokeWidth="2" />
+            )}
+            {it.label && (
+              <text x={x(it.from) + (it.left ? -10 : 0)} y={lanes[it.lane].y + (it.row ? 44 : 26)} textAnchor={it.left ? "end" : "start"} fontSize="12" fontWeight="600" fill={it.alert ? "var(--attention-ink)" : "var(--ink)"}>
+                <tspan fontFamily="var(--font-mono, monospace)" fontWeight="700">{fmt(it.from)}</tspan> {it.label}
+              </text>
+            )}
+          </g>
+        );
+      })}
+      {bandNotes.map((n, i) => (
+        <text key={i} x={x(n.at)} y={lanes[n.lane].y + 94} fontSize="11" fontWeight={n.alert ? 600 : 400} fill={n.alert ? "var(--attention-ink)" : "var(--muted)"}>
+          {n.text}
+        </text>
+      ))}
+      {ticks.map((t) => (
+        <g key={t}>
+          <line x1={x(t)} y1={508} x2={x(t)} y2={514} stroke="var(--muted)" />
+          <text x={x(t)} y={530} textAnchor="middle" fontSize="12" fill="var(--muted)">
+            {fmt(t)}
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
 function WorkflowDiagram() {
   const lanes = [
     { name: "Store manager", y: 40 },

@@ -332,6 +332,15 @@
       "w": 1440,
       "h": 900,
       "rationale": "Starting point of the prototype."
+    },
+    {
+      "id": "L2-tablet",
+      "board": "context",
+      "title": "Loading on the shared dock tablet",
+      "url": "/loader/load/TRP-014-1?demo=loading",
+      "w": 1180,
+      "h": 820,
+      "rationale": "The loader’s own device: a shared tablet at the dock."
     }
   ],
   "degradation": {
