@@ -9,7 +9,7 @@ import { AuditTimeline } from '../../components/AuditTimeline'
 import { PhotoCapture } from '../../components/ProofCapture'
 import { RouteMap } from '../../components/RouteMap'
 import { Badge, BrandTag, Button, Callout, Card, CardHeader, ChoiceList, cn, EmptyState, Modal, PageHeader, Segmented, SeverityBadge, Stat, TempTag, toast, type Tone } from '../../components/ui'
-import { MODAL } from '../../demo/mode'
+import { MODAL, STOP } from '../../demo/mode'
 import { orderOf, outletOf, vehicleOf } from '../../lib/select'
 import { useDevice, useNetwork, useNow, useSession, useView } from '../../store'
 
@@ -144,7 +144,8 @@ export function Load() {
   const net = useNetwork()
   const { t } = useTranslation()
   const trip = d.trips.find((x) => x.id === tripId)
-  const [open, setOpen] = useState<string | null>(null)
+  // ?stop=OUT032 opens that stop (stable link for previews).
+  const [open, setOpen] = useState<string | null>(() => (STOP && trip ? (trip.stops.find((id) => orderOf(d, id)?.outletId === STOP) ?? null) : null))
   const [short, setShort] = useState<{ o: Order; item: string; available: number } | null>(() => {
     if (MODAL !== 'shortfall' || !trip) return null
     const o = trip.stops.map((id) => orderOf(d, id)!).find((x) => !isOrderConfirmed(x))

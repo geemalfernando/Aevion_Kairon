@@ -7,6 +7,7 @@ import { byId, validate } from '@core/rules'
 import { colomboDate, colomboTs, hm } from '@core/time'
 import type { FieldEvent, OpsData, QueuedEvent, Role } from '@core/types'
 import { detectConflict, type RouteConflict } from '../store/conflict'
+import { DAY } from './mode'
 
 export interface PresetDevice {
   queue: QueuedEvent[]
@@ -35,13 +36,15 @@ export interface Preset {
 }
 
 const STORY = 'TRP-014-1'
+/** Fresh seed, on the pinned ordering day when ?day= is set. */
+const seed = () => seedOps(DAY ? { today: DAY } : {})
 const at = (d: OpsData, min: number) => setClock(d, colomboTs(d.deliveryDate, min))
 const ev = (d: OpsData, actor: Role, event: FieldEvent) => applyEvent(d, { actor, event, at: opNow(d) })
 const orderAt = (d: OpsData, outletId: string, temp: 'CHILLED' | 'AMBIENT' = 'CHILLED') => d.orders.find((o) => o.outletId === outletId && o.temp === temp)!
 const storeOrder = (d: OpsData) => orderAt(d, 'OUT032')
 
 function planned() {
-  const d = seedOps()
+  const d = seed()
   commands.closeOrders(d)
   // Plan at 16:05 on the ordering day, just after the cutoff.
   commands.setClock(d, colomboTs(colomboDate(opNow(d)), hm(16, 5)))
@@ -63,6 +66,24 @@ function loading(countAll = false) {
     if (!countAll && o.outletId === 'OUT032') continue
     for (const i of o.items) ev(d, 'LOADER', { type: 'LOAD_COUNT', orderId: id, item: i.name, count: i.qty })
   }
+  return d
+}
+/** 03:52 — Kamal counts OUT032 and finds 3 dairy crates damaged in the cold room; he flags it before departure. */
+function shortfallReported() {
+  const d = loading()
+  at(d, hm(3, 52))
+  const o = storeOrder(d)
+  for (const i of o.items) ev(d, 'LOADER', { type: 'LOAD_COUNT', orderId: o.id, item: i.name, count: i.name === 'Dairy' ? i.qty - 3 : i.qty })
+  ev(d, 'LOADER', { type: 'SHORTFALL', orderId: o.id, item: 'Dairy', missing: 3, reason: 'Damaged in the cold room' })
+  at(d, hm(3, 55))
+  return d
+}
+/** 03:58 — Geemal decides to send the rest of the order; the loader and the store see the decision. */
+function shortfallDecided() {
+  const d = shortfallReported()
+  at(d, hm(3, 58))
+  commands.resolveIssue(d, d.issues.find((i) => i.kind === 'SHORTFALL')!.id, 'Continue delivery')
+  at(d, hm(4, 0))
   return d
 }
 function loaded() {
@@ -198,8 +219,8 @@ function storeDeferred() {
 const one = (build: () => OpsData) => () => ({ data: build() })
 
 export const PRESETS: Preset[] = [
-  { id: 'orders-open', title: 'Orders open (15:20)', role: 'DISPATCHER', group: 'Dispatcher', path: '/dispatcher', note: 'Ordering day, 40 minutes before the 16:00 cutoff.', build: one(seedOps) },
-  { id: 'close-orders', title: 'Closing orders at the cutoff', role: 'DISPATCHER', group: 'Dispatcher', path: '/dispatcher/orders?close=1', note: 'Confirmed orders enter one planning queue; late orders roll to the next run.', build: one(seedOps) },
+  { id: 'orders-open', title: 'Orders open (15:20)', role: 'DISPATCHER', group: 'Dispatcher', path: '/dispatcher', note: 'Ordering day, 40 minutes before the 16:00 cutoff.', build: one(seed) },
+  { id: 'close-orders', title: 'Closing orders at the cutoff', role: 'DISPATCHER', group: 'Dispatcher', path: '/dispatcher/orders?close=1', note: 'Confirmed orders enter one planning queue; late orders roll to the next run.', build: one(seed) },
   { id: 'blocked', title: 'Allocation blocked by a rule', role: 'DISPATCHER', group: 'Dispatcher', path: '/dispatcher/planning?modal=blocked', note: 'A chilled order dropped on a dry truck: every rule checked, no override, vehicles that fit suggested.', build: one(planned) },
   { id: 'plan-draft', title: 'Draft plan on an over-capacity day', role: 'DISPATCHER', group: 'Dispatcher', path: '/dispatcher/planning', note: 'Recommended plan with deferrals, the binding resource and the recovery-reserve trade-off.', build: one(planned) },
   { id: 'plan-published', title: 'Plan published', role: 'DISPATCHER', group: 'Dispatcher', path: '/dispatcher/planning', note: 'Loaders, drivers and stores notified.', build: one(published) },
@@ -207,10 +228,12 @@ export const PRESETS: Preset[] = [
   { id: 'forecast', title: 'Capacity forecast', role: 'DISPATCHER', group: 'Dispatcher', path: '/dispatcher/capacity', note: 'Depot × brand × week demand (Datathon Task 2A slot).', build: one(planned) },
   { id: 'move-stop', title: 'Move a stop mid-route', role: 'DISPATCHER', group: 'Dispatcher', path: `/dispatcher/routes/${STORY}?modal=move-stop`, note: 'Driver reported a flooded road, then lost signal: the dispatcher compares staying with moving before taking the stop off.', build: () => offline(hm(5, 40)) },
   { id: 'synced', title: 'Driver back online', role: 'DISPATCHER', group: 'Dispatcher', path: '/dispatcher/live', note: 'Sync report: who was offline, what arrived, which change the driver saw.', degradation: true, build: () => ({ data: live() }) },
+  { id: 'shortfall-reported', title: 'Loading shortfall to decide', role: 'DISPATCHER', group: 'Dispatcher', path: '/dispatcher/issues/shortfall', note: 'The loader flagged damaged dairy before departure; the dispatcher decides.', build: one(shortfallReported) },
   { id: 'breakdown', title: 'Breakdown recovery', role: 'DISPATCHER', group: 'Dispatcher', path: '/dispatcher/issues/breakdown', note: 'Recovery plan using the reserve reefer.', degradation: true, build: one(breakdown) },
 
   { id: 'loading', title: 'Loading in stop order', role: 'LOADER', group: 'Loader', path: `/loader/load/${STORY}`, note: 'Last stop in first; one stop left to count.', build: one(() => loading()) },
   { id: 'shortfall', title: 'Shortfall before departure', role: 'LOADER', group: 'Loader', path: `/loader/load/${STORY}?modal=shortfall`, note: 'Loader flags missing dairy before the vehicle leaves.', build: one(() => loading()) },
+  { id: 'shortfall-decided', title: 'Shortfall decision received', role: 'LOADER', group: 'Loader', path: `/loader/load/${STORY}?stop=OUT032`, note: 'The dispatcher’s decision appears on the stop the loader flagged.', build: one(shortfallDecided) },
   { id: 'plan-changed', title: 'Plan changed after loading started', role: 'LOADER', group: 'Loader', path: `/loader/load/${STORY}`, note: 'Second degradation screen: unload one stop, add one, confirm before departure.', degradation: true, build: one(planChanged) },
 
   { id: 'ready', title: 'Loaded, ready to leave', role: 'DRIVER', group: 'Driver', path: '/driver', note: '04:25, night theme.', build: one(loaded) },
@@ -222,9 +245,10 @@ export const PRESETS: Preset[] = [
   { id: 'at-stop', title: 'Proof of delivery', role: 'DRIVER', group: 'Driver', path: '/driver/stop/next?modal=proof', note: 'Outcome, items, receiver, photo or signature — works offline.', build: one(atStop) },
   { id: 'recovered', title: 'After a breakdown', role: 'DRIVER', group: 'Driver', path: '/driver', note: 'Stops handed to the reserve reefer.', degradation: true, build: one(recovered) },
 
-  { id: 'store-ordering', title: 'Ordering before cutoff', role: 'STORE_MANAGER', group: 'Store manager', path: '/store/orders/new', note: 'Countdown to 16:00; chilled and dry split into two deliveries.', build: one(seedOps) },
+  { id: 'store-ordering', title: 'Ordering before cutoff', role: 'STORE_MANAGER', group: 'Store manager', path: '/store/orders/new', note: 'Countdown to 16:00; chilled and dry split into two deliveries.', build: one(seed) },
   { id: 'store-scheduled', title: 'Delivery scheduled with ETA', role: 'STORE_MANAGER', group: 'Store manager', path: '/store', note: 'Expected arrival for staffing.', build: one(published) },
   { id: 'store-deferred', title: 'Order moved to the next run', role: 'STORE_MANAGER', group: 'Store manager', path: '/store', note: 'Clear notice with the reason and new date.', build: one(storeDeferred) },
+  { id: 'store-shortfall', title: 'Told what will be missing', role: 'STORE_MANAGER', group: 'Store manager', path: '/store', note: 'Before the truck leaves, the store sees what is short and what the dispatcher decided.', build: one(shortfallDecided) },
   { id: 'store-issue', title: 'Report a delivery issue', role: 'STORE_MANAGER', group: 'Store manager', path: '/store?modal=report-issue', note: 'Missing, damaged or wrong goods reach the dispatcher with a photo.', build: one(storeDelivered) },
   { id: 'store-delivered', title: 'Confirm receipt', role: 'STORE_MANAGER', group: 'Store manager', path: '/store', note: 'Confirm what arrived or report an issue.', build: one(storeDelivered) },
 ]
