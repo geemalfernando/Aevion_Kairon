@@ -117,6 +117,8 @@ export interface Schedule {
   fuelL: number
   weightKg: number
   volumeM3: number
+  /** Stop ids whose order or outlet is not in the data. They are left out of the timings, so callers must not ignore them. */
+  unknownOrders: string[]
 }
 
 export function scheduleTrip(trip: Pick<Trip, 'district' | 'stops' | 'departure' | 'brand'>, vehicle: Vehicle, w: Omit<World, 'trips' | 'vehicles'>): Schedule {
@@ -126,10 +128,14 @@ export function scheduleTrip(trip: Pick<Trip, 'district' | 'stops' | 'departure'
   let handling = 0
   let weightKg = 0
   let volumeM3 = 0
+  const unknownOrders: string[] = []
   trip.stops.forEach((id, i) => {
     const o = byId(w.orders, id)
     const out = o && byId(w.outlets, o.outletId)
-    if (!o || !out) return
+    if (!o || !out) {
+      unknownOrders.push(id)
+      return
+    }
     if (i > 0) t += dist.inter_stop_freeflow_min
     const eta = t
     const start = Math.max(eta, out.window[0])
@@ -158,6 +164,7 @@ export function scheduleTrip(trip: Pick<Trip, 'district' | 'stops' | 'departure'
     fuelL: Math.round((distanceKm / vehicle.kmPerL) * 10) / 10,
     weightKg: Math.round(weightKg),
     volumeM3: Math.round(volumeM3 * 100) / 100,
+    unknownOrders,
   }
 }
 
@@ -229,7 +236,7 @@ export function scheduleOfTrip(d: World, t: Trip): Schedule {
 // Validation
 // ---------------------------------------------------------------------------
 
-export type CheckKey = 'status' | 'reserve' | 'depot' | 'temperature' | 'access' | 'trip' | 'trips' | 'weight' | 'volume' | 'window' | 'budget' | 'fuel'
+export type CheckKey = 'status' | 'reserve' | 'depot' | 'temperature' | 'access' | 'mall' | 'orders' | 'trip' | 'trips' | 'weight' | 'volume' | 'window' | 'budget' | 'fuel'
 
 export interface Check {
   key: CheckKey
@@ -260,6 +267,8 @@ export interface ValidateOptions {
 
 /** Would adding `order` to `vehicle` keep every operating constraint? The order joins the vehicle's matching trip or opens a new one. */
 export function validate(order: Order, vehicle: Vehicle, w: World, opts: ValidateOptions = {}): Validation {
+  // The order under test is always known, even if the caller's snapshot does not list it yet.
+  if (!w.orders.some((x) => x.id === order.id)) w = { ...w, orders: [...w.orders, order] }
   const outlet = byId(w.outlets, order.outletId)!
   const mine = w.trips.filter((t) => t.vehicleId === vehicle.id && t.status !== 'ABORTED').map((t) => ({ ...t, stops: t.stops.filter((s) => s !== order.id) }))
   const rescue = opts.rescueDeparture !== undefined
@@ -277,6 +286,28 @@ export function validate(order: Order, vehicle: Vehicle, w: World, opts: Validat
   const isDone = (id: string) => isDoneStatus(byId(w.orders, id)?.status)
   const late = day.trips.flatMap((x) => x.sched.stops.filter((s) => s.late && !isDone(s.orderId)))
   const lateOutlet = late[0] && byId(w.outlets, late[0].outletId)
+  // Booklet rule (hard): every order on a trip shares its brand and district. Checked against the trip's own stops,
+  // not assumed from how the order was matched, so a hand-built or joined trip that mixes them is rejected.
+  const mixed = trips.flatMap((t) =>
+    t.stops.flatMap((id) => {
+      const o = byId(w.orders, id)
+      const out = o && byId(w.outlets, o.outletId)
+      return o && out && (o.brand !== t.brand || out.district !== t.district) ? [{ trip: t, order: o, outlet: out }] : []
+    }),
+  )
+  const mix = mixed[0]
+  const tripName = (t: Trip) => (t.id === '__new' ? 'This trip' : `Trip ${t.id}`)
+  // Booklet rule (hard): mall_dock outlets accept deliveries only inside mall_window. Checked on the raw mall window,
+  // independent of the narrowed outlet window, so it still holds if an outlet's window was never narrowed.
+  const mallMiss = day.trips.flatMap((x) =>
+    x.sched.stops.flatMap((s) => {
+      const out = byId(w.outlets, s.outletId)
+      const mw = out?.mallWindow
+      return out && mw && !isDone(s.orderId) && (s.start < mw[0] || s.eta > mw[1]) ? [{ stop: s, outlet: out, mw }] : []
+    }),
+  )
+  const mall = mallMiss[0]
+  const unknown = day.trips.flatMap((x) => x.sched.unknownOrders)
   const others = mine.filter((t) => t.stops.length && t.id !== target?.id)
 
   const checks: Check[] = [
@@ -291,7 +322,25 @@ export function validate(order: Order, vehicle: Vehicle, w: World, opts: Validat
       detail: order.temp === 'CHILLED' ? (vehicle.temp === 'reefer' ? 'Chilled goods on a reefer' : 'Chilled goods need a reefer') : vehicle.temp === 'reefer' ? 'Ambient goods on a reefer (allowed)' : 'Ambient goods',
     },
     { key: 'access', label: 'Outlet access', ok: !outlet.vanOnly || vehicle.kind === 'van', blocking: true, detail: outlet.vanOnly ? (vehicle.kind === 'van' ? 'Van-only outlet · van selected' : `${outlet.id} is van only — trucks cannot reach it`) : outlet.mall ? `Mall bay · ${fmtMin(outlet.window[0])}–${fmtMin(outlet.window[1])}` : 'Any vehicle' },
-    { key: 'trip', label: 'One brand, one district per trip', ok: true, blocking: true, detail: target ? `Joins trip ${entry.number} · ${order.brand} · ${outlet.district}` : `New trip · ${order.brand} · ${outlet.district}` },
+    {
+      key: 'mall',
+      label: 'Mall access window',
+      ok: !mall,
+      blocking: true,
+      detail: mall
+        ? `${mall.outlet.id} would be served ${fmtMin(mall.stop.start)} (arrives ${fmtMin(mall.stop.eta)}) — mall bay only open ${fmtMin(mall.mw[0])}–${fmtMin(mall.mw[1])}`
+        : outlet.mallWindow
+          ? `Mall bay open ${fmtMin(outlet.mallWindow[0])}–${fmtMin(outlet.mallWindow[1])}`
+          : 'Not a mall outlet',
+    },
+    { key: 'orders', label: 'Known orders', ok: !unknown.length, blocking: true, detail: unknown.length ? `Unknown order or outlet on the vehicle's trips: ${unknown.join(', ')}` : 'Every order on the vehicle is known' },
+    {
+      key: 'trip',
+      label: 'One brand, one district per trip',
+      ok: !mix,
+      blocking: true,
+      detail: mix ? `${tripName(mix.trip)} is ${mix.trip.brand} · ${mix.trip.district}, but ${mix.order.id} is ${mix.order.brand} · ${mix.outlet.district}` : target ? `Joins trip ${entry.number} · ${order.brand} · ${outlet.district}` : `New trip · ${order.brand} · ${outlet.district}`,
+    },
     {
       key: 'trips',
       label: 'Two trips per vehicle',
@@ -422,7 +471,7 @@ export function explainDeferral(order: Order, w: World, opts: { releaseReserve?:
     const parts = [down.length && `${down.join(', ')} in the workshop`, reserve.length && `${reserve.join(', ')} held for recovery`].filter(Boolean).join('; ')
     return { code: 'vehicle_unavailable', reason: `No ${kind} available`, detail: `${outlet.depot} has ${pool.length} ${kind}${pool.length === 1 ? '' : 's'}${parts ? ` (${parts})` : ''}.` }
   }
-  const PRECEDENCE: CheckKey[] = ['trips', 'budget', 'window', 'volume', 'weight', 'fuel']
+  const PRECEDENCE: CheckKey[] = ['trips', 'budget', 'window', 'mall', 'volume', 'weight', 'fuel']
   const tally: Partial<Record<CheckKey, number>> = {}
   let earliest = Infinity
   for (const v of usable) {
@@ -446,6 +495,7 @@ export function explainDeferral(order: Order, w: World, opts: { releaseReserve?:
     case 'budget':
       return { code: chilled || outlet.vanOnly ? fleetCode : 'time_budget', reason: DEFERRAL_LABEL[chilled || outlet.vanOnly ? fleetCode : 'time_budget'], detail: `The ${noun} have used their ${order.brand === 'Fresh' ? '270 Fresh minutes (03:30–08:00)' : '480 Style + Tech minutes'}.${tooLate}` }
     case 'window':
+    case 'mall':
       return { code: fleetCode, reason: DEFERRAL_LABEL[fleetCode], detail: `The ${noun} are fully booked in ${window}.${tooLate}` }
     case 'volume':
       return { code: chilled ? 'reefer_capacity' : 'volume_cap', reason: chilled ? DEFERRAL_LABEL.reefer_capacity : DEFERRAL_LABEL.volume_cap, detail: `No ${kind} has ${order.volumeM3} m³ free on a ${outlet.district} trip.` }
