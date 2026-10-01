@@ -26,7 +26,30 @@ export const TRANSFER_MIN = 30
 export type World = Pick<OpsData, 'orders' | 'outlets' | 'vehicles' | 'trips' | 'districts' | 'allowances'>
 export type BudgetGroup = keyof typeof BUDGET
 
-export const byId = <T extends { id: string }>(list: T[], id?: string) => (id ? list.find((x) => x.id === id) : undefined)
+/**
+ * Id index per array, so the planner's hot paths (every stop of every validation) don't scan lists.
+ * Arrays are mutated in place elsewhere (push, splice, replace), so an index entry is trusted only if it still
+ * points at an element with that id; anything else falls back to a scan and rebuilds the index.
+ */
+const ID_INDEX = new WeakMap<object, Map<string, number>>()
+function indexOf<T extends { id: string }>(list: T[]) {
+  const m = new Map<string, number>()
+  list.forEach((x, i) => {
+    if (!m.has(x.id)) m.set(x.id, i)
+  })
+  ID_INDEX.set(list, m)
+  return m
+}
+export const byId = <T extends { id: string }>(list: T[], id?: string): T | undefined => {
+  if (!id) return undefined
+  if (list.length < 12) return list.find((x) => x.id === id)
+  const i = (ID_INDEX.get(list) ?? indexOf(list)).get(id)
+  const hit = i === undefined ? undefined : list[i]
+  if (hit && hit.id === id) return hit
+  const found = list.find((x) => x.id === id)
+  if (found) indexOf(list)
+  return found
+}
 export const DONE: Order['status'][] = ['DELIVERED', 'PARTIAL', 'FAILED', 'RECEIVED']
 export const isDoneStatus = (s?: Order['status']) => !!s && DONE.includes(s)
 
@@ -236,7 +259,7 @@ export function scheduleOfTrip(d: World, t: Trip): Schedule {
 // Validation
 // ---------------------------------------------------------------------------
 
-export type CheckKey = 'status' | 'reserve' | 'depot' | 'temperature' | 'access' | 'mall' | 'orders' | 'trip' | 'trips' | 'weight' | 'volume' | 'window' | 'budget' | 'fuel'
+export type CheckKey = 'status' | 'reserve' | 'locked' | 'depot' | 'temperature' | 'access' | 'mall' | 'orders' | 'trip' | 'trips' | 'weight' | 'volume' | 'window' | 'budget' | 'fuel'
 
 export interface Check {
   key: CheckKey
@@ -266,13 +289,28 @@ export interface ValidateOptions {
 }
 
 /** Would adding `order` to `vehicle` keep every operating constraint? The order joins the vehicle's matching trip or opens a new one. */
+/** A locked trip: one of its stops is locked to the trip's vehicle as a whole trip. No other order may join it. */
+export function isTripLocked(trip: Pick<Trip, 'stops' | 'vehicleId'>, w: Pick<World, 'orders'>) {
+  return trip.stops.some((id) => {
+    const l = byId(w.orders, id)?.lock
+    return !!l?.wholeTrip && l.vehicleId === trip.vehicleId
+  })
+}
+
 export function validate(order: Order, vehicle: Vehicle, w: World, opts: ValidateOptions = {}): Validation {
   // The order under test is always known, even if the caller's snapshot does not list it yet.
-  if (!w.orders.some((x) => x.id === order.id)) w = { ...w, orders: [...w.orders, order] }
+  if (!byId(w.orders, order.id)) w = { ...w, orders: [...w.orders, order] }
   const outlet = byId(w.outlets, order.outletId)!
   const mine = w.trips.filter((t) => t.vehicleId === vehicle.id && t.status !== 'ABORTED').map((t) => ({ ...t, stops: t.stops.filter((s) => s !== order.id) }))
   const rescue = opts.rescueDeparture !== undefined
-  const target = opts.joinTrip ? mine.find((t) => t.id === opts.joinTrip) : rescue ? undefined : mine.find((t) => isEditable(t) && (!opts.draftOnly || t.status === 'DRAFT') && !t.rescue && t.brand === order.brand && t.district === outlet.district)
+  // Stops locked to this vehicle as a whole trip may join their own locked trip; nothing else may.
+  const member = !!order.lock?.wholeTrip && order.lock.vehicleId === vehicle.id
+  const closed = (t: Trip) => !member && isTripLocked(t, w)
+  const target = opts.joinTrip
+    ? mine.find((t) => t.id === opts.joinTrip)
+    : rescue
+      ? undefined
+      : mine.find((t) => isEditable(t) && (!opts.draftOnly || t.status === 'DRAFT') && !t.rescue && !closed(t) && t.brand === order.brand && t.district === outlet.district)
   const focus: Trip = target
     ? { ...target, stops: target.rescue ? [...target.stops, order.id] : sequence([...target.stops, order.id], w) }
     : { id: '__new', vehicleId: vehicle.id, number: 1, brand: order.brand, district: outlet.district, departure: opts.rescueDeparture ?? 0, stops: [order.id], status: 'DRAFT', rescue: rescue ? { reason: 'rescue' } : undefined }
@@ -309,10 +347,48 @@ export function validate(order: Order, vehicle: Vehicle, w: World, opts: Validat
   const mall = mallMiss[0]
   const unknown = day.trips.flatMap((x) => x.sched.unknownOrders)
   const others = mine.filter((t) => t.stops.length && t.id !== target?.id)
+  // Team policy: locked stops. An order locked to another vehicle stays there; moving it is an explicit unlock (rescue
+  // moves after publishing are the dispatcher's own decision and may move it). Stops already locked to this vehicle keep
+  // their trip and arrival time, so other orders may only use the room around them. Placing a locked stop on its own
+  // vehicle may shift the vehicle's other locked stops: together they define where the locked stops are.
+  const rescueMode = rescue || !!target?.rescue
+  const lockedElsewhere = !rescueMode && order.lock && order.lock.vehicleId !== vehicle.id ? order.lock.vehicleId : undefined
+  const closedTrip = !rescueMode && target && closed(target) ? target.id : undefined
+  let shiftedLock: string | undefined
+  if (order.lock?.vehicleId !== vehicle.id) {
+    const lockedHere = mine.flatMap((t) => t.stops).filter((id) => byId(w.orders, id)?.lock?.vehicleId === vehicle.id && !isDone(id))
+    if (lockedHere.length) {
+      const before = vehicleDay(vehicle, mine, w)
+      const placed = (dp: DayPlan, id: string) => {
+        for (const x of dp.trips) {
+          const s = x.sched.stops.find((y) => y.orderId === id)
+          if (s) return `${x.trip.id}@${s.eta}`
+        }
+        return ''
+      }
+      shiftedLock = lockedHere.find((id) => placed(before, id) !== placed(day, id))
+    }
+  }
+  const shiftedOutlet = shiftedLock && byId(w.outlets, byId(w.orders, shiftedLock)?.outletId)?.id
 
   const checks: Check[] = [
     { key: 'status', label: 'Vehicle available', ok: vehicle.status === 'AVAILABLE', blocking: true, detail: vehicle.status === 'AVAILABLE' ? 'Ready for dispatch' : vehicle.status === 'IN_WORKSHOP' ? `${vehicle.id} is in the workshop` : `${vehicle.id} has broken down` },
     { key: 'reserve', label: 'Recovery reserve', ok: !vehicle.reserve || rescue, blocking: false, detail: vehicle.reserve ? (rescue ? 'Reserve vehicle used for recovery' : 'Held for breakdown recovery — using it leaves no spare reefer') : 'Not a reserve vehicle' },
+    {
+      key: 'locked',
+      label: 'Locked stops',
+      ok: !lockedElsewhere && !shiftedLock && !closedTrip,
+      blocking: true,
+      detail: lockedElsewhere
+        ? `${order.id} is locked to ${lockedElsewhere} — unlock it to move it`
+        : closedTrip
+          ? `Trip ${closedTrip} is locked — unlock the trip to add stops to it`
+          : shiftedLock
+          ? `Would change the arrival time of locked stop ${shiftedOutlet ?? shiftedLock} on ${vehicle.id}`
+          : order.lock
+            ? `Locked to ${order.lock.vehicleId}${order.lock.wholeTrip ? ' as a whole trip' : ''}`
+            : 'No locked stop is moved',
+    },
     { key: 'depot', label: 'Home depot', ok: outlet.depot === vehicle.depot, blocking: true, detail: outlet.depot === vehicle.depot ? `${vehicle.depot} outlet` : `${outlet.id} is served from ${outlet.depot}` },
     {
       key: 'temperature',
@@ -464,6 +540,16 @@ export function explainDeferral(order: Order, w: World, opts: { releaseReserve?:
   const pool = w.vehicles.filter((v) => v.depot === outlet.depot && (!chilled || v.temp === 'reefer') && (!outlet.vanOnly || v.kind === 'van'))
   const kind = chilled && outlet.vanOnly ? 'refrigerated van' : chilled ? 'reefer' : outlet.vanOnly ? 'van' : 'vehicle'
   const capCode: DeferralCode = chilled ? 'reefer_capacity' : outlet.vanOnly ? 'van_capacity' : 'vehicle_capacity'
+  // A locked stop is only ever tried on its own vehicle, so explain that vehicle's refusal.
+  const lockedTo = order.lock && byId(w.vehicles, order.lock.vehicleId)
+  if (lockedTo) {
+    const fail = validate(order, lockedTo, w).checks.find((c) => !c.ok && c.blocking)
+    return {
+      code: capCode,
+      reason: `Locked to ${lockedTo.id}, which can't take it`,
+      detail: `${outlet.id} is locked to ${lockedTo.id}${fail ? ` · ${fail.label}: ${fail.detail}` : ''}. Unlock it to let the planner choose another vehicle.`,
+    }
+  }
   const usable = pool.filter((v) => v.status === 'AVAILABLE' && (opts.releaseReserve || !v.reserve))
   if (!usable.length) {
     const down = pool.filter((v) => v.status !== 'AVAILABLE').map((v) => v.id)
@@ -489,6 +575,13 @@ export function explainDeferral(order: Order, w: World, opts: { releaseReserve?:
     ? ` The earliest any could reach ${outlet.id} is ${fmtMin(earliest)}, after its ${fmtMin(outlet.window[1])} close.`
     : ' Fitting it in would push stops already booked past their windows.'
   const window = order.brand === 'Fresh' ? 'the 03:30–08:00 Fresh window' : 'the trading day'
+  // Chilled orders blocked by windows or the time budget are short of reefer *time*, not reefer space: say so.
+  if (chilled && (top?.[0] === 'window' || top?.[0] === 'budget')) {
+    const close = fmtMin(outlet.window[1])
+    const reach = Number.isFinite(earliest) ? `No ${kind} can reach ${outlet.id} before ${close}` : `No ${kind} can reach ${outlet.id} before ${close} without making stops already booked late`
+    const why = top[0] === 'budget' ? `have used their ${order.brand === 'Fresh' ? '270 Fresh minutes (03:30–08:00)' : '480 Style + Tech minutes'}` : `are booked in ${window}`
+    return { code: fleetCode, reason: `No ${kind} time`, detail: `${reach}. The ${noun} ${why}.${Number.isFinite(earliest) ? ` The earliest any could arrive is ${fmtMin(earliest)}.` : ''}` }
+  }
   switch (top?.[0]) {
     case 'trips':
       return { code: capCode, reason: DEFERRAL_LABEL[capCode], detail: `All ${noun} already run two trips or have no matching trip left.` }
@@ -523,39 +616,51 @@ export interface PlanResult {
   deferred: Record<string, DeferralInfo>
 }
 
-/** Allocation order: priority (fairness first), then earliest window close. */
+/** Allocation order: locked stops first, then priority (fairness first), then earliest window close. */
 export function planQueue(w: World, deliveryDate: string) {
   return w.orders
     .filter((o) => o.status === 'CONFIRMED' && !o.tripId && o.deliveryDate === deliveryDate)
-    .sort((a, b) => (b.seedVehicle ? 1 : 0) - (a.seedVehicle ? 1 : 0) || b.priority - a.priority || (byId(w.outlets, a.outletId)?.window[1] ?? 0) - (byId(w.outlets, b.outletId)?.window[1] ?? 0) || a.id.localeCompare(b.id))
+    .sort((a, b) => (b.lock ? 1 : 0) - (a.lock ? 1 : 0) || b.priority - a.priority || (byId(w.outlets, a.outletId)?.window[1] ?? 0) - (byId(w.outlets, b.outletId)?.window[1] ?? 0) || a.id.localeCompare(b.id))
+}
+
+export interface PlanOptions {
+  /** Plan the recovery reserve like any other vehicle (the dispatcher's release). */
+  releaseReserve?: boolean
+}
+
+/** Vehicles the planner may try for an order: the one it is locked to, or any available vehicle at its depot. */
+function plannerCandidates(order: Order, outlet: Outlet, w: World, opts: PlanOptions) {
+  if (order.lock) return w.vehicles.filter((v) => v.id === order.lock!.vehicleId)
+  return w.vehicles.filter((v) => v.depot === outlet.depot && v.status === 'AVAILABLE' && (opts.releaseReserve || !v.reserve))
+}
+
+/** A plan before its deferrals are explained: explanations are only worked out for the plan that is kept. */
+export interface Construction {
+  trips: Trip[]
+  assigned: Record<string, string>
+  deferred: string[]
 }
 
 /**
- * Greedy, explainable allocation. Orders are taken by priority; each goes to the feasible vehicle with the
- * best fit (join a trip > reuse a vehicle > open a new one; reefers kept for chilled, vans for van-only).
- * Anything no vehicle can take is deferred with the constraint that stopped it.
+ * One greedy pass over a queue. Each order goes to the feasible vehicle with the best fit (join a trip > reuse a
+ * vehicle > open a new one; reefers kept for chilled, vans for van-only), or is deferred if no vehicle passes.
  */
-export function generatePlan(w: World, deliveryDate: string, opts: { releaseReserve?: boolean } = {}): PlanResult {
+function construct(w: World, queue: Order[], opts: PlanOptions): Construction {
   const trips: Trip[] = w.trips.filter((t) => t.status !== 'DRAFT').map((t) => ({ ...t, stops: [...t.stops] }))
   const world: World = { ...w, trips }
   const assigned: Record<string, string> = {}
-  const deferred: Record<string, DeferralInfo> = {}
-  const storyVehicles = new Set(w.orders.map((o) => o.seedVehicle).filter(Boolean) as string[])
-
-  for (const order of planQueue(w, deliveryDate)) {
+  const deferred: string[] = []
+  for (const order of queue) {
     const outlet = byId(w.outlets, order.outletId)!
-    const candidates = order.seedVehicle
-      ? w.vehicles.filter((v) => v.id === order.seedVehicle)
-      : w.vehicles.filter((v) => v.depot === outlet.depot && v.status === 'AVAILABLE' && (opts.releaseReserve || !v.reserve) && !storyVehicles.has(v.id))
     let best: { v: Vehicle; r: Validation; s: number } | undefined
-    for (const v of candidates) {
+    for (const v of plannerCandidates(order, outlet, w, opts)) {
       const r = validate(order, v, world, { draftOnly: true })
       if (!r.ok) continue
       const s = fitScore(order, outlet, v, r)
       if (!best || s < best.s) best = { v, r, s }
     }
     if (!best) {
-      deferred[order.id] = explainDeferral(order, world, opts)
+      deferred.push(order.id)
       continue
     }
     let trip = best.r.trip.id ? trips.find((t) => t.id === best.r.trip.id) : undefined
@@ -568,6 +673,213 @@ export function generatePlan(w: World, deliveryDate: string, opts: { releaseRese
     retime(world, best.v.id)
   }
   return { trips: trips.filter((t) => t.stops.length), assigned, deferred }
+}
+
+function explained(w: World, c: Construction, opts: PlanOptions): PlanResult {
+  const world: World = { ...w, trips: c.trips }
+  const deferred: Record<string, DeferralInfo> = {}
+  for (const id of c.deferred) deferred[id] = explainDeferral(byId(w.orders, id)!, world, opts)
+  return { trips: c.trips, assigned: c.assigned, deferred }
+}
+
+// ---------------------------------------------------------------------------
+// Multi-start construction
+// ---------------------------------------------------------------------------
+
+/**
+ * Queue orders tried by the planner. Every one keeps locked stops first and priority bands in order, so an outlet
+ * skipped yesterday still goes before today's routine orders; they differ only in how equal-priority orders are
+ * ordered, which on an over-capacity day decides how many fit.
+ * - greedy: earliest window close (the original planner, always tried, and the fallback).
+ * - scarcity: orders with the fewest possible vehicles first (refrigerated van, then reefer, then van), mall stops first.
+ * - shortHaul: districts nearest the depot first, so each reefer morning reaches more stops.
+ * - district: the largest brand+district groups first, each group kept together.
+ * Every start except greedy also batches: once an order is placed, the rest of its brand+district group follows.
+ */
+export const PLAN_STARTS = ['greedy', 'scarcity', 'shortHaul', 'district'] as const
+export type PlanStart = (typeof PLAN_STARTS)[number]
+
+const cmpKeys = (a: (number | string)[], b: (number | string)[]) => {
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i]
+    const y = b[i]
+    if (x === y) continue
+    return typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y))
+  }
+  return 0
+}
+
+/** Keep each group together, in the position of its first member. */
+function batched<T>(list: T[], group: (x: T) => string): T[] {
+  const out: T[] = []
+  const done = new Set<number>()
+  list.forEach((x, i) => {
+    if (done.has(i)) return
+    const g = group(x)
+    for (let j = i; j < list.length; j++) {
+      if (!done.has(j) && group(list[j]) === g) {
+        out.push(list[j])
+        done.add(j)
+      }
+    }
+  })
+  return out
+}
+
+export function plannerQueue(start: PlanStart, w: World, deliveryDate: string, opts: PlanOptions = {}): Order[] {
+  const base = planQueue(w, deliveryDate)
+  if (start === 'greedy') return base
+  const outletOf = (o: Order) => byId(w.outlets, o.outletId)!
+  const close = (o: Order) => outletOf(o).window[1]
+  const group = (o: Order) => `${o.brand}|${outletOf(o).district}`
+  // Locked stops form their own top band; then priority, highest first.
+  const band = (o: Order) => (o.lock ? 1000 : 0) + o.priority
+  const scarcityClass = (o: Order) => (o.temp === 'CHILLED' ? 0 : 2) + (outletOf(o).vanOnly ? 0 : 1)
+  let key: (o: Order) => (number | string)[]
+  if (start === 'scarcity') {
+    const flex = new Map(
+      base.map((o) => {
+        const out = outletOf(o)
+        return [o.id, plannerCandidates(o, out, w, opts).filter((v) => (o.temp !== 'CHILLED' || v.temp === 'reefer') && (!out.vanOnly || v.kind === 'van')).length]
+      }),
+    )
+    key = (o) => [scarcityClass(o), flex.get(o.id)!, outletOf(o).mallWindow ? 0 : 1, close(o), o.id]
+  } else if (start === 'shortHaul') {
+    key = (o) => [districtOf(w, outletOf(o).district).depot_to_district_freeflow_min, group(o), close(o), o.id]
+  } else {
+    const size = new Map<string, number>()
+    for (const o of base) size.set(`${band(o)}|${group(o)}`, (size.get(`${band(o)}|${group(o)}`) ?? 0) + 1)
+    key = (o) => [-size.get(`${band(o)}|${group(o)}`)!, group(o), close(o), o.id]
+  }
+  const sorted = [...base].sort((a, b) => band(b) - band(a) || cmpKeys(key(a), key(b)))
+  if (start === 'district') return sorted
+  return batched(sorted, (o) => `${band(o)}|${group(o)}${start === 'scarcity' ? `|${scarcityClass(o)}` : ''}`)
+}
+
+/** The planner's objective, compared lexicographically by `comparePlans`. */
+export interface PlanScore {
+  /** Audit failures: any is disqualifying. */
+  violations: number
+  /** Σ priority of deferred orders (lower is better). */
+  deferredPriority: number
+  /** Orders served (higher is better). */
+  served: number
+  trips: number
+  km: number
+}
+
+export function scorePlan(w: World, result: Pick<PlanResult, 'trips' | 'assigned' | 'deferred'>, violations = 0): PlanScore {
+  const world: World = { ...w, trips: result.trips }
+  let km = 0
+  for (const id of new Set(result.trips.map((t) => t.vehicleId))) {
+    const v = byId(w.vehicles, id)
+    if (v) for (const x of vehicleDay(v, result.trips, world).trips) km += x.sched.distanceKm
+  }
+  return {
+    violations,
+    deferredPriority: Object.keys(result.deferred).reduce((s, id) => s + (byId(w.orders, id)?.priority ?? 0), 0),
+    served: Object.keys(result.assigned).length,
+    trips: result.trips.filter((t) => t.stops.length).length,
+    km: Math.round(km * 10) / 10,
+  }
+}
+
+/** Team policy, lexicographic: no violations > least deferred priority > most served > fewest trips > least km. Negative when a is better. */
+export function comparePlans(a: PlanScore, b: PlanScore) {
+  return a.violations - b.violations || a.deferredPriority - b.deferredPriority || b.served - a.served || a.trips - b.trips || a.km - b.km
+}
+
+export interface PlanAudit {
+  ok: boolean
+  problems: string[]
+}
+
+/**
+ * Independent check of a finished plan. Every order in the queue must be either assigned or deferred, never both;
+ * no order may sit on two trips; and every assignment is re-validated on its own trip with every other assignment
+ * in place, so all hard constraints, locked stops and the reserve are confirmed on the plan as a whole.
+ */
+export function auditPlan(w: World, result: Pick<PlanResult, 'trips' | 'assigned' | 'deferred'>, deliveryDate: string, opts: PlanOptions = {}): PlanAudit {
+  const problems: string[] = []
+  const world: World = { ...w, trips: result.trips }
+  const where = new Map<string, string>()
+  for (const t of result.trips) {
+    for (const id of t.stops) {
+      if (where.has(id)) problems.push(`${id} is on two trips (${where.get(id)} and ${t.id})`)
+      where.set(id, t.id)
+    }
+  }
+  for (const o of planQueue(w, deliveryDate)) {
+    const a = !!result.assigned[o.id]
+    const d = !!result.deferred[o.id]
+    if (a === d) problems.push(a ? `${o.id} is both assigned and deferred` : `${o.id} was neither assigned nor deferred`)
+  }
+  for (const [oid, tid] of Object.entries(result.assigned)) {
+    const o = byId(w.orders, oid)
+    const t = byId(result.trips, tid)
+    const v = t && byId(w.vehicles, t.vehicleId)
+    if (!o || !t || !v) {
+      problems.push(`${oid} → ${tid}: unknown order, trip or vehicle`)
+      continue
+    }
+    if (where.get(oid) !== tid) {
+      problems.push(`${oid} is assigned to ${tid} but is not on it`)
+      continue
+    }
+    if (o.lock && o.lock.vehicleId !== v.id) problems.push(`${oid} is locked to ${o.lock.vehicleId} but planned on ${v.id}`)
+    if (v.reserve && !opts.releaseReserve && o.lock?.vehicleId !== v.id && t.status === 'DRAFT') problems.push(`${oid} is planned on reserve vehicle ${v.id}`)
+    const failed = validate(o, v, world, { joinTrip: tid }).checks.filter((c) => !c.ok && c.blocking)
+    if (failed.length) problems.push(`${oid} on ${v.id}: ${failed.map((c) => `${c.label} (${c.detail})`).join('; ')}`)
+  }
+  return { ok: problems.length === 0, problems }
+}
+
+const UNEXPLAINED: DeferralInfo = { code: 'vehicle_capacity', reason: '', detail: '' }
+
+/** A plan before its deferrals are explained, as produced by one start. */
+export type PlanConstruction = Construction
+export interface PlanCandidate {
+  start: string
+  construction: PlanConstruction
+}
+
+/** Audit and score candidate plans. The audit is always run here, never taken from the candidate. */
+export function evaluatePlans(w: World, deliveryDate: string, candidates: PlanCandidate[], opts: PlanOptions = {}) {
+  return candidates.map(({ start, construction }) => {
+    const draft = { trips: construction.trips, assigned: construction.assigned, deferred: Object.fromEntries(construction.deferred.map((id) => [id, UNEXPLAINED])) }
+    const audit = auditPlan(w, draft, deliveryDate, opts)
+    return { start, construction, audit, score: scorePlan(w, draft, audit.problems.length) }
+  })
+}
+
+/** Build the plan from every start and score each one, audit included. Exported so tests and reports can compare. */
+export function planStarts(w: World, deliveryDate: string, opts: PlanOptions = {}) {
+  return evaluatePlans(w, deliveryDate, PLAN_STARTS.map((start) => ({ start, construction: construct(w, plannerQueue(start, w, deliveryDate, opts), opts) })), opts)
+}
+
+/**
+ * Keep the best candidate by the objective. A candidate that fails the audit can only win if every candidate fails;
+ * then the original greedy plan is rebuilt from scratch and returned instead, so a broken candidate is never kept.
+ */
+export function selectPlan(w: World, deliveryDate: string, candidates: PlanCandidate[], opts: PlanOptions = {}): PlanResult {
+  const runs = evaluatePlans(w, deliveryDate, candidates, opts)
+  const best = runs.length ? runs.reduce((a, b) => (comparePlans(b.score, a.score) < 0 ? b : a)) : undefined
+  const kept = best && !best.score.violations ? best.construction : construct(w, planQueue(w, deliveryDate), opts)
+  return explained(w, kept, opts)
+}
+
+/** The original single-pass planner, kept as the baseline and the fallback. */
+export function greedyPlan(w: World, deliveryDate: string, opts: PlanOptions = {}): PlanResult {
+  return explained(w, construct(w, planQueue(w, deliveryDate), opts), opts)
+}
+
+/**
+ * Explainable allocation. The plan is built from several queue orders (see `PLAN_STARTS`) and the best by the
+ * objective is kept (`comparePlans`). Every candidate is audited; if the best one fails, the original greedy plan is
+ * returned instead (`selectPlan`). Anything no vehicle can take is deferred with the constraint that stopped it.
+ */
+export function generatePlan(w: World, deliveryDate: string, opts: PlanOptions = {}): PlanResult {
+  return selectPlan(w, deliveryDate, PLAN_STARTS.map((start) => ({ start, construction: construct(w, plannerQueue(start, w, deliveryDate, opts), opts) })), opts)
 }
 
 /** What limited the plan: deferrals by cause, resource use, and what releasing the recovery reserve would change. */

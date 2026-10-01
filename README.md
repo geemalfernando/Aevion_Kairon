@@ -134,7 +134,7 @@ image built with the real CSVs to a public registry.
 
 ```bash
 cd server
-npm test              # 50 unit tests, no database or API needed
+npm test              # 96 unit tests, no database or API needed
 npm run typecheck     # tsc, includes core/ and the tests
 npm run test:smoke    # end-to-end walk through all four roles; needs the API running (API_URL, default http://localhost:8080)
 
@@ -144,7 +144,10 @@ npm run build         # type-checks the web app and shared core, then builds
 ```
 
 `server/test/rules.test.ts` covers the booklet trip-time examples (101, 112 and 213 minutes, a third trip rejected) and
-a pass and a fail case for each of the 12 hard constraints below. The web app has no unit tests.
+a pass and a fail case for each of the 12 hard constraints below. `server/test/planner.test.ts` covers the planner:
+the objective order, determinism, never worse than the original greedy plan, the audit (on the demo day, on 24 seeded
+random smaller worlds, and on deliberately broken plans), the greedy fallback, locked stops and locked trips, the
+recovery reserve and the deferral wording. The web app has no unit tests.
 
 ## Judge walkthrough
 
@@ -271,8 +274,24 @@ time. VEH024 is fixed at 93 percent of its quota as the intentional fuel demo ca
 
 **Priority score** (`priorityOf`). Fresh chilled +60, Fresh dry +50, Tech +40, Style +30; skipped on the previous run
 +35; +20 for each run already deferred; +4 per day since the last delivery (up to 4 days); capped at 99. The queue is
-ordered by priority, then earliest window close. Every component is shown to the dispatcher as a reason. The promise
-this encodes: an outlet skipped yesterday goes first today and is flagged if skipped again.
+ordered by priority first, so the promise holds whatever else the planner tries: an outlet skipped yesterday goes
+first today and is flagged if skipped again. Every component is shown to the dispatcher as a reason.
+
+**Planner objective and multi-start** (`generatePlan`, `comparePlans`). Plans are compared lexicographically: no
+rule violations, then the least total priority deferred, then the most orders served, then the fewest trips, then the
+fewest km. Within each priority band, the order in which equal-priority orders are tried decides how many fit, so the
+plan is built four ways (`PLAN_STARTS`): earliest window close (the original planner), scarcest orders first,
+short-haul districts first, and largest district groups first; all but the first keep each brand and district group
+together. The best plan by the objective is kept. Every candidate is re-checked by `auditPlan`, and if the best one
+fails, the original greedy plan is used instead.
+
+**Locked stops** (`order.lock`, `lockStop` / `unlockStop`). A dispatcher can lock a stop to a vehicle. Re-planning then
+keeps it on that vehicle at the same arrival time, and other orders may only use the vehicle's remaining capacity and
+time where they don't change a locked stop's arrival (the `locked` check in `validate`). A dispatcher can also lock a
+whole trip (`lockTrip` / `unlockTrip`): its stops are locked as one closed trip, and no other order may join it.
+Moving a locked stop by hand needs an unlock first; unassigning, deferring, moving it mid-route or a breakdown recovery
+clears the lock. The demo story trip on VEH014 is seeded as a locked trip, which replaces the old rule that reserved
+VEH014 for the story.
 
 **Vehicle choice** (`fitScore`, lower is better). Joining an existing trip scores 0; a new trip scores 10 if the vehicle
 already has one, otherwise 20; a reefer used for ambient goods +30; a van used where a truck could go +25; a reserve
@@ -281,7 +300,8 @@ vehicle +100; fuller vehicles are slightly preferred. This saves scarce reefers 
 **Recovery reserve.** Two reefers, **VEH008 and VEH031**, are held back from planning unless the dispatcher releases
 them (`RECOVERY_RESERVE` in `core/src/reference.ts`), so a breakdown before 08:00 can be rescued. Holding them costs
 served orders. Deferrals it causes are labelled as a dispatcher and policy choice, never as unavoidable capacity
-shortage. On the placeholder data the planning page currently shows 5 extra orders served if the reserve is released.
+shortage. On the placeholder data the figure depends on the calendar day; for the 28 September demo day it is 6 extra
+orders (11 before the multi-start planner, because the better plan already serves some of them).
 TODO: the Designathon trade-off page quotes about 11 orders on the demo day; reconcile the two figures on the real data.
 For the Datathon, a deferral caused by the reserve is a chosen deferral and must be justified in the written policy.
 
@@ -319,9 +339,48 @@ rear_dock 15 min, Fresh with street 16 min, Colombo 24 min out and 8 min between
 
 ## Departures from the Day 5 design
 
-> **TODO (team):** list every place where the implementation differs from the Day 5 design: screens not built, changed
-> or merged, flows changed, and why. Judges score fidelity to the design, so an honest list is better than an empty
-> section. Suggested table columns: Design screen or behaviour | What was built | Why it differs.
+> **TODO (team):** list every other place where the implementation differs from the Day 5 design: screens not built,
+> changed or merged, flows changed, and why. Judges score fidelity to the design, so an honest list is better than an
+> empty section. Suggested table columns: Design screen or behaviour | What was built | Why it differs.
+
+### Planner: more orders served on the same fleet
+
+The Day 5 design showed a single greedy pass: orders by priority, then earliest window close. The planner now builds
+the plan four ways and keeps the best by the team's objective (no rule violations, then the least total priority
+deferred, then the most orders served, then the fewest trips, then the fewest km); see "Planner objective and
+multi-start" above. Every candidate is re-checked by an independent audit, and if the best one failed, the original
+greedy plan would be used. Priority bands are unchanged, so an outlet skipped yesterday still goes first. Measured on
+the 28 September demo day (placeholder data):
+
+| Metric | Day 5 design (greedy) | Now (multi-start) |
+|---|---|---|
+| Orders served / deferred | 132 / 20 | 139 / 13 |
+| Total priority deferred | 1180 | 760 |
+| Chilled orders served | 39 / 57 | 46 / 57 |
+| Trips (vehicles used) | 67 (37) | 57 (33) |
+| Distance / fuel | 6,669 km / 1,099 L | 5,523 km / 938 L |
+| Planner runtime | about 650 ms | about 200 ms |
+
+The deferral wording also changed: a chilled order blocked by windows or the Fresh time budget now says it is short of
+reefer *time* ("No reefer can reach OUT019 before 07:30 …"), not reefer space, because on the demo day reefers are
+only about 18 percent full by volume. The reason codes are unchanged.
+
+### Recovery reserve trade-off: 11 orders becomes 6
+
+The Day 5 core trade-off page says holding VEH008 and VEH031 in reserve costs about 11 orders on the demo day. With
+the better planner the cost is 6 orders: the plan without the reserve already serves several of the orders that
+releasing it used to add. The trade-off itself is unchanged; only the figure moved. The planning page computes it live
+for the day being planned.
+
+### Locked stops and locked trips (new)
+
+Not in the Day 5 design. A dispatcher can lock a stop to its vehicle, or lock a whole trip (Planning page: the lock
+button in an order's drawer, and "Lock trip" on a trip card). Re-planning keeps locked stops on their vehicle at the
+same arrival times, and adds nothing to a locked trip; other orders may only use the room around them. Unassigning,
+deferring, moving a stop mid-route or a breakdown recovery clears the lock for that stop. The demo story's trip
+TRP-014-1 (VEH014, five Colombo stops) is seeded as a locked trip, which replaces an earlier rule that reserved VEH014
+for the story and kept its spare capacity out of planning. The hero trip therefore stays exactly the five designed
+stops at the designed times.
 
 ## Known limitations
 

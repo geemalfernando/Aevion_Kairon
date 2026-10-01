@@ -5,7 +5,7 @@
 import { applyEvent, commands, opNow, seedOps, setClock, uid } from '@core/ops'
 import { byId, validate } from '@core/rules'
 import { colomboDate, colomboTs, hm } from '@core/time'
-import type { FieldEvent, OpsData, QueuedEvent, Role } from '@core/types'
+import type { FieldEvent, OpsData, Order, QueuedEvent, Role } from '@core/types'
 import { detectConflict, type RouteConflict } from '../store/conflict'
 import { DAY } from './mode'
 
@@ -92,17 +92,23 @@ function loaded() {
   at(d, hm(4, 25))
   return d
 }
-/** Dispatcher takes OUT056 off VEH014 and adds a deferred Colombo chilled order after loading began. */
+/** Dispatcher takes OUT056 off VEH014 and adds another Colombo chilled order after loading began. */
 function planChanged() {
   const d = loading(true)
   at(d, hm(4, 5))
   const trip = byId(d.trips, STORY)!
+  const veh = byId(d.vehicles, trip.vehicleId)!
+  // Locks stop re-planning from moving the story stops; the dispatcher changing the trip by hand unlocks them first.
+  commands.unlockTrip(d, trip.id)
   const drop = orderAt(d, 'OUT056')
   commands.unassign(d, drop.id)
-  const veh = byId(d.vehicles, trip.vehicleId)!
-  const add = d.orders
-    .filter((o) => o.status === 'DEFERRED' && o.temp === 'CHILLED' && byId(d.outlets, o.outletId)?.district === 'Colombo' && byId(d.outlets, o.outletId)?.depot === veh.depot)
-    .find((o) => validate(o, veh, d).ok)
+  const colomboChilled = (o: Order) => o.temp === 'CHILLED' && byId(d.outlets, o.outletId)?.district === 'Colombo' && byId(d.outlets, o.outletId)?.depot === veh.depot
+  const fitsWithout = (o: Order) => validate(o, veh, { ...d, trips: d.trips.map((t) => (t.id === o.tripId ? { ...t, stops: t.stops.filter((s) => s !== o.id) } : t)) }).ok
+  // Prefer an order the plan deferred. A better plan may defer none, so fall back to one planned on another vehicle
+  // that has not started loading.
+  const add =
+    d.orders.filter((o) => o.status === 'DEFERRED' && colomboChilled(o)).find((o) => validate(o, veh, d).ok) ??
+    d.orders.filter((o) => o.id !== drop.id && o.tripId && o.tripId !== STORY && byId(d.trips, o.tripId)?.status === 'PLANNED' && colomboChilled(o)).find(fitsWithout)
   if (add) commands.assign(d, add.id, veh.id)
   return d
 }

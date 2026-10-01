@@ -121,7 +121,6 @@ Dispatcher (large screen), loader (shared tablet, load in **reverse stop order**
 - Real CSVs are missing from `data/`; the app runs on placeholders.
 - `README.md` is outdated (wrong product description, old `src/domain` and `mobile/` references, no server/Docker/judge walkthrough/seeded accounts/assumptions/departures).
 - `docs/` is empty: needs architecture diagram, data model, AI tool disclosure.
-- `npm test` in `server/` matches `test/*.test.ts` but the only file is `test/api.smoke.ts`, so no tests run.
 - No public deployment yet.
 - Repo must be named `Aevion_Kairon`; `mobile/` deletion and branch `fix/brief-alignment` are unpushed.
 - `traffic_speed.csv` and `road_conditions.csv` are unused (optional, not required for the hackathon).
