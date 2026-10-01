@@ -1,0 +1,99 @@
+# Runs on every push to main or dev, on every pull request, and on demand (Actions tab, "Run workflow").
+# Two jobs:
+#   checks  unit tests (rules + planner), type checks, web lint and build. About 2-3 minutes.
+#   smoke   builds the Docker image, starts the full stack on a fresh database and walks all four roles
+#           through the API (server/test/api.smoke.ts). Runs only if `checks` passes. About 3-4 minutes.
+# The competition CSVs are never in the repo, so CI always runs on the built-in placeholder data.
+name: Tests
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same branch or PR cancels the run still in progress.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Unit tests, type checks, lint and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            web/package-lock.json
+
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Type check server and shared core
+        working-directory: server
+        run: npm run typecheck
+
+      - name: Unit tests (booklet rules and planner)
+        working-directory: server
+        run: npm test
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Lint web
+        working-directory: web
+        run: npm run lint
+
+      - name: Type check and build web
+        working-directory: web
+        run: npm run build
+
+  smoke:
+    name: Docker stack and smoke test (all four roles)
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Start the stack (fresh database, waits until healthy)
+        run: docker compose up --build --detach --wait --wait-timeout 180
+
+      - name: API health
+        run: curl --fail --silent --show-error http://localhost:8080/api/health
+
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Smoke test
+        working-directory: server
+        env:
+          API_URL: http://localhost:8080
+        run: npm run test:smoke
+
+      - name: Server logs (only when something failed)
+        if: failure()
+        run: docker compose logs --no-color --tail 300
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose down --volumes

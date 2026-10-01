@@ -132,6 +132,15 @@ image built with the real CSVs to a public registry.
 
 ## Tests
 
+**Automatic (GitHub Actions).** `.github/workflows/tests.yml` runs on every push to `main` or `dev`, on every pull
+request, and on demand from the Actions tab. Job `checks` runs the unit tests, the type checks, web lint and the web
+build. Job `smoke` then starts the whole stack with `docker compose` on a fresh database and runs the smoke test across
+all four roles; the server log is printed if it fails. CI always uses the placeholder data, because the competition CSVs
+are never in the repository. To make a green run required before merging, a repo admin can turn on branch protection
+for `dev` and `main` (Settings, Branches) and require both jobs.
+
+**By hand.**
+
 ```bash
 cd server
 npm test              # 96 unit tests, no database or API needed
