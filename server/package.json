@@ -9,7 +9,8 @@
     "start": "tsx src/index.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "tsx --test test/*.test.ts",
-    "plan:check": "tsx scripts/plan-check.ts"
+    "plan:check": "tsx scripts/plan-check.ts",
+    "test:smoke": "tsx test/api.smoke.ts"
   },
   "dependencies": {
     "@fastify/static": "^10.1.4",

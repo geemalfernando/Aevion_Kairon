@@ -54,8 +54,10 @@ export function IssueDetail() {
   const { id } = useParams()
   const d = useOps((s) => s.data)
   const now = useNow()
-  // /dispatcher/issues/breakdown opens the latest open breakdown (stable link for previews).
-  const i = d.issues.find((x) => x.id === id) ?? (id === 'breakdown' ? d.issues.find((x) => x.kind === 'BREAKDOWN' || x.kind === 'REEFER_FAILURE') : undefined)
+  // /dispatcher/issues/breakdown and /shortfall open the latest issue of that kind (stable links for previews).
+  const i =
+    d.issues.find((x) => x.id === id) ??
+    (id === 'breakdown' ? d.issues.find((x) => x.kind === 'BREAKDOWN' || x.kind === 'REEFER_FAILURE') : id === 'shortfall' ? d.issues.find((x) => x.kind === 'SHORTFALL') : undefined)
   if (!i) return <EmptyState icon={<AlertTriangle className="size-5" />} title="Issue not found" />
   return (
     <>

@@ -17,3 +17,5 @@ export const LANG_OVERRIDE = params.get('lang')
 export const MODAL = params.get('modal')
 /** Which stop a stop-level dialog opens on, by outlet id, e.g. ?modal=move-stop&stop=OUT032. */
 export const STOP = params.get('stop')
+/** Pin the demo's ordering day, e.g. ?day=2026-09-27, so screenshots taken on different days match. */
+export const DAY = params.get('day')

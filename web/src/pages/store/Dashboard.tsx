@@ -23,6 +23,7 @@ export function Dashboard() {
   const focus =
     byDate.find((o) => ['DELIVERED', 'PARTIAL'].includes(o.status)) ??
     byDate.find((o) => o.status === 'DEFERRED' && o.deferral?.confirmed && !o.deferral.acknowledged) ??
+    byDate.find((o) => o.shortfall && !['DELIVERED', 'PARTIAL', 'RECEIVED'].includes(o.status)) ??
     byDate.find((o) => ['ARRIVED', 'IN_TRANSIT', 'LOADED', 'FAILED'].includes(o.status)) ??
     byDate.find((o) => !['RECEIVED', 'DEFERRED'].includes(o.status)) ??
     orders[0]

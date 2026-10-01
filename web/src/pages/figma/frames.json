@@ -104,6 +104,15 @@
       "rationale": "Waypoint can’t see paydays and festivals coming. This screen shows ten weeks of order volume per depot, split into chilled and ambient, against the weekly refrigerated capacity of the usable reefers. Weeks where chilled demand exceeds capacity are called out with concrete options. The numbers are the Datathon Task 2A outputs (total and chilled m³ per depot × brand × ISO week) and are clearly marked as model estimates."
     },
     {
+      "id": "D10-shortfall",
+      "board": "dispatcher",
+      "title": "Decide a loading shortfall",
+      "url": "/dispatcher/issues/shortfall?demo=shortfall-reported",
+      "w": 1440,
+      "h": 900,
+      "rationale": "The other half of the loader’s shortfall flag, and the brief’s fourth problem: today a shortfall is shouted across the dock or found at the outlet. At 03:52 Kamal reported 3 crates of dairy for OUT032 damaged in the cold room. Before the truck leaves, Geemal sees expected, available and missing side by side with the reason, and makes one of four decisions: continue with what is there, modify the order, replace stock from the warehouse, or defer it to the next run with a recorded reason. The decision reaches the loader’s stop and the store’s order at once — no phone call."
+    },
+    {
       "id": "L1-today",
       "board": "loader",
       "title": "Loading bay today",
@@ -148,6 +157,15 @@
       "w": 390,
       "h": 844,
       "rationale": "When the dispatcher moves a stop off a truck that is already on the road, the goods have to be picked again. That arrives on the loader’s tablet as a normal one-stop trip for the reserve van, with its departure time — the same screen, the same counting, no special procedure to learn."
+    },
+    {
+      "id": "L6-decision",
+      "board": "loader",
+      "title": "Shortfall decision received",
+      "url": "/loader/load/TRP-014-1?demo=shortfall-decided&stop=OUT032",
+      "w": 390,
+      "h": 844,
+      "rationale": "The dispatcher’s answer appears on the same stop Kamal flagged, so he doesn’t have to walk to the office or wait for a call. The stop shows what was counted, what is missing and the decision; he confirms it and carries on loading. The shortfall and the decision stay on the order’s record for the driver and the store."
     },
     {
       "id": "R1-ready",
@@ -296,6 +314,33 @@
       "w": 1440,
       "h": 900,
       "rationale": "When the dispatcher moves a stop mid-route, the store is told at once which vehicle now brings the order, when, and why. Dilini doesn’t wait at the back door for a truck that is no longer coming; the arrival slot on her overview is already the new vehicle’s, and the order history records the change and its reason."
+    },
+    {
+      "id": "S8-shortfall",
+      "board": "store",
+      "title": "Told what will be missing",
+      "url": "/store?demo=store-shortfall",
+      "w": 1440,
+      "h": 900,
+      "rationale": "Dilini learns before the truck leaves — not at the back door — that 3 crates of dairy won’t arrive and what the dispatcher decided. Her team isn’t surprised during receiving, she can re-order for the next run, and the order history keeps the reason, so the gap is never a dispute."
+    },
+    {
+      "id": "P0-sign-in",
+      "board": "start",
+      "title": "Sign in — pick a role",
+      "url": "/login",
+      "w": 1440,
+      "h": 900,
+      "rationale": "Starting point of the prototype."
+    },
+    {
+      "id": "L2-tablet",
+      "board": "context",
+      "title": "Loading on the shared dock tablet",
+      "url": "/loader/load/TRP-014-1?demo=loading",
+      "w": 1180,
+      "h": 820,
+      "rationale": "The loader’s own device: a shared tablet at the dock."
     }
   ],
   "degradation": {

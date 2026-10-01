@@ -146,8 +146,23 @@ export interface Order {
   shortfall?: { item: string; missing: number; reason: string; decision?: string }
   notes?: string
   createdAt: number
-  /** Planner hint so the demo story always lands on the same truck. */
-  seedVehicle?: string
+  /**
+   * The stop is locked to a vehicle. The planner keeps it on that vehicle at the same arrival time and may only use
+   * the vehicle's remaining capacity and time around it. Set by the dispatcher, or by the seed for the demo story.
+   */
+  lock?: StopLock
+}
+
+/**
+ * Team policy: a dispatcher can pin a stop to a vehicle so re-planning never moves it. With `wholeTrip`, the stops
+ * locked to the same vehicle (and brand and district) also form a closed trip: no other order may join it.
+ * The lock lives on the orders, so it survives re-planning, which rebuilds draft trips.
+ */
+export interface StopLock {
+  vehicleId: string
+  by: 'DISPATCHER' | 'SYSTEM'
+  at: number
+  wholeTrip?: boolean
 }
 
 export type TripStatus = 'DRAFT' | 'PLANNED' | 'LOADING' | 'LOADED' | 'IN_PROGRESS' | 'PAUSED' | 'COMPLETED' | 'ABORTED'
