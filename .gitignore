@@ -21,3 +21,6 @@ web/api/_server.mjs
 
 # Leftover Flutter build output (app removed)
 /mobile/
+
+# Test reports written by npm --prefix server run test:ci
+server/test-results.xml

@@ -33,7 +33,17 @@ jobs:
           cache-dependency-path: server/package-lock.json
       - run: npm ci
       - run: npm run typecheck
-      - run: npm test
+      - name: Run all API tests
+        run: npm run test:ci
+      - name: List every test in the run summary
+        if: always() && hashFiles('server/test-results.xml') != ''
+        run: node scripts/test-summary.mjs test-results.xml >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always() && hashFiles('server/test-results.xml') != ''
+        with:
+          name: api-test-results
+          path: server/test-results.xml
+          retention-days: 14
       - name: Bundle the Vercel function
         run: npm run bundle:vercel
 
