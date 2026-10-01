@@ -91,3 +91,4 @@ Add a line for each AI-assisted change from now on.
 | 2026-09-30 | Claude Code (Sonnet 5.5) | `docs/ai-disclosure.md`, `README.md` rewrite | TEAM TO FILL IN |
 | 2026-10-01 | Claude Code (Opus 5.5) | Planner phase A: id index for `byId`, multi-start construction, `auditPlan` with greedy fallback, locked stops (`lockStop`/`unlockStop`, `locked` check, lock button on the dispatcher order drawer), reefer-time deferral wording, `server/test/planner.test.ts` | TEAM TO FILL IN |
 | 2026-10-01 | Claude Code (Opus 5.5) | Locked trips (`lockTrip`/`unlockTrip`, trip lock button), testable greedy fallback (`selectPlan`), README departures entry, docker compose and smoke-test run | TEAM TO FILL IN |
+| 2026-10-01 | Claude Code (Opus 5.5) | Failure messages on every smoke-test check; LOAD_COMPLETE asserted before the driver starts | TEAM TO FILL IN |
