@@ -1,10 +1,10 @@
-import { WorkflowEntry } from '../shared/Workflow'
-import { Check, CloudDownload, Navigation, ShieldAlert, Snowflake, Truck } from 'lucide-react'
+import { Check, CloudDownload, LifeBuoy, Navigation, PackageSearch, ShieldAlert, Snowflake, Truck } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 import { Badge, Button, Callout, Card, CheckRow, EmptyState, toast } from '../../components/ui'
-import { isReefer, vehicleLabel } from '../../domain/seed'
-import { fmtClock, fmtMin, greeting } from '../../domain/time'
-import { useDevice, useNetwork, useSession } from '../../store'
+import { isReefer } from '@core/rules'
+import { fmtClock, fmtMin, greeting } from '@core/time'
+import { useDevice, useNetwork, useNow, useSession } from '../../store'
 import { useDriverRoute } from './common'
 
 export function Today() {
@@ -12,71 +12,88 @@ export function Today() {
   const { d, trip, vehicle, sched, stops, nextIdx, done } = useDriverRoute()
   const record = useDevice((s) => s.record)
   const net = useNetwork()
+  const now = useNow()
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const openIssue = d.issues.find((i) => i.vehicleId === vehicle.id && !i.resolved && (i.kind === 'BREAKDOWN' || i.kind === 'REEFER_FAILURE'))
+  const pending = trip?.pendingChange
+  const outlets = new Set(stops.map((s) => s.outlet.id)).size
 
   return (
     <div className="mx-auto max-w-xl">
-      <WorkflowEntry />
-      <div className="eyebrow">{greeting()}, {user.name}</div>
+      <div className="eyebrow">
+        {t(`greeting.${greeting(now)}`)}, {user.name}
+      </div>
       <div className="mt-1 flex items-center gap-2">
         <h1 className="id text-3xl">{vehicle.id}</h1>
-        {isReefer(vehicle.type) && <Snowflake className="size-5 text-info" />}
+        {isReefer(vehicle.type) && <Snowflake className="size-5 text-info" aria-label={t('vehicle.reefer')} />}
       </div>
-      <p className="text-sm text-muted">{vehicleLabel(vehicle.type)} · {vehicle.depot}</p>
+      <p className="text-sm text-muted">
+        {t(`vehicle.${vehicle.type}`)} · {vehicle.depot}
+      </p>
 
       {!trip ? (
         <Card className="mt-6">
-          <EmptyState icon={<Truck className="size-5" />} title="No route assigned yet" body="Your route appears here once the dispatcher publishes the plan and the loader prepares your vehicle." />
+          <EmptyState icon={<Truck className="size-5" />} title={t('driver.no_route')} body={t('driver.no_route_body')} />
         </Card>
       ) : (
         <>
+          {trip.rescue && (
+            <Callout tone="info" icon={<LifeBuoy className="size-5" />} title={t('driver.rescue_title')} className="mt-6">
+              {t('driver.rescue_body', { from: trip.rescue.from ?? '—', time: fmtMin(trip.departure) })}
+            </Callout>
+          )}
           <Card className="mt-6 overflow-hidden">
             <div className="bg-teal p-5 text-white">
-              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-white/70">Today’s route</div>
-              <div className="mt-1 font-display text-2xl font-semibold">
-                Trip {trip.number} · {trip.brand} · {trip.district}
-              </div>
+              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-white/75">{t('driver.today_route')}</div>
+              <div className="mt-1 font-display text-2xl font-semibold">{t('driver.trip_line', { n: trip.number, brand: trip.brand, district: trip.district })}</div>
               <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
                 <div>
-                  <div className="text-white/60">Stops</div>
+                  <div className="text-white/75">{t('common.stops')}</div>
                   <div className="font-display text-xl font-semibold">{stops.length}</div>
                 </div>
                 <div>
-                  <div className="text-white/60">Departure</div>
-                  <div className="font-display text-xl font-semibold">{fmtMin(trip.departure)}</div>
+                  <div className="text-white/75">{t('common.departure')}</div>
+                  <div className="font-display text-xl font-semibold tabular-nums">{fmtMin(trip.departure)}</div>
                 </div>
                 <div>
-                  <div className="text-white/60">Finish</div>
-                  <div className="font-display text-xl font-semibold">{sched ? fmtMin(sched.finish) : '—'}</div>
+                  <div className="text-white/75">{t('common.finish')}</div>
+                  <div className="font-display text-xl font-semibold tabular-nums">{sched ? fmtMin(sched.finish) : '—'}</div>
                 </div>
               </div>
             </div>
             <div className="p-5">
               {trip.status === 'PAUSED' || openIssue ? (
-                <Callout tone="critical" icon={<ShieldAlert className="size-5" />} title="Breakdown reported · route paused">
-                  Dispatcher notified. Remain safely stopped. {stops.length - done} deliveries awaiting reassignment.
+                <Callout tone="critical" icon={<ShieldAlert className="size-5" />} title={t('driver.breakdown_title')}>
+                  {t('driver.breakdown_body', { count: stops.length - done })}
                 </Callout>
+              ) : pending ? (
+                <>
+                  <Callout tone="attention" icon={<PackageSearch className="size-5" />} title={t('driver.recheck_title')}>
+                    {t('driver.recheck_body', { time: fmtClock(pending.at) })}
+                  </Callout>
+                  <Button size="xl" block className="mt-4" disabled icon={<Navigation className="size-5" />}>
+                    {t('driver.start_route')}
+                  </Button>
+                </>
               ) : trip.status === 'IN_PROGRESS' ? (
                 <>
-                  <div className="mb-2 flex justify-between text-sm">
-                    <span className="font-semibold">
-                      {done} / {stops.length} complete
-                    </span>
-                    {nextIdx >= 0 && <span className="text-muted">Next: <span className="id">{stops[nextIdx].outlet.id}</span> · ETA {fmtMin(stops[nextIdx].plan.start)}</span>}
+                  <div className="mb-2 flex flex-wrap justify-between gap-2 text-sm">
+                    <span className="font-semibold">{t('driver.progress', { done, total: stops.length })}</span>
+                    {nextIdx >= 0 && <span className="text-muted">{t('driver.next_eta', { id: stops[nextIdx].outlet.id, time: fmtMin(stops[nextIdx].plan.eta) })}</span>}
                   </div>
                   <div className="mb-4 h-2 overflow-hidden rounded-full bg-surface-3">
                     <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${(done / stops.length) * 100}%` }} />
                   </div>
                   <Link to="/driver/route">
                     <Button size="xl" block icon={<Navigation className="size-5" />}>
-                      Continue route
+                      {t('driver.continue_route')}
                     </Button>
                   </Link>
                 </>
               ) : trip.status === 'COMPLETED' ? (
-                <Callout tone="success" icon={<Check className="size-5" />} title="Route complete">
-                  All {stops.length} stops recorded. Return safely to {vehicle.depot}.
+                <Callout tone="success" icon={<Check className="size-5" />} title={t('driver.route_complete')}>
+                  {t('driver.route_complete_body', { count: stops.length, depot: vehicle.depot })}
                 </Callout>
               ) : trip.status === 'LOADED' ? (
                 <Button
@@ -85,39 +102,38 @@ export function Today() {
                   icon={<Navigation className="size-5" />}
                   onClick={() => {
                     record({ type: 'START_ROUTE', tripId: trip.id })
-                    toast('Route started', { body: net.online ? 'Stores notified you’re on the way.' : 'Saved offline — will sync.' })
+                    toast(t('driver.start_route'), { body: net.online ? t('driver.stop.toast_store_notified') : t('driver.stop.toast_saved_device') })
                     navigate('/driver/route')
                   }}
                 >
-                  Start route
+                  {t('driver.start_route')}
                 </Button>
               ) : (
-                <Callout tone="info" icon={<Truck className="size-5" />} title={trip.status === 'LOADING' ? 'Vehicle is being loaded' : 'Waiting for loading'}>
-                  You can start the route once the loader confirms every stop.
+                <Callout tone="info" icon={<Truck className="size-5" />} title={trip.status === 'LOADING' ? t('driver.being_loaded') : t('driver.waiting_loading')}>
+                  {t('driver.start_after_loading')}
                 </Callout>
               )}
             </div>
           </Card>
 
           <Card className="mt-4 p-5">
-            <div className="mb-2 flex items-center justify-between">
+            <div className="mb-2 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 font-semibold">
-                <CloudDownload className="size-4 text-brand" /> Offline readiness
+                <CloudDownload className="size-4 text-brand-ink" /> {t('driver.offline_ready')}
               </div>
-              <Badge tone="success">Available offline ✓</Badge>
+              <Badge tone="success">{t('driver.offline_ready_badge')}</Badge>
             </div>
-            <CheckRow ok label="Today’s route" detail={`${stops.length} stops`} />
-            <CheckRow ok label="Orders" detail="Downloaded" />
-            <CheckRow ok label="Outlet details" detail="Downloaded" />
-            <CheckRow ok label="Delivery windows" detail="Downloaded" />
-            <CheckRow ok label="Proof capture" detail="Ready" />
-            <p className="mt-2 text-xs text-muted">Last sync {net.lastSync ? fmtClock(net.lastSync) : 'at sign-in'} · you can keep working if the signal drops.</p>
+            <CheckRow ok label={t('driver.offline_route')} detail={t('common.stops') + ` · ${stops.length}`} />
+            <CheckRow ok label={t('driver.offline_outlets')} detail={`${outlets}`} />
+            <CheckRow ok label={t('driver.offline_proof')} detail={t('driver.on_device')} />
+            <CheckRow ok={net.pending === 0} warn label={t('driver.offline_outbox')} detail={net.pending ? t('driver.saved_n', { count: net.pending }) : t('driver.nothing_waiting')} />
+            <p className="mt-2 text-xs text-muted">{t('driver.keep_working', { time: net.lastSync ? fmtClock(net.lastSync) : '—' })}</p>
           </Card>
 
           {['LOADED', 'IN_PROGRESS'].includes(trip.status) && (
             <Link to="/driver/issues" className="mt-4 block">
               <Button variant="secondary" block size="lg" icon={<ShieldAlert className="size-5" />}>
-                Report vehicle issue
+                {t('driver.report_issue')}
               </Button>
             </Link>
           )}

@@ -10,15 +10,17 @@
     <meta name="apple-mobile-web-app-title" content="Kairon" />
     <meta name="theme-color" content="#106C6C" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="description" content="Kairon — one intelligent operations platform connecting orders, dispatchers, loaders, drivers and stores." />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
-    <title>Kairon — Logistics Operations</title>
+    <meta name="description" content="Kairon — delivery planning for Waypoint Group: orders, planning, loading, delivery and receipt in one operation that keeps working offline." />
+    <title>Kairon — Waypoint delivery planning</title>
     <script>
-      // Apply the saved theme before first paint to avoid a flash.
+      // Apply the theme before first paint. Drivers default to the night theme (Fresh runs leave at 03:30);
+      // every other role starts light. ?theme= overrides it for previews.
       try {
-        var t = localStorage.getItem('kairon-theme') || 'system';
+        var q = new URLSearchParams(location.search).get('theme');
+        var raw = sessionStorage.getItem('kairon-session') || localStorage.getItem('kairon-session');
+        var role = raw ? (JSON.parse(raw).state || {}).user : null;
+        role = role ? role.role : location.pathname.indexOf('/driver') === 0 ? 'DRIVER' : null;
+        var t = q || (role && localStorage.getItem('kairon-theme:' + role)) || (role === 'DRIVER' ? 'dark' : 'light');
         var dark = t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
         document.documentElement.dataset.theme = dark ? 'dark' : 'light';
       } catch (e) {}

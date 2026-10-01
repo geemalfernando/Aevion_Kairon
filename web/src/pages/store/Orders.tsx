@@ -3,9 +3,8 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AuditTimeline } from '../../components/AuditTimeline'
 import { LocationMap } from '../../components/RouteMap'
-import { StoreDeskNotes } from '../../components/StoreDeskNotes'
 import { Button, Card, CardHeader, EmptyState, PageHeader, StatusBadge, Timeline } from '../../components/ui'
-import { fmtDate } from '../../domain/time'
+import { fmtDate } from '@core/time'
 import { auditFor, storeOrders, unitsOf } from '../../lib/select'
 import { useSession, useView } from '../../store'
 import { deliveryTimeline, OrderSummary, ReceiptForm, ReportIssueModal, RescheduledCard } from './shared'
@@ -73,9 +72,6 @@ export function OrderDetail() {
           )
         }
       />
-      <div className="mb-6 empty:hidden">
-        <StoreDeskNotes d={d} outletId={o.outletId} orderId={o.id} />
-      </div>
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <div className="space-y-6">
           {o.status === 'DEFERRED' && o.deferral?.confirmed && <RescheduledCard o={o} />}

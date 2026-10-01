@@ -6,7 +6,7 @@ import { useOps } from '../../store'
 
 export function History() {
   const d = useOps((s) => s.data)
-  const [q, setQ] = useState('')
+  const [q, setQ] = useState('ORD')
   const [entity, setEntity] = useState<string | null>(null)
   const entities = useMemo(() => {
     const s = q.trim().toUpperCase()
@@ -24,7 +24,7 @@ export function History() {
           <div className="border-b border-line p-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint" />
-              <input value={q} onChange={(e) => (setQ(e.target.value), setEntity(null))} placeholder="Order, vehicle, CAPACITY, PREDICTIONS…" className="h-10 w-full rounded-lg border border-line-strong bg-surface pl-9 pr-3 text-sm focus:border-brand focus:outline-none" />
+              <input value={q} onChange={(e) => (setQ(e.target.value), setEntity(null))} placeholder="ORD1456, VEH014…" className="h-10 w-full rounded-lg border border-line-strong bg-surface pl-9 pr-3 text-sm focus:border-brand focus:outline-none" />
             </div>
           </div>
           <ul className="scroll-thin max-h-[60dvh] overflow-y-auto p-2">

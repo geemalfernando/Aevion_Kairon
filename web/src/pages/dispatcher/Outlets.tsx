@@ -3,8 +3,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { OutletMap } from '../../components/RouteMap'
 import { Badge, Card, cn, PageHeader, Segmented, Select, StatusBadge } from '../../components/ui'
-import { fmtWindow } from '../../domain/time'
-import type { Brand } from '../../domain/types'
+import { fmtWindow } from '@core/time'
+import type { Brand } from '@core/types'
 import { useOps } from '../../store'
 
 export function Outlets() {

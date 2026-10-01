@@ -27,7 +27,3 @@ The frontend currently uses local demo data; no backend environment variables ar
 The supplied route logo replaces the original K mark. Light and dark variants follow the app theme; dark surfaces and startup screens use the white/green variant. The adaptive SVG is used for the web favicon.
 
 Source SVGs live in `web/public/brand/` and are mirrored in `mobile/assets/brand/`. From the repository root, run `python3 scripts/generate_brand.py` (requires Pillow) after changing the source artwork. This regenerates Flutter vector paths, web install icons, Android launcher/startup images, and iOS app/startup images. PNG exports are rendered at four times their target size before downsampling; the iOS app icon includes a 1024px export. The generator supports the supplied SVGs’ M/L/Z path geometry.
-
-## Full workflow and prediction demo
-
-See [the screen flows and judge walkthrough](../docs/frontend-flows.md) for all four roles, AI prediction review, ten-week demand/capacity planning, and degradation scenarios. Run `npm test` with Node 24 to verify domain and cross-role event behavior. Predictions are explainable local demo estimates; a trained model and shared backend are not connected.

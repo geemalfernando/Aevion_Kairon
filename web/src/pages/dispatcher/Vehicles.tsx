@@ -4,11 +4,14 @@ import { Link, useParams } from 'react-router-dom'
 import { AuditTimeline } from '../../components/AuditTimeline'
 import { RouteMap } from '../../components/RouteMap'
 import { Badge, Card, CardHeader, cn, EmptyState, Meter, PageHeader, Segmented } from '../../components/ui'
-import { weeklyFuel } from '../../domain/rules'
-import { isReefer, isVan, vehicleLabel } from '../../domain/seed'
-import { fmtMin } from '../../domain/time'
+import { vehicleDay } from '@core/rules'
+import { isReefer, isVan, vehicleLabel } from '@core/rules'
+import { fmtMin } from '@core/time'
 import { auditFor, scheduleOf } from '../../lib/select'
 import { useOps } from '../../store'
+import type { OpsData, Vehicle } from '@core/types'
+
+const weeklyFuel = (v: Vehicle, d: OpsData) => v.fuelUsedL + vehicleDay(v, d.trips, d).fuelL
 import { tripLabel, tripTone } from './Routes'
 
 export function Vehicles() {
@@ -29,7 +32,7 @@ export function Vehicles() {
               { value: 'all', label: 'All' },
               { value: 'reefer', label: 'Reefer' },
               { value: 'van', label: 'Vans' },
-              { value: 'down', label: 'Unavailable' },
+              { value: 'down', label: 'Workshop / down' },
             ]}
           />
         }
@@ -73,8 +76,8 @@ export function Vehicles() {
                       <Meter value={fuel} max={v.fuelQuotaL} detail={`${Math.round(fuel)}/${v.fuelQuotaL} L`} />
                     </td>
                     <td className="px-4 py-3">
-                      <Badge tone={v.status === 'AVAILABLE' ? (v.standby ? 'info' : 'success') : 'critical'} dot>
-                        {v.status === 'AVAILABLE' ? (v.standby ? 'Standby' : 'Available') : v.status.toLowerCase()}
+                      <Badge tone={v.status === 'AVAILABLE' ? (v.reserve ? 'info' : 'success') : 'critical'} dot>
+                        {v.status === 'AVAILABLE' ? (v.reserve ? 'Recovery reserve' : 'Available') : v.status === 'IN_WORKSHOP' ? 'In workshop' : 'Broken down'}
                       </Badge>
                     </td>
                   </tr>
@@ -119,7 +122,7 @@ export function VehicleDetail() {
           <div className="flex flex-wrap gap-1.5">
             {isReefer(v.type) && <Badge tone="info">Refrigerated</Badge>}
             {isVan(v.type) && <Badge>Van access</Badge>}
-            {v.standby && <Badge tone="info">Standby for recovery</Badge>}
+            {v.reserve && <Badge tone="info">Recovery reserve — kept free to rescue a breakdown</Badge>}
           </div>
         </Card>
         <Card className="lg:col-span-2">

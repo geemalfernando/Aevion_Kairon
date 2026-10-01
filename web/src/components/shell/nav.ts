@@ -1,9 +1,5 @@
 import {
   AlertTriangle,
-  Siren,
-  BrainCircuit,
-  Workflow,
-  ShieldCheck,
   CalendarClock,
   ClipboardList,
   Columns3,
@@ -21,13 +17,15 @@ import {
   Truck,
   type LucideIcon,
 } from 'lucide-react'
-import type { Role } from '../../domain/types'
+import type { Role } from '@core/types'
 
 export interface NavItem {
   to: string
   label: string
+  /** i18n key for field roles (driver, loader), whose screens are translated. */
+  labelKey?: string
   icon: LucideIcon
-  badge?: 'issues' | 'deferred' | 'sync' | 'incidents'
+  badge?: 'issues' | 'deferred' | 'sync'
   end?: boolean
 }
 export interface NavSection {
@@ -53,15 +51,13 @@ export const NAV: Record<Role, { sections: NavSection[]; bottom: string[] }> = {
         title: 'Monitoring',
         items: [
           { to: '/dispatcher/live', label: 'Live operations', icon: Radar },
-          { to: '/dispatcher/incidents', label: 'Incident desk', icon: Siren, badge: 'incidents' },
           { to: '/dispatcher/issues', label: 'Issues', icon: AlertTriangle, badge: 'issues' },
           { to: '/dispatcher/deferred', label: 'Deferred orders', icon: CalendarClock, badge: 'deferred' },
         ],
       },
       {
-        title: 'Planning',
+        title: 'Planning ahead',
         items: [
-          { to: '/dispatcher/predictions', label: 'AI predictions', icon: BrainCircuit },
           { to: '/dispatcher/capacity', label: 'Capacity forecast', icon: TrendingUp },
           { to: '/dispatcher/simulator', label: 'What-if simulator', icon: FlaskConical },
         ],
@@ -74,11 +70,11 @@ export const NAV: Record<Role, { sections: NavSection[]; bottom: string[] }> = {
     sections: [
       {
         items: [
-          { to: '/loader', label: 'Today', icon: Home, end: true },
-          { to: '/loader/trips', label: 'Trips', icon: Package },
-          { to: '/loader/issues', label: 'Issues', icon: AlertTriangle, badge: 'issues' },
-          { to: '/loader/history', label: 'History', icon: History },
-          { to: '/loader/sync', label: 'Sync', icon: RefreshCw, badge: 'sync' },
+          { to: '/loader', label: 'Today', labelKey: 'nav.today', icon: Home, end: true },
+          { to: '/loader/trips', label: 'Trips', labelKey: 'nav.trips', icon: Package },
+          { to: '/loader/issues', label: 'Issues', labelKey: 'nav.issues', icon: AlertTriangle, badge: 'issues' },
+          { to: '/loader/history', label: 'History', labelKey: 'nav.history', icon: History },
+          { to: '/loader/sync', label: 'Sync', labelKey: 'nav.sync', icon: RefreshCw, badge: 'sync' },
         ],
       },
     ],
@@ -88,11 +84,11 @@ export const NAV: Record<Role, { sections: NavSection[]; bottom: string[] }> = {
     sections: [
       {
         items: [
-          { to: '/driver', label: 'Today', icon: Home, end: true },
-          { to: '/driver/route', label: 'Route', icon: Route },
-          { to: '/driver/issues', label: 'Issues', icon: AlertTriangle },
-          { to: '/driver/sync', label: 'Sync', icon: RefreshCw, badge: 'sync' },
-          { to: '/driver/history', label: 'History', icon: History },
+          { to: '/driver', label: 'Today', labelKey: 'nav.today', icon: Home, end: true },
+          { to: '/driver/route', label: 'Route', labelKey: 'nav.route', icon: Route },
+          { to: '/driver/issues', label: 'Issues', labelKey: 'nav.issues', icon: AlertTriangle },
+          { to: '/driver/sync', label: 'Sync', labelKey: 'nav.sync', icon: RefreshCw, badge: 'sync' },
+          { to: '/driver/history', label: 'History', labelKey: 'nav.history', icon: History },
         ],
       },
     ],
@@ -118,13 +114,6 @@ export const NAV: Record<Role, { sections: NavSection[]; bottom: string[] }> = {
     ],
     bottom: ['/store', '/store/orders', '/store/orders/new', '/store/deliveries'],
   },
-}
-
-for (const role of Object.keys(NAV) as Role[]) {
-  NAV[role].sections.push({ title: 'Guidance', items: [
-    { to: '/workflow', label: 'Full workflow', icon: Workflow },
-    { to: '/resilience', label: 'Service & recovery', icon: ShieldCheck },
-  ] })
 }
 
 export const HOME: Record<Role, string> = {

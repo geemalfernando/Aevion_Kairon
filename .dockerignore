@@ -1,0 +1,8 @@
+**/node_modules
+**/dist
+**/.vite
+mobile
+.git
+.env
+*.log
+server/scripts/debug-*.ts

@@ -1,8 +1,8 @@
 import L from 'leaflet'
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Circle, CircleMarker, MapContainer, Marker, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet'
-import { DEPOT_GEO, outletGeo, type LatLng } from '../domain/geo'
-import type { Brand, Depot, Outlet } from '../domain/types'
+import { CircleMarker, MapContainer, Marker, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet'
+import { DEPOT_GEO, outletGeo, type LatLng } from '../lib/geo'
+import type { Brand, Depot, Outlet } from '@core/types'
 import { cn } from './ui'
 
 /** Leaflet can't read CSS variables in SVG attributes, so resolve theme tokens to hex. */
@@ -43,7 +43,7 @@ const depotIcon = (name: string) =>
     className: '',
     iconSize: [34, 34],
     iconAnchor: [17, 17],
-    html: `<div class="km-depot" title="${esc(name)} depot"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-6h6v6"/></svg></div>`,
+    html: `<div class="km-depot" title="${esc(name)} depot"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-6h6v6"/></svg></div>`,
   })
 
 const vehicleIcon = (label: string) =>
@@ -54,7 +54,7 @@ const vehicleIcon = (label: string) =>
     html: `<div class="km-vehicle"><span class="km-vehicle-ping"></span><span class="km-vehicle-dot"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6H3v12h2"/><path d="M14 9h4l3 4v5h-2"/><circle cx="7.5" cy="18" r="2"/><circle cx="16.5" cy="18" r="2"/></svg></span><span class="km-vehicle-label">${esc(label)}</span></div>`,
   })
 
-/** Brand is encoded twice — colour and shape — so it never depends on colour alone. */
+/** Brand is shown by shape (Fresh circle, Style square, Tech diamond), never colour: colour means status. */
 export const BRAND_SHAPE: Record<Brand, string> = { Fresh: 'circle', Style: 'square', Tech: 'diamond' }
 
 const outletIcon = (o: Outlet, state: 'normal' | 'selected' | 'flagged' | 'muted', size: number) =>
@@ -136,11 +136,11 @@ function DepotMarkers({ depots }: { depots: Depot[] }) {
 }
 
 /** OpenStreetMap basemap recoloured to the Kairon palette, plus the offline notice. */
-function BaseMap({ className, children, fit, maxZoom, interactive = true, extraClass, overlay }: { className?: string; children: ReactNode; fit: LatLng[]; maxZoom?: number; interactive?: boolean; extraClass?: string; overlay?: ReactNode }) {
+function BaseMap({ className, children, fit, maxZoom, interactive = true, extraClass, overlay, label = 'Map' }: { className?: string; children: ReactNode; fit: LatLng[]; maxZoom?: number; interactive?: boolean; extraClass?: string; overlay?: ReactNode; label?: string }) {
   const theme = useThemeKey()
   const [tilesDown, setTilesDown] = useState(false)
   return (
-    <div className={cn('kairon-map relative isolate overflow-hidden rounded-xl border border-line bg-surface-2', extraClass, className)}>
+    <div role="region" aria-label={label} className={cn('kairon-map relative isolate overflow-hidden rounded-xl border border-line bg-surface-2', extraClass, className)}>
       <MapContainer
         center={DEPOT_GEO.Peliyagoda}
         zoom={10}
@@ -183,12 +183,12 @@ export interface MapRoute {
   vehicle?: { label: string; at: number } // index of the stop the vehicle is heading to
 }
 
-export function RouteMap({ routes, outlets = [], className, focus = 'routes' }: { routes: MapRoute[]; outlets?: Outlet[]; className?: string; focus?: 'routes' | 'network' }) {
+export function RouteMap({ routes, outlets = [], className, focus = 'routes', label = 'Route map' }: { routes: MapRoute[]; outlets?: Outlet[]; className?: string; focus?: 'routes' | 'network'; label?: string }) {
   const depots = [...new Set([...routes.map((r) => r.depot), ...(focus === 'network' ? (Object.keys(DEPOT_GEO) as Depot[]) : [])])]
   const routePts = routes.flatMap((r) => [DEPOT_GEO[r.depot], ...r.stops.map((s) => outletGeo(s.outlet))])
   const fit = focus === 'network' || routePts.length === 0 ? [...outlets.map(outletGeo), ...depots.map((d) => DEPOT_GEO[d])] : routePts
   return (
-    <BaseMap className={className} fit={fit} extraClass={routes.filter((r) => r.vehicle).length > 3 ? 'km-many' : undefined}>
+    <BaseMap className={className} fit={fit} label={label} extraClass={routes.filter((r) => r.vehicle).length > 3 ? 'km-many' : undefined}>
       {outlets.map((o) => (
         <CircleMarker key={o.id} center={outletGeo(o)} radius={3.5} pathOptions={{ color: resolve('var(--faint)'), weight: 1, fillColor: resolve('var(--faint)'), fillOpacity: 0.55 }}>
           <Tooltip direction="top">
@@ -328,62 +328,4 @@ export function LocationMap({ outlet, depot, vehicle, className, interactive = f
 export function directionsUrl(o: Outlet) {
   const [lat, lng] = outletGeo(o)
   return `https://www.openstreetmap.org/directions?route=%3B${lat}%2C${lng}#map=15/${lat}/${lng}`
-}
-
-// ---------------------------------------------------------------------------
-// 4. Trail map — a rider's GPS trail against the plan, for incident evidence
-// ---------------------------------------------------------------------------
-
-export function TrailMap({
-  plan,
-  trail,
-  outlet,
-  depot,
-  deliveredAt,
-  stills = [],
-  className,
-}: {
-  plan: LatLng[]
-  trail: { lat: number; lng: number; t: number }[]
-  outlet: Outlet
-  depot: Depot
-  deliveredAt?: LatLng
-  stills?: { at: LatLng; label: string }[]
-  className?: string
-}) {
-  const here = outletGeo(outlet)
-  const pts: LatLng[] = trail.map((p) => [p.lat, p.lng])
-  const last = pts[pts.length - 1]
-  const fit = [...plan, ...pts, here]
-  return (
-    <BaseMap
-      className={className}
-      fit={fit}
-      maxZoom={15}
-      overlay={
-        <div className="pointer-events-none absolute bottom-7 left-3 z-[500] flex flex-wrap gap-x-3 gap-y-1 rounded-lg bg-surface/95 px-3 py-2 text-[11px] font-semibold text-ink shadow">
-          <span className="inline-flex items-center gap-1.5"><span className="h-0 w-5 border-t-2 border-dashed border-faint" /> Planned</span>
-          <span className="inline-flex items-center gap-1.5"><span className="h-1 w-5 rounded bg-info" /> GPS trail</span>
-          <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-full ring-2 ring-brand" /> 150 m store geofence</span>
-        </div>
-      }
-    >
-      <Polyline positions={plan} pathOptions={{ color: resolve('var(--faint)'), weight: 3, opacity: 0.8, dashArray: '6 7' }} />
-      <Polyline positions={pts} pathOptions={{ color: resolve('var(--info)'), weight: 4, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }} />
-      <Circle center={here} radius={150} pathOptions={{ color: resolve('var(--brand)'), weight: 2, fillColor: resolve('var(--brand)'), fillOpacity: 0.12 }} />
-      <Marker position={here} icon={pinIcon(outlet.id)} zIndexOffset={600} />
-      {stills.map((s, i) => (
-        <CircleMarker key={i} center={s.at} radius={9} pathOptions={{ color: resolve('var(--attention)'), weight: 3, fillColor: resolve('var(--attention)'), fillOpacity: 0.35 }}>
-          <Tooltip direction="top" permanent>{s.label}</Tooltip>
-        </CircleMarker>
-      ))}
-      {deliveredAt && (
-        <CircleMarker center={deliveredAt} radius={8} pathOptions={{ color: '#fff', weight: 3, fillColor: resolve('var(--critical)'), fillOpacity: 1 }}>
-          <Tooltip direction="bottom" permanent>Marked delivered here</Tooltip>
-        </CircleMarker>
-      )}
-      {last && <Marker position={last} icon={vehicleIcon('now')} zIndexOffset={900} />}
-      <DepotMarkers depots={[depot]} />
-    </BaseMap>
-  )
 }

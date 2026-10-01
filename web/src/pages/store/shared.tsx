@@ -2,11 +2,11 @@ import { CalendarClock, Check, PackageCheck } from 'lucide-react'
 import { useState } from 'react'
 import { PhotoCapture } from '../../components/ProofCapture'
 import { Badge, Button, Callout, ChoiceList, Field, Input, Modal, Textarea, Timeline, toast } from '../../components/ui'
-import { fmtClock, fmtDate, fmtMin, fmtWindow, nextOperatingDate } from '../../domain/time'
-import type { Order } from '../../domain/types'
+import { fmtClock, fmtDate, fmtMin, fmtWindow } from '@core/time'
+import type { Order } from '@core/types'
 import { outletOf, scheduleOf, tripOf, unitsOf } from '../../lib/select'
 import { ops, useOps } from '../../store'
-import type { OpsData } from '../../store/events'
+import type { OpsData } from '@core/types'
 
 const REACHED: Record<Order['status'], number> = { CONFIRMED: 0, DEFERRED: 0, PLANNED: 1, LOADED: 2, IN_TRANSIT: 3, ARRIVED: 4, DELIVERED: 5, PARTIAL: 5, FAILED: 5, RECEIVED: 6 }
 
@@ -30,11 +30,11 @@ export function etaFor(d: OpsData, o: Order) {
   if (!t) return null
   const s = scheduleOf(d, t).stops.find((x) => x.orderId === o.id)
   if (!s) return null
-  return { from: fmtMin(s.start), to: fmtMin(s.start + 15), window: fmtWindow(s.window), vehicle: t.vehicleId, trip: t.number }
+  return { from: fmtMin(s.eta), to: fmtMin(s.eta + 20), window: fmtWindow(s.window), vehicle: t.vehicleId, trip: t.number }
 }
 
 export function RescheduledCard({ o }: { o: Order }) {
-  const next = nextOperatingDate(o.deliveryDate)
+  const next = o.deferral?.nextRun ?? o.deliveryDate
   return (
     <div className="rounded-2xl border border-attention/50 bg-attention-soft p-5">
       <div className="flex items-center gap-2 text-attention-ink">
@@ -48,11 +48,11 @@ export function RescheduledCard({ o }: { o: Order }) {
         </div>
         <div>
           <div className="text-xs text-muted">New expected delivery</div>
-          <div className="font-semibold">{fmtDate(next)}</div>
+          <div className="font-semibold">{fmtDate(next, { weekday: 'long', day: 'numeric', month: 'long' })}</div>
         </div>
       </div>
       <div className="mt-4">
-        <div className="text-xs text-muted">Reason</div>
+        <div className="text-xs text-muted">Reason · {o.deferral?.reason}</div>
         <p className="mt-0.5 text-[15px]">{o.deferral?.customerMessage}</p>
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
@@ -82,7 +82,7 @@ export function ReceiptForm({ o, compact }: { o: Order; compact?: boolean }) {
   return (
     <div className="space-y-4">
       {!compact && (
-        <div className="flex items-center gap-2 text-success-ink">
+        <div className="flex items-center gap-2 text-brand-ink">
           <PackageCheck className="size-5" />
           <span className="font-display text-lg font-bold uppercase tracking-wide">Delivery arrived</span>
         </div>

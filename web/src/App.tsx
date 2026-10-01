@@ -1,23 +1,22 @@
-import { Predictions } from './pages/dispatcher/Predictions'
-import { Workflow } from './pages/shared/Workflow'
-import { Resilience } from './pages/shared/Resilience'
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/shell/AppShell'
 import { HOME } from './components/shell/nav'
 import { PwaUpdater } from './components/Pwa'
 import { Splash } from './components/Splash'
 import { Toaster } from './components/ui'
-import type { Role } from './domain/types'
+import type { Role } from '@core/types'
 import * as Dispatcher from './pages/dispatcher'
 import * as Driver from './pages/driver'
 import * as Loader from './pages/loader'
 import { Landing } from './pages/public/Landing'
 import { Login } from './pages/public/Login'
+import { States } from './pages/public/States'
+import { FigmaBoard, FigmaDegradation, FigmaDoc, FigmaIndex } from './pages/figma/FigmaPages'
 import { NotFound } from './pages/shared/NotFound'
 import { Profile } from './pages/shared/Profile'
 import { SyncCenter } from './pages/shared/SyncCenter'
 import * as Store from './pages/store'
-import { useRuntimeBindings, useSession } from './store'
+import { FRAME, PREVIEW, useRuntimeBindings, useSession } from './store'
 
 function RequireRole({ role }: { role?: Role }) {
   const user = useSession((s) => s.user)
@@ -33,10 +32,13 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/states" element={<States />} />
+        <Route path="/figma" element={<FigmaIndex />} />
+        <Route path="/figma/doc" element={<FigmaDoc />} />
+        <Route path="/figma/board/:id" element={<FigmaBoard />} />
+        <Route path="/figma/degradation" element={<FigmaDegradation />} />
         <Route element={<RequireRole />}>
           <Route element={<AppShell />}>
-            <Route path="/workflow" element={<Workflow />} />
-            <Route path="/resilience" element={<Resilience />} />
             <Route path="/profile" element={<Profile />} />
 
             <Route element={<RequireRole role="DISPATCHER" />}>
@@ -50,13 +52,9 @@ export default function App() {
               <Route path="/dispatcher/vehicles/:id" element={<Dispatcher.VehicleDetail />} />
               <Route path="/dispatcher/outlets" element={<Dispatcher.Outlets />} />
               <Route path="/dispatcher/live" element={<Dispatcher.Live />} />
-              <Route path="/dispatcher/incidents" element={<Dispatcher.Incidents />} />
-              <Route path="/dispatcher/incidents/model" element={<Dispatcher.IncidentModel />} />
-              <Route path="/dispatcher/incidents/:id" element={<Dispatcher.IncidentCaseView />} />
               <Route path="/dispatcher/issues" element={<Dispatcher.Issues />} />
               <Route path="/dispatcher/issues/:id" element={<Dispatcher.IssueDetail />} />
               <Route path="/dispatcher/deferred" element={<Dispatcher.Deferred />} />
-              <Route path="/dispatcher/predictions" element={<Predictions />} />
               <Route path="/dispatcher/capacity" element={<Dispatcher.Capacity />} />
               <Route path="/dispatcher/simulator" element={<Dispatcher.Simulator />} />
               <Route path="/dispatcher/history" element={<Dispatcher.History />} />
@@ -76,6 +74,7 @@ export default function App() {
               <Route path="/driver/today" element={<Navigate to="/driver" replace />} />
               <Route path="/driver/route" element={<Driver.RouteView />} />
               <Route path="/driver/stop/:orderId" element={<Driver.Stop />} />
+              <Route path="/driver/reconcile" element={<Driver.Reconcile />} />
               <Route path="/driver/issues" element={<Driver.Issues />} />
               <Route path="/driver/sync" element={<SyncCenter />} />
               <Route path="/driver/history" element={<Driver.History />} />
@@ -95,9 +94,9 @@ export default function App() {
           </Route>
         </Route>
       </Routes>
-      <Toaster />
-      <PwaUpdater />
-      <Splash />
+      {!FRAME && <Toaster />}
+      {!FRAME && !PREVIEW && <PwaUpdater />}
+      {!FRAME && !PREVIEW && <Splash />}
     </BrowserRouter>
   )
 }
