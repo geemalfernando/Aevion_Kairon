@@ -4,10 +4,8 @@ import { create } from 'zustand'
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware'
 import { applyEvent, commands, opNow, seedOps, uid, type CommandName } from '@core/ops'
 import type { FieldEvent, OpsData, QueuedEvent, Role, User } from '@core/types'
-import { DEMO_USERS } from '@core/users'
 import { toast } from '../components/ui'
-import { FRAME, PRESET, PREVIEW, THEME_OVERRIDE } from '../demo/mode'
-import { buildPreset } from '../demo/presets'
+import { FRAME, PREVIEW, THEME_OVERRIDE } from '../demo/mode'
 import { detectConflict, type RouteConflict } from './conflict'
 import { API_MODE, ApiError, api, NetworkError } from './remote'
 
@@ -21,8 +19,7 @@ export type { RouteConflict }
 const isInstalledApp = () => typeof window !== 'undefined' && (matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true)
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 /** In remote mode the server is the source of truth; in local mode (static build) this browser is. */
-const REMOTE = API_MODE === 'remote' && !PREVIEW
-const preset = PREVIEW && PRESET ? buildPreset(PRESET) : null
+const REMOTE = true
 
 // ---------------------------------------------------------------------------
 // Storage: IndexedDB (no 5 MB cap — proof photos queue safely offline), kept in step across tabs.
@@ -77,7 +74,7 @@ interface OpsStore {
 export const useOps = create<OpsStore>()(
   persist(
     (set, get) => ({
-      data: preset?.data ?? seedOps(),
+      data: seedOps(),
       run(fn) {
         const draft = structuredClone(get().data)
         const out = fn(draft)
@@ -87,7 +84,7 @@ export const useOps = create<OpsStore>()(
       replace: (data) => set({ data }),
       reset: () => set({ data: seedOps() }),
     }),
-    { name: REMOTE ? 'kairon-ops-cache' : 'kairon-ops-v2', storage: createJSONStorage(storage), version: 2 },
+    { name: 'kairon-supabase-ops-v1', storage: createJSONStorage(storage), version: 2 },
   ),
 )
 
@@ -98,6 +95,9 @@ export const useOps = create<OpsStore>()(
 interface SessionStore {
   user: User | null
   token: string | null
+  refreshToken: string | null
+  expiresAt: number
+  ready: boolean
   simulateOffline: boolean
   netOnline: boolean
   /** Remote mode: whether the API answered recently. */
@@ -107,24 +107,19 @@ interface SessionStore {
   setSimulateOffline: (v: boolean) => void
 }
 
-const pathRole = (): Role | null => {
-  const p = typeof location === 'undefined' ? '' : location.pathname
-  return p.startsWith('/driver') ? 'DRIVER' : p.startsWith('/loader') ? 'LOADER' : p.startsWith('/store') ? 'STORE_MANAGER' : p.startsWith('/dispatcher') ? 'DISPATCHER' : null
-}
-
 export const useSession = create<SessionStore>()(
   persist(
     (set) => ({
-      user: preset ? DEMO_USERS[pathRole() ?? preset.preset.role] : null,
-      token: null,
-      simulateOffline: !!preset?.offline,
+      user: null,
+      token: null, refreshToken: null, expiresAt: 0, ready: false,
+      simulateOffline: false,
       netOnline: typeof navigator === 'undefined' ? true : navigator.onLine,
       serverUp: true,
       signIn: (user, token = null) => {
         set({ user, token, simulateOffline: false })
         applyTheme(themePrefFor(user.role))
       },
-      signOut: () => set({ user: null, token: null, simulateOffline: false }),
+      signOut: () => { latestVersion = 0; confirmed = null; useOps.getState().reset(); set({ user: null, token: null, refreshToken: null, expiresAt: 0, ready: false, simulateOffline: false }) },
       setSimulateOffline: (simulateOffline) => {
         set({ simulateOffline })
         if (simulateOffline) useDevice.getState().goOffline()
@@ -132,9 +127,9 @@ export const useSession = create<SessionStore>()(
       },
     }),
     {
-      name: 'kairon-session',
+      name: 'kairon-supabase-session-v1',
       storage: createJSONStorage(() => (PREVIEW ? memoryStorage : isInstalledApp() ? localStorage : sessionStorage)),
-      partialize: (s) => ({ user: s.user, token: s.token, simulateOffline: s.simulateOffline }),
+      partialize: (s) => ({ user: s.user, token: s.token, refreshToken: s.refreshToken, expiresAt: s.expiresAt, ready: s.ready }),
     },
   ),
 )
@@ -144,17 +139,18 @@ export const isOnline = () => {
   return s.netOnline && !s.simulateOffline && (!REMOTE || s.serverUp)
 }
 
-export const demoUser = (role: Role): User => DEMO_USERS[role]
 
 // ---------------------------------------------------------------------------
 // Talking to the API (remote mode)
 // ---------------------------------------------------------------------------
 
 let latestVersion = 0
+let confirmed: OpsData | null = null
 
 function accept(res: { version: number; data: OpsData }) {
   if (res.version < latestVersion) return
   latestVersion = res.version
+  confirmed = structuredClone(res.data)
   useOps.getState().replace(res.data)
   useSession.setState({ serverUp: true })
 }
@@ -171,25 +167,41 @@ export async function refresh() {
   const { token } = useSession.getState()
   if (!REMOTE || !token) return
   try {
-    accept(await api.state(token))
+    accept(await api.state(await accessToken()))
+    useSession.setState({ ready: true })
   } catch (e) {
     if (e instanceof ApiError && e.status === 401) useSession.getState().signOut()
     else onNetworkError(e)
   }
 }
 
-/** Sign in against the API (remote) or locally with the seeded accounts. */
+/** Authenticate with Supabase through the server, then load the shared operation. */
 export async function signInWith(email: string, password: string): Promise<User> {
-  if (REMOTE) {
-    const r = await api.login(email, password)
-    useSession.getState().signIn(r.user, r.token)
-    await refresh()
-    return r.user
-  }
-  const user = Object.values(DEMO_USERS).find((u) => u.email.toLowerCase() === email.trim().toLowerCase())
-  if (!user || password !== 'kairon-demo') throw new ApiError(401, 'That email and password don’t match an account. Use one of the demo accounts below.')
-  useSession.getState().signIn(user)
-  return user
+  const r = await api.login(email, password)
+  const state = await api.state(r.token)
+  latestVersion = 0
+  accept(state)
+  useSession.getState().signIn(r.user, r.token)
+  useSession.setState({ refreshToken: r.refreshToken, expiresAt: r.expiresAt, ready: true })
+  return r.user
+}
+let renewing: Promise<string> | null = null
+async function accessToken(): Promise<string> {
+  const s = useSession.getState()
+  if (!s.token) throw new ApiError(401, 'Sign in again')
+  if (s.expiresAt * 1000 > Date.now() + 60_000) return s.token
+  if (!s.refreshToken) throw new ApiError(401, 'Sign in again')
+  renewing ??= api.refresh(s.refreshToken).then((r) => {
+    useSession.setState({ token: r.token, refreshToken: r.refreshToken, expiresAt: r.expiresAt, user: r.user })
+    return r.token
+  }).finally(() => { renewing = null })
+  return renewing
+}
+
+export async function saveCommand<K extends CommandName>(name: K, ...args: Parameters<(typeof commands)[K]> extends [OpsData, ...infer R] ? R : never): Promise<ReturnType<(typeof commands)[K]>> {
+  const result = await api.command(await accessToken(), name, args)
+  accept(result)
+  return result.result as ReturnType<(typeof commands)[K]>
 }
 
 const QUIET: CommandName[] = ['heartbeat', 'markRead']
@@ -199,10 +211,13 @@ const QUIET: CommandName[] = ['heartbeat', 'markRead']
  * result the server will), then the server confirms it and its version replaces ours.
  */
 export const ops = <K extends CommandName>(name: K, ...args: Parameters<(typeof commands)[K]> extends [OpsData, ...infer R] ? R : never) => {
+  if (!useSession.getState().token) throw new ApiError(401, 'Sign in again')
+  const before = structuredClone(useOps.getState().data)
   const out = useOps.getState().run((d) => (commands[name] as (d: OpsData, ...a: unknown[]) => unknown)(d, ...args)) as ReturnType<(typeof commands)[K]>
   const { token } = useSession.getState()
   if (REMOTE && token) {
-    api.command(token, name, args).then(accept, (e) => {
+    accessToken().then((valid) => api.command(valid, name, args)).then(accept, (e) => {
+      useOps.getState().replace(structuredClone(confirmed ?? before))
       if (onNetworkError(e)) {
         if (!QUIET.includes(name)) toast('Not saved — no connection to the server', { tone: 'critical', body: 'Your change was undone. Try again when you are back online.' })
       } else if (!QUIET.includes(name)) toast('The server refused this change', { tone: 'critical', body: e instanceof Error ? e.message : String(e) })
@@ -243,7 +258,7 @@ interface DeviceStore {
 
 const emptyBox: Outbox = { queue: [], snapshot: null, offlineFrom: null, lastSync: null, conflict: null }
 const key = () => useSession.getState().user?.email ?? 'anon'
-const presetBox = preset?.device ? { [DEMO_USERS[preset.preset.role].email]: preset.device } : {}
+const presetBox = {}
 
 export const useDevice = create<DeviceStore>()(
   persist(
@@ -305,10 +320,9 @@ export const useDevice = create<DeviceStore>()(
             const delivered: string[] = []
             const collided: string[] = []
             if (REMOTE) {
-              const token = useSession.getState().token!
-              const latest = await api.state(token)
+              const latest = await api.state(await accessToken())
               const probe = box.snapshot && detectConflict(box.snapshot, latest.data, user?.assignedVehicle, box.offlineFrom ?? 0, [], [], opNow(latest.data))
-              const res = await api.events(token, sending, wasOffline ? { offlineFrom: box.offlineFrom ?? undefined, routeChanged: !!probe } : undefined)
+              const res = await api.events(await accessToken(), sending, wasOffline ? { offlineFrom: box.offlineFrom ?? undefined, routeChanged: !!probe } : undefined)
               res.results.forEach((r, i) => {
                 const e = sending[i].event
                 if (e.type === 'DELIVER' && r.status !== 'rejected') delivered.push(e.orderId)
@@ -360,7 +374,7 @@ export const useDevice = create<DeviceStore>()(
         clear: () => set({ boxes: {} }),
       }
     },
-    { name: 'kairon-device-v2', storage: createJSONStorage(storage), partialize: (s) => ({ boxes: s.boxes, flakyUploads: s.flakyUploads }) },
+    { name: 'kairon-supabase-device-v1', storage: createJSONStorage(storage), partialize: (s) => ({ boxes: s.boxes, flakyUploads: s.flakyUploads }) },
   ),
 )
 
@@ -427,8 +441,8 @@ export function useRuntimeBindings() {
     }
     const onMessage = (e: MessageEvent<{ key: string; from: string }>) => {
       if (e.data.from === TAB) return
-      if (e.data.key.startsWith('kairon-ops')) void useOps.persist.rehydrate()
-      if (e.data.key.startsWith('kairon-device')) void useDevice.persist.rehydrate()
+      if (e.data.key === 'kairon-supabase-ops-v1') void useOps.persist.rehydrate()
+      if (e.data.key === 'kairon-supabase-device-v1') void useDevice.persist.rehydrate()
     }
     window.addEventListener('online', up)
     window.addEventListener('offline', down)
@@ -458,7 +472,7 @@ export function useRuntimeBindings() {
       },
     )
     const probe = setInterval(() => {
-      if (useSession.getState().serverUp) return
+      if (useSession.getState().serverUp) { void refresh(); return }
       api.health().then(
         () => {
           useSession.setState({ serverUp: true })
@@ -481,17 +495,6 @@ export function useRuntimeBindings() {
     const t = setInterval(beat, 30_000)
     return () => clearInterval(t)
   }, [email, role])
-}
-
-export async function resetDemo() {
-  const { token } = useSession.getState()
-  if (REMOTE && token) {
-    await api.reset(token)
-    latestVersion = 0
-    await refresh()
-  } else useOps.getState().reset()
-  useDevice.getState().clear()
-  useSession.getState().setSimulateOffline(false)
 }
 
 // ---------------------------------------------------------------------------

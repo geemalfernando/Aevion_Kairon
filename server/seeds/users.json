@@ -1,0 +1,6 @@
+[
+  { "role": "DISPATCHER", "name": "Dispatcher", "emailEnv": "SEED_DISPATCHER_EMAIL", "passwordEnv": "SEED_DISPATCHER_PASSWORD", "depotEnv": "SEED_DISPATCHER_DEPOT" },
+  { "role": "LOADER", "name": "Loader", "emailEnv": "SEED_LOADER_EMAIL", "passwordEnv": "SEED_LOADER_PASSWORD", "depotEnv": "SEED_LOADER_DEPOT" },
+  { "role": "DRIVER", "name": "Driver", "emailEnv": "SEED_DRIVER_EMAIL", "passwordEnv": "SEED_DRIVER_PASSWORD", "depotEnv": "SEED_DRIVER_DEPOT", "vehicleEnv": "SEED_DRIVER_VEHICLE" },
+  { "role": "STORE_MANAGER", "name": "Store manager", "emailEnv": "SEED_STORE_EMAIL", "passwordEnv": "SEED_STORE_PASSWORD", "depotEnv": "SEED_STORE_DEPOT", "outletEnv": "SEED_STORE_OUTLET" }
+]

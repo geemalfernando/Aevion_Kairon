@@ -11,6 +11,10 @@ export type ParkingConstraint = 'normal' | 'van_only' | 'mall_dock'
 
 /** outlets.csv */
 export interface OutletRow {
+  latitude?: number
+  longitude?: number
+  name?: string
+  manager?: string
   outlet_id: string
   brand: BrandName
   district: string

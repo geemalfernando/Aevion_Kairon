@@ -1,11 +1,8 @@
-/**
- * API client. The Docker build sets VITE_API_MODE=remote: the server holds the operation and every device
- * syncs with it. A static build (no server) runs the same shared core entirely in the browser.
- */
+/** Client for the authenticated, Supabase-backed API. */
 import type { CommandName } from '@core/ops'
 import type { OpsData, QueuedEvent, User } from '@core/types'
 
-export const API_MODE: 'remote' | 'local' = import.meta.env.VITE_API_MODE === 'remote' ? 'remote' : 'local'
+export const API_MODE: 'remote' | 'local' = 'remote'
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? ''
 
 export class ApiError extends Error {
@@ -53,12 +50,12 @@ export interface EventResult {
 }
 
 export const api = {
-  login: (email: string, password: string) => request<{ token: string; user: User }>('/api/auth/login', { body: { email, password } }),
+  login: (email: string, password: string) => request<{ token: string; refreshToken: string; expiresAt: number; user: User }>('/api/auth/login', { body: { email, password } }),
+  refresh: (refreshToken: string) => request<{ token: string; refreshToken: string; expiresAt: number; user: User }>('/api/auth/refresh', { body: { refreshToken } }),
   state: (token: string) => request<StateResponse>('/api/state', { token }),
   command: (token: string, name: CommandName, args: unknown[]) => request<StateResponse & { result: unknown }>(`/api/commands/${name}`, { token, body: { args } }),
   events: (token: string, events: QueuedEvent[], sync?: { offlineFrom?: number; routeChanged?: boolean }) =>
     request<StateResponse & { results: EventResult[] }>('/api/events', { token, body: { events, sync }, timeoutMs: 30_000 }),
-  reset: (token: string) => request<{ version: number }>('/api/demo/reset', { token, body: {} }),
   health: () => request<{ ok: boolean }>('/api/health', { timeoutMs: 4000 }),
   /** Live version updates (server-sent events). Returns a close function. */
   stream(token: string, onVersion: (v: number) => void, onStatus: (open: boolean) => void) {

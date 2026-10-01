@@ -8,8 +8,7 @@ COPY core ./core
 COPY web/package.json web/package-lock.json ./web/
 RUN cd web && npm ci
 COPY web ./web
-# The container build talks to the API; a static deploy (e.g. Vercel) leaves this unset and runs the app standalone.
-ENV VITE_API_MODE=remote
+# The web app always talks to the API.
 RUN cd web && npm run build
 
 # ---------- API ----------

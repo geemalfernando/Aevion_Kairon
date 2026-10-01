@@ -4,5 +4,7 @@
 mobile
 .git
 .env
+.env.*
 *.log
 server/scripts/debug-*.ts
+server/test

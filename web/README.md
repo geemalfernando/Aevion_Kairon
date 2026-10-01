@@ -1,29 +1,19 @@
 # Kairon web
 
-See the [root README](../README.md#frontend-web) for setup, demo accounts and architecture.
-
-## Deploy to Vercel
-
-Live frontend: **https://kairon-eight.vercel.app**
-
-Deploy this `web` directory as the Vercel project root. The checked-in `vercel.json` configures the Vite build, `dist` output, and SPA fallback so refreshing routes such as `/login` works. It also keeps the service worker revalidated for app updates. See [Vercel's Vite guide](https://vercel.com/docs/frameworks/frontend/vite).
-
-From the repository root:
+React frontend for the Supabase-backed Kairon API. See the [root setup guide](../README.md) for the SQL migration, user seed, and real data import.
 
 ```sh
-npm --prefix web ci
-npm --prefix web run build
-npx vercel login
-npx vercel link --project kairon --scope geemal-fernandos-projects
-npx vercel --prod
+npm ci
+npm run dev
 ```
 
-The Vercel project is connected to GitHub. Commit and push the frontend files to make them available for Git deployments. For a new Git-based deployment, import the repository in Vercel and set **Root Directory** to `web`. Use the **Vite** preset, **Build Command** `npm run build`, and **Output Directory** `dist`.
+Vite proxies `/api` to `http://localhost:8080`; start the server in another terminal. The app always uses the API. There are no local demo accounts or sample data fallbacks.
 
-The frontend currently uses local demo data; no backend environment variables are required.
+For Vercel, use `web` as the root directory, `npm run build` as the build command and `dist` as the output. Set `VITE_API_URL` to the deployed API origin before building. Configure `WEB_ORIGIN` and `PUBLIC_API_URL` on that API as described in the root README. A static frontend deployment alone does not host the API.
 
-## Brand assets
+Supabase secrets belong only in the server environment. The browser signs in through `/api/auth/login`, renews its session, and sends authenticated commands to the API. Field events are queued locally while offline.
 
-The supplied route logo replaces the original K mark. Light and dark variants follow the app theme; dark surfaces and startup screens use the white/green variant. The adaptive SVG is used for the web favicon.
-
-Source SVGs live in `web/public/brand/` and are mirrored in `mobile/assets/brand/`. From the repository root, run `python3 scripts/generate_brand.py` (requires Pillow) after changing the source artwork. This regenerates Flutter vector paths, web install icons, Android launcher/startup images, and iOS app/startup images. PNG exports are rendered at four times their target size before downsampling; the iOS app icon includes a 1024px export. The generator supports the supplied SVGs’ M/L/Z path geometry.
+```sh
+npm run lint
+npm run build
+```

@@ -9,7 +9,6 @@ import { Copyright } from '../Copyright'
 import { LanguageSwitch } from '../LanguageSwitch'
 import { InstallPrompt } from '../Pwa'
 import { Badge, cn, IconButton, Logo, severityTone, toast, toneDot } from '../ui'
-import { DemoDock } from './DemoDock'
 import { HOME, NAV, ROLE_LABEL, type NavItem } from './nav'
 import { SearchDialog } from './SearchDialog'
 
@@ -94,7 +93,6 @@ export function AppShell() {
       <NotificationsDrawer open={notifOpen} onClose={() => setNotifOpen(false)} user={user} />
       <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
       {!FRAME && !PREVIEW && field && (loc.pathname === '/driver' || loc.pathname === '/loader') && <InstallPrompt />}
-      {!FRAME && <DemoDock />}
     </div>
   )
 }

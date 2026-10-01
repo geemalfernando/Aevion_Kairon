@@ -527,7 +527,7 @@ export interface PlanResult {
 export function planQueue(w: World, deliveryDate: string) {
   return w.orders
     .filter((o) => o.status === 'CONFIRMED' && !o.tripId && o.deliveryDate === deliveryDate)
-    .sort((a, b) => (b.seedVehicle ? 1 : 0) - (a.seedVehicle ? 1 : 0) || b.priority - a.priority || (byId(w.outlets, a.outletId)?.window[1] ?? 0) - (byId(w.outlets, b.outletId)?.window[1] ?? 0) || a.id.localeCompare(b.id))
+    .sort((a, b) => b.priority - a.priority || (byId(w.outlets, a.outletId)?.window[1] ?? 0) - (byId(w.outlets, b.outletId)?.window[1] ?? 0) || a.id.localeCompare(b.id))
 }
 
 /**
@@ -540,13 +540,10 @@ export function generatePlan(w: World, deliveryDate: string, opts: { releaseRese
   const world: World = { ...w, trips }
   const assigned: Record<string, string> = {}
   const deferred: Record<string, DeferralInfo> = {}
-  const storyVehicles = new Set(w.orders.map((o) => o.seedVehicle).filter(Boolean) as string[])
 
   for (const order of planQueue(w, deliveryDate)) {
     const outlet = byId(w.outlets, order.outletId)!
-    const candidates = order.seedVehicle
-      ? w.vehicles.filter((v) => v.id === order.seedVehicle)
-      : w.vehicles.filter((v) => v.depot === outlet.depot && v.status === 'AVAILABLE' && (opts.releaseReserve || !v.reserve) && !storyVehicles.has(v.id))
+    const candidates = w.vehicles.filter((v) => v.depot === outlet.depot && v.status === 'AVAILABLE' && (opts.releaseReserve || !v.reserve))
     let best: { v: Vehicle; r: Validation; s: number } | undefined
     for (const v of candidates) {
       const r = validate(order, v, world, { draftOnly: true })

@@ -8,10 +8,12 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "figma:capture": "node scripts/capture-figma.mjs",
-    "figma:export": "node scripts/export-figma-png.mjs"
+    "build:android": "node -e \"if(!process.env.VITE_API_URL){console.error('Set VITE_API_URL to the hosted API, e.g. https://kairon-eight.vercel.app');process.exit(1)}\" && npm run build && node -e \"require('fs').rmSync('dist/downloads',{recursive:true,force:true})\" && cap sync android",
+    "apk": "npm run build:android && cd android && ./gradlew assembleDebug && cd .. && node -e \"require('fs').cpSync('android/app/build/outputs/apk/debug/app-debug.apk','public/downloads/Kairon.apk')\""
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
     "@fontsource/inter": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
     "@fontsource/noto-sans-sinhala": "^5.3.0",
@@ -20,17 +22,16 @@
     "dexie": "^4.4.6",
     "i18next": "^26.4.2",
     "leaflet": "^1.9.4",
-    "leaflet": "^1.9.4",
     "lucide-react": "^1.48.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-i18next": "^17.0.15",
     "react-leaflet": "^5.0.0",
-    "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.18.4",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
     "@tailwindcss/vite": "^4.3.3",
     "@types/leaflet": "^1.9.22",
     "@types/node": "^24.13.3",

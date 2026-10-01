@@ -1,18 +1,27 @@
-# Competition data
+# Real operation data
 
-Drop the Tech-Triathlon CSVs here (any sub-folder layout works, e.g. the supplied `General Data/`):
+Place these files directly in this directory (or set `DATA_DIR` to another directory):
 
-| File | Used for |
+| File | Required contents |
 |---|---|
-| `outlets.csv` | Outlets, access (`dock_type`, `parking_constraint`, `mall_window`) and delivery windows |
-| `vehicles.csv` | Fleet: `type` truck/van, `temp` reefer/ambient, capacities, fuel profile, home depot |
-| `calendar.csv` | Operating days (Monday–Saturday per `is_operating`), paydays, festivals, monsoon |
-| `district_travel.csv` | `depot_to_district_freeflow_min` and `inter_stop_freeflow_min` for trip time |
-| `service_allowance.csv` | Handling allowance per brand and dock type |
-| `fleet_status.csv` (optional) | `vehicle_id,status` with `available` / `in_workshop` |
+| `outlets.csv` | Outlet IDs, brand, district, depot, dock, parking and delivery windows |
+| `vehicles.csv` | Vehicle IDs, type, refrigeration, capacities and fuel profile |
+| `calendar.csv` | Actual operating dates and calendar attributes |
+| `district_travel.csv` | Depot and district travel distances and times |
+| `service_allowance.csv` | Handling minutes per brand and dock type |
+| `fleet_status.csv` | Each vehicle ID and `available` or `in_workshop` |
+| `catalog.json` | Your product names, units, volume and weight per unit |
 
-On the next start (or **Demo → Reset**), the server loads whatever is present and falls back to built-in
-placeholders for anything missing. `GET /api/health` reports which files were used (`dataSources`).
-The static web build (no server) uses the placeholders.
+The exact CSV column names and enums are documented in [`core/src/csv.ts`](../core/src/csv.ts). Outlets can additionally include `name`, `manager`, `latitude`, and `longitude`. Maps show imported coordinates only; they no longer invent outlet locations or animate vehicle GPS positions.
 
-The competition terms forbid redistributing the datasets, so **do not commit the CSVs**: `data/*.csv` is git-ignored.
+The catalogue is an object keyed by `Fresh`, `Style`, or `Tech`, each containing `chilled` and `ambient` arrays. Each product is a four-element array: `[name, unit, cubicMetresPerUnit, kilogramsPerUnit]`. Names must be unique within a brand and measurements must be positive. Start with this empty structure and add your actual products:
+
+```json
+{
+  "Fresh": { "chilled": [], "ambient": [] },
+  "Style": { "chilled": [], "ambient": [] },
+  "Tech": { "chilled": [], "ambient": [] }
+}
+```
+
+Run `npm --prefix server run import:data` from the repository root after running the Supabase migration. Imports preserve existing operation history. Missing files cause an error; there are no generated replacements. CSVs and the catalogue are git-ignored.

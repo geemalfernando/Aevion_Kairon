@@ -1,4 +1,12 @@
-mobile/
-scripts/
+/mobile/
+/scripts/
 web/node_modules/
 web/dist/
+web/api/_server.mjs
+web/android/
+.env
+.env.*
+!.env.example
+.git
+server/node_modules/
+server/test/

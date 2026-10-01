@@ -20,8 +20,6 @@ export function Live() {
   const completed = d.orders.filter((o) => isDone(o)).length
   const remaining = dayTrips.flatMap((t) => t.stops).filter((id) => !isDone(orderOf(d, id))).length
   const issues = d.issues.filter((i) => !i.resolved).length
-  const driverSeen = d.presence['driver@kairon.demo']
-  const quiet = driverSeen && Date.now() - driverSeen > 90_000
 
   const rows = active.map((t) => {
     const s = scheduleOf(d, t)
@@ -116,7 +114,7 @@ export function Live() {
               {rows.map(({ t, next, s, preds }) => {
                 const done = t.stops.filter((id) => isDone(orderOf(d, id))).length
                 const risk = next ? preds[next.orderId]?.lateProb : undefined
-                const offline = t.vehicleId === 'VEH014' && quiet
+                const offline = !!d.presence[`vehicle:${t.vehicleId}`] && now - d.presence[`vehicle:${t.vehicleId}`] > 90_000
                 return (
                   <li key={t.id} onMouseEnter={() => setFocus(t.id)} onMouseLeave={() => setFocus(null)}>
                     <Link to={`/dispatcher/routes/${t.id}`} className="block px-5 py-4 hover:bg-surface-2">
@@ -128,7 +126,7 @@ export function Live() {
                           </Badge>
                         ) : offline ? (
                           <Badge tone="neutral">
-                            <CloudOff className="size-3" /> No signal · last seen {timeAgo(driverSeen, Date.now())}
+                            <CloudOff className="size-3" /> No signal · last seen {timeAgo(d.presence[`vehicle:${t.vehicleId}`], now)}
                           </Badge>
                         ) : (
                           <Badge tone="info" dot>

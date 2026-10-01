@@ -36,6 +36,8 @@ export function Capacity() {
   const short = weeks.filter((w) => w.chilled > reefer)
   const peak = weeks.reduce((a, b) => (b.total > a.total ? b : a), weeks[0])
 
+  if (!weeks.length) return <><PageHeader title="Capacity forecast" /><Callout title="No forecast available">Import model forecasts to see demand and capacity projections.</Callout></>
+
   // SVG chart geometry
   const W = 720
   const H = 260
@@ -126,7 +128,7 @@ export function Capacity() {
                 Reefer capacity {reefer}
               </text>
             </svg>
-            <p className="mt-2 text-xs text-muted">Dots mark festival or payday weeks. Values are pred_total_volume_m3 and pred_chilled_volume_m3 (Datathon Task 2A); placeholder estimates until the team’s model is loaded.</p>
+            <p className="mt-2 text-xs text-muted">Dots mark festival or payday weeks. Values are pred_total_volume_m3 and pred_chilled_volume_m3 (Datathon Task 2A); values from imported model predictions.</p>
           </div>
         ) : (
           <div className="scroll-thin overflow-x-auto">

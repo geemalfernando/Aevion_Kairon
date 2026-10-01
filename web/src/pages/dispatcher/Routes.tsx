@@ -105,7 +105,7 @@ export function RouteDetail() {
   const preds = tripPredictions(d, t.id)
   const firstOpen = t.stops.findIndex((id) => !isDone(orderOf(d, id)))
   const g = budgetGroup(t.brand)
-  const lastSeen = d.presence['driver@kairon.demo']
+  const lastSeen = d.presence[`vehicle:${t.vehicleId}`]
   return (
     <>
       <Link to="/dispatcher/routes" className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink">
@@ -227,7 +227,7 @@ export function RouteDetail() {
               )
             })}
           </ol>
-          <p className="border-t border-line px-5 py-2 text-[11px] text-muted">Service shows the allowance · ~model estimate. Late risk is pred_late_prob (Datathon slot; placeholder until the model is loaded).</p>
+          <p className="border-t border-line px-5 py-2 text-[11px] text-muted">Service shows the allowance · ~model estimate. Late risk is pred_late_prob (available when model predictions are imported).</p>
           <div className="border-t border-line p-5">
             <div className="eyebrow mb-3">Vehicle log</div>
             <AuditTimeline events={auditFor(d, t.vehicleId).slice(-8)} />
@@ -251,7 +251,7 @@ function MoveStopModal({ orderId, onClose }: { orderId: string; onClose: () => v
   const out = outletOf(d, o.outletId)!
   const trip = byId(d.trips, o.tripId)!
   const driver = vehicleOf(d, trip.vehicleId)!.driver
-  const lastSeen = trip.vehicleId === 'VEH014' ? d.presence['driver@kairon.demo'] : undefined
+  const lastSeen = d.presence[`vehicle:${trip.vehicleId}`]
   const quiet = lastSeen ? Math.round((Date.now() - lastSeen) / 60_000) : 0
   const options = useMemo(() => moveOptions(orderId, d, opMinutes(d)), [orderId, d])
   const stay = useMemo(() => stayEstimate(orderId, d), [orderId, d])

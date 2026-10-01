@@ -11,55 +11,20 @@ export const ORDER_CUTOFF = hm(16)
 
 export type Product = [name: string, unit: string, m3: number, kg: number]
 
-const CATALOG: Record<Brand, { chilled: Product[]; ambient: Product[] }> = {
-  Fresh: {
-    chilled: [
-      ['Dairy', 'crates', 0.045, 14],
-      ['Yoghurt', 'crates', 0.04, 11],
-      ['Meat & fish', 'crates', 0.05, 16],
-      ['Frozen goods', 'cartons', 0.06, 12],
-    ],
-    ambient: [
-      ['Dry groceries', 'cartons', 0.06, 11],
-      ['Produce', 'crates', 0.07, 12],
-      ['Bakery', 'trays', 0.04, 4],
-      ['Beverages', 'cases', 0.035, 13],
-    ],
-  },
-  // Garments fill a vehicle's volume long before its weight limit.
-  Style: {
-    chilled: [],
-    ambient: [
-      ['Hanging garments', 'rails', 0.9, 38],
-      ['Apparel cartons', 'cartons', 0.12, 7],
-      ['Footwear cartons', 'cartons', 0.09, 8],
-    ],
-  },
-  // Heavy, fragile, valuable — often a single large item.
-  Tech: {
-    chilled: [],
-    ambient: [
-      ['Refrigerators', 'units', 0.9, 75],
-      ['Washing machines', 'units', 0.45, 65],
-      ['Televisions', 'units', 0.25, 18],
-      ['Small appliances', 'cartons', 0.05, 5],
-    ],
-  },
-}
+export type Catalog = Partial<Record<Brand, { chilled: Product[]; ambient: Product[] }>>
+export const catalogFor = (brand: Brand, catalog: Catalog = {}) => catalog[brand] ?? { chilled: [], ambient: [] }
 
-export const catalogFor = (brand: Brand) => CATALOG[brand]
+const productOf = (brand: Brand, name: string, catalog: Catalog) => [...catalogFor(brand, catalog).chilled, ...catalogFor(brand, catalog).ambient].find((p) => p[0] === name)
 
-const productOf = (brand: Brand, name: string) => [...CATALOG[brand].chilled, ...CATALOG[brand].ambient].find((p) => p[0] === name)
+export const isChilledItem = (brand: Brand, name: string, catalog: Catalog) => catalogFor(brand, catalog).chilled.some((p) => p[0] === name)
 
-export const isChilledItem = (brand: Brand, name: string) => CATALOG[brand].chilled.some((p) => p[0] === name)
-
-export function measure(brand: Brand, items: OrderItem[]) {
+export function measure(brand: Brand, items: OrderItem[], catalog: Catalog = {}) {
   let v = 0
   let w = 0
   let units = 0
   for (const it of items) {
-    const p = productOf(brand, it.name)
-    if (!p || it.qty <= 0) continue
+    const p = productOf(brand, it.name, catalog)
+    if (!p || !Number.isInteger(it.qty) || it.qty <= 0) throw new Error('Invalid product or quantity')
     v += p[2] * it.qty
     w += p[3] * it.qty
     units += it.qty
@@ -71,10 +36,10 @@ export function measure(brand: Brand, items: OrderItem[]) {
  * Fresh chilled and dry goods travel as separate orders (separate vehicles: chilled needs a reefer),
  * so a basket is split by temperature. Style and Tech are always ambient.
  */
-export function splitByTemp(brand: Brand, items: OrderItem[]): { temp: Temp; items: OrderItem[] }[] {
+export function splitByTemp(brand: Brand, items: OrderItem[], catalog: Catalog = {}): { temp: Temp; items: OrderItem[] }[] {
   const clean = items.filter((i) => i.qty > 0)
-  const chilled = clean.filter((i) => isChilledItem(brand, i.name))
-  const ambient = clean.filter((i) => !isChilledItem(brand, i.name))
+  const chilled = clean.filter((i) => isChilledItem(brand, i.name, catalog))
+  const ambient = clean.filter((i) => !isChilledItem(brand, i.name, catalog))
   return [
     ...(chilled.length ? [{ temp: 'CHILLED' as Temp, items: chilled }] : []),
     ...(ambient.length ? [{ temp: 'AMBIENT' as Temp, items: ambient }] : []),

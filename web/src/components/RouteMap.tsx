@@ -1,7 +1,7 @@
 import L from 'leaflet'
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { CircleMarker, MapContainer, Marker, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet'
-import { DEPOT_GEO, outletGeo, type LatLng } from '../lib/geo'
+import { DEPOT_GEO, hasCoordinates, outletGeo, type LatLng } from '../lib/geo'
 import type { Brand, Depot, Outlet } from '@core/types'
 import { cn } from './ui'
 
@@ -44,14 +44,6 @@ const depotIcon = (name: string) =>
     iconSize: [34, 34],
     iconAnchor: [17, 17],
     html: `<div class="km-depot" title="${esc(name)} depot"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-6h6v6"/></svg></div>`,
-  })
-
-const vehicleIcon = (label: string) =>
-  L.divIcon({
-    className: '',
-    iconSize: [40, 40],
-    iconAnchor: [20, 20],
-    html: `<div class="km-vehicle"><span class="km-vehicle-ping"></span><span class="km-vehicle-dot"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6H3v12h2"/><path d="M14 9h4l3 4v5h-2"/><circle cx="7.5" cy="18" r="2"/><circle cx="16.5" cy="18" r="2"/></svg></span><span class="km-vehicle-label">${esc(label)}</span></div>`,
   })
 
 /** Brand is shown by shape (Fresh circle, Style square, Tech diamond), never colour: colour means status. */
@@ -97,28 +89,6 @@ function FlyTo({ to }: { to?: LatLng }) {
     if (lat !== undefined && lng !== undefined) map.flyTo([lat, lng], Math.max(map.getZoom(), 12), { duration: 0.8 })
   }, [map, lat, lng])
   return null
-}
-
-/** A truck that eases back and forth along a leg, so "in transit" reads at a glance. */
-function MovingVehicle({ from, to, label }: { from: LatLng; to: LatLng; label: string }) {
-  const ref = useRef<L.Marker>(null)
-  const icon = useMemo(() => vehicleIcon(label), [label])
-  const [a0, a1] = from
-  const [b0, b1] = to
-  useEffect(() => {
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    let raf = 0
-    const start = performance.now()
-    const tick = (now: number) => {
-      const t = ((now - start) / 6000) % 1
-      const k = 0.15 + 0.7 * (0.5 - 0.5 * Math.cos(t * Math.PI * 2))
-      ref.current?.setLatLng([a0 + (b0 - a0) * k, a1 + (b1 - a1) * k])
-      raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [a0, a1, b0, b1])
-  return <Marker ref={ref} position={[(a0 + b0) / 2, (a1 + b1) / 2]} icon={icon} zIndexOffset={1000} />
 }
 
 function DepotMarkers({ depots }: { depots: Depot[] }) {
@@ -184,6 +154,8 @@ export interface MapRoute {
 }
 
 export function RouteMap({ routes, outlets = [], className, focus = 'routes', label = 'Route map' }: { routes: MapRoute[]; outlets?: Outlet[]; className?: string; focus?: 'routes' | 'network'; label?: string }) {
+  outlets = outlets.filter(hasCoordinates)
+  if (routes.some((r) => r.stops.some((s) => !hasCoordinates(s.outlet)))) return <div className={cn('grid place-items-center rounded-xl bg-surface-2 p-6 text-sm text-muted', className)}>Import outlet coordinates to view this route.</div>
   const depots = [...new Set([...routes.map((r) => r.depot), ...(focus === 'network' ? (Object.keys(DEPOT_GEO) as Depot[]) : [])])]
   const routePts = routes.flatMap((r) => [DEPOT_GEO[r.depot], ...r.stops.map((s) => outletGeo(s.outlet))])
   const fit = focus === 'network' || routePts.length === 0 ? [...outlets.map(outletGeo), ...depots.map((d) => DEPOT_GEO[d])] : routePts
@@ -215,7 +187,6 @@ export function RouteMap({ routes, outlets = [], className, focus = 'routes', la
                 </Tooltip>
               </Marker>
             ))}
-            {r.vehicle && r.vehicle.at >= 0 && r.vehicle.at < path.length - 1 && <MovingVehicle from={path[r.vehicle.at]} to={path[r.vehicle.at + 1]} label={r.vehicle.label} />}
           </Fragment>
         )
       })}
@@ -269,6 +240,7 @@ export function OutletMap({
   interactive?: boolean
   describe?: (o: Outlet) => string
 }) {
+  outlets = outlets.filter(hasCoordinates)
   const depots = [...new Set(outlets.map((o) => o.depot))]
   const sel = outlets.find((o) => o.id === selected)
   const fit = [...outlets.map(outletGeo), ...depots.map((d) => DEPOT_GEO[d])]
@@ -307,13 +279,13 @@ export function OutletMap({
 // 3. Location map — one store, its depot, and a vehicle on the way
 // ---------------------------------------------------------------------------
 
-export function LocationMap({ outlet, depot, vehicle, className, interactive = false }: { outlet: Outlet; depot?: Depot; vehicle?: string; className?: string; interactive?: boolean }) {
+export function LocationMap({ outlet, depot, className, interactive = false }: { outlet: Outlet; depot?: Depot; vehicle?: string; className?: string; interactive?: boolean }) {
+  if (!hasCoordinates(outlet)) return <div className={cn('grid place-items-center rounded-xl bg-surface-2 p-6 text-sm text-muted', className)}>Outlet coordinates have not been imported.</div>
   const here = outletGeo(outlet)
   const from = depot ? DEPOT_GEO[depot] : undefined
   return (
     <BaseMap className={className} fit={from ? [here, from] : [here]} maxZoom={14} interactive={interactive}>
       {from && <Polyline positions={[from, here]} pathOptions={{ color: resolve('var(--brand)'), weight: 4, opacity: 0.6, dashArray: '8 8', lineCap: 'round' }} />}
-      {from && vehicle && <MovingVehicle from={from} to={here} label={vehicle} />}
       <Marker position={here} icon={pinIcon(outlet.id)} zIndexOffset={800}>
         <Tooltip direction="top" offset={[0, -40]}>
           <b>{outlet.id}</b> · {outlet.name}
@@ -326,6 +298,7 @@ export function LocationMap({ outlet, depot, vehicle, className, interactive = f
 
 /** Deep link to turn-by-turn directions for a store on OpenStreetMap. */
 export function directionsUrl(o: Outlet) {
+  if (!hasCoordinates(o)) return `https://www.openstreetmap.org/search?query=${encodeURIComponent(o.name + ', ' + o.district)}`
   const [lat, lng] = outletGeo(o)
   return `https://www.openstreetmap.org/directions?route=%3B${lat}%2C${lng}#map=15/${lat}/${lng}`
 }

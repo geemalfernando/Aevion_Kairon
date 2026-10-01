@@ -1,12 +1,12 @@
 import { CheckCircle2, Clock, Minus, Plus, Snowflake, Sun } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { catalogFor, measure, ORDER_CUTOFF, runForOrderPlacedAt, splitByTemp } from '@core/catalog'
 import { colomboMinutes, fmtDate } from '@core/time'
 import type { OrderItem } from '@core/types'
 import { Badge, Button, Card, CardHeader, Field, PageHeader, Textarea, toast } from '../../components/ui'
 import { outletOf } from '../../lib/select'
-import { ops, useNow, useOps, useSession } from '../../store'
+import { saveCommand, useNow, useOps, useSession } from '../../store'
 
 /** Countdown to the 16:00 cutoff on the operation clock; after it, orders join the following operating day's run. */
 export function useCutoff() {
@@ -22,16 +22,18 @@ export function useCutoff() {
 
 export function NewOrder() {
   const user = useSession((s) => s.user)!
-  const outlet = useOps((s) => outletOf(s.data, user.assignedOutlet))!
-  const cat = catalogFor(outlet.brand)
-  const products = useMemo(() => [...cat.chilled.map((c) => ({ c, chilled: true })), ...cat.ambient.map((c) => ({ c, chilled: false }))], [cat])
+  const d = useOps((s) => s.data)
+  const outlet = outletOf(d, user.assignedOutlet)!
+  const [saving, setSaving] = useState(false)
+  const cat = catalogFor(outlet.brand, d.catalog)
+  const products = [...cat.chilled.map((c) => ({ c, chilled: true })), ...cat.ambient.map((c) => ({ c, chilled: false }))]
   const [qty, setQty] = useState<Record<string, number>>({})
   const [notes, setNotes] = useState('')
   const [done, setDone] = useState<{ ids: string[]; deliveryDate: string; afterCutoff: boolean } | null>(null)
   const cutoff = useCutoff()
 
   const items: OrderItem[] = products.map(({ c }) => ({ name: c[0], unit: c[1], qty: qty[c[0]] ?? 0 })).filter((i) => i.qty > 0)
-  const parts = splitByTemp(outlet.brand, items).map((p) => ({ ...p, m: measure(outlet.brand, p.items) }))
+  const parts = splitByTemp(outlet.brand, items, d.catalog).map((p) => ({ ...p, m: measure(outlet.brand, p.items, d.catalog) }))
   const day = (date: string) => fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })
 
   if (done)
@@ -64,6 +66,7 @@ export function NewOrder() {
         <Card>
           <CardHeader title="Products" eyebrow={`${outlet.brand} catalogue`} />
           <ul className="divide-y divide-line">
+            {!products.length && <li className="p-5 text-muted">No products available. Ask your administrator to import the product catalogue.</li>}
             {products.map(({ c, chilled }) => {
               const [name, unit] = c
               const v = qty[name] ?? 0
@@ -135,11 +138,15 @@ export function NewOrder() {
           <Button
             size="xl"
             block
-            disabled={!items.length}
-            onClick={() => {
-              const r = ops('createOrder', outlet.id, items, notes.trim())
-              toast('Order submitted', { body: r.ids.join(' + ') })
-              setDone(r)
+            disabled={!items.length || saving}
+            onClick={async () => {
+              setSaving(true)
+              try {
+                const r = await saveCommand('createOrder', outlet.id, items, notes.trim())
+                toast('Order submitted', { body: r.ids.join(' + ') })
+                setDone(r)
+              } catch (e) { toast('Order not saved', { tone: 'critical', body: e instanceof Error ? e.message : 'Try again' }) }
+              finally { setSaving(false) }
             }}
           >
             Submit order

@@ -1,62 +1,35 @@
-import crypto from 'node:crypto'
-import type { Role, User } from '@core/types'
-import { DEMO_PASSWORD, DEMO_USERS } from '@core/users'
+import { createRemoteJWKSet, jwtVerify } from 'jose'
+import type { User } from '@core/types'
 import { config } from './config'
-import { pool, type Tx } from './db'
+import { authClient } from './supabase'
 
-export interface Session extends User {
-  exp: number
+export interface Session extends User { exp: number; id: string }
+const roles = ['DISPATCHER', 'LOADER', 'DRIVER', 'STORE_MANAGER'] as const
+export function profile(email: string | undefined, metadata: Record<string, unknown>): User | null {
+  const role = metadata.role
+  if (!email || !roles.includes(role as typeof roles[number]) || !['Peliyagoda', 'Kandy'].includes(String(metadata.depot)) || typeof metadata.name !== 'string' || !metadata.name.trim()) return null
+  return { email, name: metadata.name, role: role as User['role'], depot: metadata.depot as User['depot'], assignedVehicle: typeof metadata.assignedVehicle === 'string' ? metadata.assignedVehicle : undefined, assignedOutlet: typeof metadata.assignedOutlet === 'string' ? metadata.assignedOutlet : undefined }
 }
-
-const b64 = (s: string | Buffer) => Buffer.from(s).toString('base64url')
-
-export function hashPassword(password: string, salt = crypto.randomBytes(16).toString('hex')) {
-  const hash = crypto.scryptSync(password, salt, 32).toString('hex')
-  return `scrypt$${salt}$${hash}`
-}
-
-export function verifyPassword(password: string, stored: string) {
-  const [, salt, hash] = stored.split('$')
-  if (!salt || !hash) return false
-  const candidate = crypto.scryptSync(password, salt, 32)
-  return crypto.timingSafeEqual(candidate, Buffer.from(hash, 'hex'))
-}
-
-/** Compact signed token: base64url(payload).base64url(hmac). */
-export function signToken(user: User): string {
-  const payload = b64(JSON.stringify({ ...user, exp: Date.now() + config.tokenTtlHours * 3_600_000 } satisfies Session))
-  const sig = crypto.createHmac('sha256', config.authSecret).update(payload).digest('base64url')
-  return `${payload}.${sig}`
-}
-
-export function verifyToken(token: string | undefined): Session | null {
+let jwks: ReturnType<typeof createRemoteJWKSet> | undefined
+export async function verifyToken(token: string | undefined): Promise<Session | null> {
   if (!token) return null
-  const [payload, sig] = token.split('.')
-  if (!payload || !sig) return null
-  const expected = crypto.createHmac('sha256', config.authSecret).update(payload).digest('base64url')
-  if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null
   try {
-    const s = JSON.parse(Buffer.from(payload, 'base64url').toString()) as Session
-    return s.exp > Date.now() ? s : null
-  } catch {
-    return null
-  }
+    jwks ??= createRemoteJWKSet(new URL(config.supabaseJwksUrl))
+    const { payload } = await jwtVerify(token, jwks, { issuer: `${config.supabaseUrl}/auth/v1`, audience: 'authenticated', algorithms: ['ES256', 'RS256'] })
+    if (!payload.sub || !payload.exp) return null
+    const user = profile(payload.email as string, (payload.app_metadata ?? {}) as Record<string, unknown>)
+    return user ? { ...user, id: payload.sub, exp: payload.exp * 1000 } : null
+  } catch { return null }
 }
-
-export async function seedUsers(c: Tx) {
-  for (const u of Object.values(DEMO_USERS)) {
-    await c.query(
-      `insert into users (email, name, role, depot, assigned_vehicle, assigned_outlet, password_hash) values ($1, $2, $3, $4, $5, $6, $7)
-       on conflict (email) do update set name = excluded.name, role = excluded.role, depot = excluded.depot, assigned_vehicle = excluded.assigned_vehicle, assigned_outlet = excluded.assigned_outlet`,
-      [u.email, u.name, u.role, u.depot, u.assignedVehicle ?? null, u.assignedOutlet ?? null, hashPassword(DEMO_PASSWORD)],
-    )
-  }
+export async function login(email: string, password: string) {
+  const { data, error } = await authClient().auth.signInWithPassword({ email: email.trim(), password })
+  if (error || !data.session) return null
+  const user = profile(data.user.email, data.user.app_metadata)
+  return user ? { user, token: data.session.access_token, refreshToken: data.session.refresh_token, expiresAt: data.session.expires_at } : null
 }
-
-export async function login(email: string, password: string): Promise<{ token: string; user: User } | null> {
-  const r = await pool.query('select * from users where lower(email) = lower($1)', [email.trim()])
-  const row = r.rows[0]
-  if (!row || !verifyPassword(password, row.password_hash)) return null
-  const user: User = { email: row.email, name: row.name, role: row.role as Role, depot: row.depot, assignedVehicle: row.assigned_vehicle ?? undefined, assignedOutlet: row.assigned_outlet ?? undefined }
-  return { token: signToken(user), user }
+export async function refreshSession(refreshToken: string) {
+  const { data, error } = await authClient().auth.refreshSession({ refresh_token: refreshToken })
+  if (error || !data.session || !data.user) return null
+  const user = profile(data.user.email, data.user.app_metadata)
+  return user ? { user, token: data.session.access_token, refreshToken: data.session.refresh_token, expiresAt: data.session.expires_at } : null
 }

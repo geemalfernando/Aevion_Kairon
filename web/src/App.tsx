@@ -1,3 +1,4 @@
+import { Callout } from './components/ui'
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/shell/AppShell'
 import { HOME } from './components/shell/nav'
@@ -10,18 +11,20 @@ import * as Driver from './pages/driver'
 import * as Loader from './pages/loader'
 import { Landing } from './pages/public/Landing'
 import { Login } from './pages/public/Login'
-import { States } from './pages/public/States'
-import { FigmaBoard, FigmaDegradation, FigmaDoc, FigmaIndex } from './pages/figma/FigmaPages'
 import { NotFound } from './pages/shared/NotFound'
 import { Profile } from './pages/shared/Profile'
 import { SyncCenter } from './pages/shared/SyncCenter'
 import * as Store from './pages/store'
-import { FRAME, PREVIEW, useRuntimeBindings, useSession } from './store'
+import { FRAME, PREVIEW, useRuntimeBindings, useSession, useOps } from './store'
 
 function RequireRole({ role }: { role?: Role }) {
   const user = useSession((s) => s.user)
+  const ready = useSession((s) => s.ready)
+  const data = useOps((s) => s.data)
   if (!user) return <Navigate to="/login" replace />
   if (role && user.role !== role) return <Navigate to={HOME[user.role]} replace />
+  if (!ready) return <div className="p-8"><Callout title="Connecting to your workspace">Waiting for the server. Check your connection if this takes longer than expected.</Callout></div>
+  if (role === 'STORE_MANAGER' && !data.outlets.some((o) => o.id === user.assignedOutlet)) return <Callout title="Outlet assignment required">Ask your administrator to import your outlet and assign it to your account.</Callout>
   return <Outlet />
 }
 
@@ -32,11 +35,6 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/states" element={<States />} />
-        <Route path="/figma" element={<FigmaIndex />} />
-        <Route path="/figma/doc" element={<FigmaDoc />} />
-        <Route path="/figma/board/:id" element={<FigmaBoard />} />
-        <Route path="/figma/degradation" element={<FigmaDegradation />} />
         <Route element={<RequireRole />}>
           <Route element={<AppShell />}>
             <Route path="/profile" element={<Profile />} />

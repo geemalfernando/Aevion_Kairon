@@ -1,29 +1,25 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { existsSync } from 'node:fs'
+import { loadEnvFile } from 'node:process'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
+const envPath = path.join(path.resolve(here, '../..'), process.env.ENV_FILE ?? '.env')
+// On Vercel, settings come from project environment variables; never read (or bundle) a local .env.
+if (!process.env.VERCEL && existsSync(envPath)) loadEnvFile(envPath)
 const env = process.env
-
-function required(name: string, fallback?: string) {
-  const v = env[name] ?? fallback
-  if (!v) throw new Error(`Missing required environment variable ${name}`)
-  return v
-}
-
 export const config = {
-  port: Number(env.PORT ?? 8080),
-  host: env.HOST ?? '0.0.0.0',
-  databaseUrl: required('DATABASE_URL', 'postgres://kairon:kairon@localhost:5432/kairon'),
-  /** HMAC secret for session tokens. Always set it in production. */
-  authSecret: required('AUTH_SECRET', env.NODE_ENV === 'production' ? undefined : 'dev-only-insecure-secret'),
-  tokenTtlHours: Number(env.TOKEN_TTL_HOURS ?? 12),
-  /** Demo controls (reset, operation clock, fleet simulation) for judges. */
-  demoMode: (env.DEMO_MODE ?? 'true') === 'true',
-  /** Folder with the competition CSVs (outlets.csv, vehicles.csv, …). Missing files fall back to placeholders. */
+  port: Number(env.PORT ?? 8080), host: env.HOST ?? '0.0.0.0',
+  supabaseUrl: env.SUPABASE_URL ?? '',
+  supabasePublishableKey: env.SUPABASE_PUBLISHABLE_KEY ?? '',
+  supabaseSecretKey: env.SUPABASE_SECRET_KEY ?? '',
+  supabaseJwksUrl: env.SUPABASE_JWKS_URL ?? `${env.SUPABASE_URL}/auth/v1/.well-known/jwks.json`,
+  demoMode: false,
+  webOrigins: (env.WEB_ORIGIN ?? 'http://localhost:5173').split(',').map((s) => s.trim()),
+  publicApiUrl: (env.PUBLIC_API_URL ?? '').replace(/\/$/, ''),
   dataDir: env.DATA_DIR ?? path.resolve(here, '../../data'),
-  /** Built web app to serve (so one container runs the whole product). */
   webDist: env.WEB_DIST ?? path.resolve(here, '../../web/dist'),
-  /** Reseed on every boot (useful for demos). Otherwise the stored operation is kept. */
-  reseedOnBoot: env.RESEED_ON_BOOT === 'true',
   logLevel: env.LOG_LEVEL ?? 'info',
+  // On Vercel, SSE streams close before the function time limit (300 s) and the client reconnects.
+  streamMaxMs: Number(env.STREAM_MAX_MS ?? (env.VERCEL ? 280_000 : 0)),
 }

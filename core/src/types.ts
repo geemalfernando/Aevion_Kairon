@@ -11,6 +11,8 @@ export type Severity = 'INFO' | 'WARNING' | 'HIGH' | 'CRITICAL'
 export type { DockType, ParkingConstraint }
 
 export interface Outlet {
+  latitude?: number
+  longitude?: number
   id: string
   name: string
   brand: Brand
@@ -146,8 +148,6 @@ export interface Order {
   shortfall?: { item: string; missing: number; reason: string; decision?: string }
   notes?: string
   createdAt: number
-  /** Planner hint so the demo story always lands on the same truck. */
-  seedVehicle?: string
 }
 
 export type TripStatus = 'DRAFT' | 'PLANNED' | 'LOADING' | 'LOADED' | 'IN_PROGRESS' | 'PAUSED' | 'COMPLETED' | 'ABORTED'
@@ -278,6 +278,7 @@ export interface Predictions {
 
 /** The single operational state every role looks at. */
 export interface OpsData {
+  catalog: import('./catalog').Catalog
   version: number
   deliveryDate: string
   /** Operation clock: op time = sim + (Date.now() − real). Lets a demo run the 03:30 Fresh window at any hour. */

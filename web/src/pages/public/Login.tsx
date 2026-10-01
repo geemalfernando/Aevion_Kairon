@@ -1,46 +1,31 @@
 import { Copyright } from '../../components/Copyright'
-import { ArrowLeft, ArrowRight, Laptop, MonitorSmartphone, Smartphone, Tablet, type LucideIcon } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { isStandalone } from '../../components/Pwa'
-import { HOME, ROLE_LABEL } from '../../components/shell/nav'
-import { Button, Callout, cn, Field, Input, Logo } from '../../components/ui'
-import { DEMO_USERS } from '@core/users'
-import type { Role } from '@core/types'
-import { useSession } from '../../store'
-
-const DEMO_PASSWORD = 'kairon-demo'
-const ROLE_ICON: Record<Role, LucideIcon> = { DISPATCHER: Laptop, LOADER: Tablet, DRIVER: Smartphone, STORE_MANAGER: MonitorSmartphone }
-const ROLE_SUB: Record<Role, string> = {
-  DISPATCHER: 'Geemal · Peliyagoda',
-  LOADER: 'Kamal · Loading bay',
-  DRIVER: 'Nimal · VEH014',
-  STORE_MANAGER: 'Dilini · OUT032',
-}
+import { HOME } from '../../components/shell/nav'
+import { Button, Callout, Field, Input, Logo } from '../../components/ui'
+import { signInWith, useSession } from '../../store'
 
 export function Login() {
   const [params] = useSearchParams()
-  const hinted = params.get('role') as Role | null
-  const [email, setEmail] = useState(hinted ? DEMO_USERS[hinted]?.email ?? '' : '')
-  const [password, setPassword] = useState(hinted ? DEMO_PASSWORD : '')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const signIn = useSession((s) => s.signIn)
   const current = useSession((s) => s.user)
   const navigate = useNavigate()
 
-  const enter = (role: Role) => {
-    signIn(DEMO_USERS[role])
-    navigate(HOME[role])
-  }
-
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault()
-    const user = Object.values(DEMO_USERS).find((u) => u.email.toLowerCase() === email.trim().toLowerCase())
-    if (!user || password !== DEMO_PASSWORD) {
-      setError('That email and password don’t match an account. Use one of the demo accounts below.')
-      return
-    }
-    enter(user.role)
+    setBusy(true)
+    setError('')
+    try {
+      const user = await signInWith(email, password)
+      navigate(HOME[user.role])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to sign in')
+    } finally { setBusy(false) }
   }
 
   // The installed app opens on /login; send signed-in people straight to work.
@@ -83,38 +68,12 @@ export function Login() {
             <Field label="Email">{(id) => <Input id={id} type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.lk" required />}</Field>
             <Field label="Password">{(id) => <Input id={id} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />}</Field>
             {error && <Callout tone="critical" title="Couldn’t sign you in">{error}</Callout>}
-            <Button type="submit" size="lg" block>
-              Sign in
+            <Button type="submit" size="lg" block disabled={busy}>
+              {busy ? 'Signing in…' : 'Sign in'}
             </Button>
           </form>
 
-          <div className="my-8 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.14em] text-faint">
-            <span className="h-px flex-1 bg-line" /> Demo access <span className="h-px flex-1 bg-line" />
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {(Object.keys(DEMO_USERS) as Role[]).map((r) => {
-              const Icon = ROLE_ICON[r]
-              return (
-                <button
-                  key={r}
-                  onClick={() => enter(r)}
-                  className={cn('group flex items-center gap-3 rounded-xl border p-3 text-left transition hover:border-brand hover:bg-brand-soft', hinted === r ? 'border-brand bg-brand-soft' : 'border-line')}
-                >
-                  <span className="grid size-9 place-items-center rounded-lg bg-surface-2 text-muted group-hover:bg-brand-fill group-hover:text-white">
-                    <Icon className="size-4" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold">{ROLE_LABEL[r]} demo</span>
-                    <span className="block truncate text-xs text-muted">{ROLE_SUB[r]}</span>
-                  </span>
-                  <ArrowRight className="size-4 text-faint group-hover:text-brand-ink" />
-                </button>
-              )
-            })}
-          </div>
-          <p className="mt-4 text-center text-xs text-muted">
-            Seeded accounts use password <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono">{DEMO_PASSWORD}</code>
-          </p>
+
         </div>
         <footer className="text-center text-xs text-muted">
           <Copyright />

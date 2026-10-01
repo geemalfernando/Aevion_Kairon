@@ -40,6 +40,7 @@ export default defineConfig({
         // The whole app shell is precached, so every screen opens without a network.
         // Fonts are bundled (no CDN), so even the first offline launch renders Latin, Sinhala and Tamil.
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest,woff2}'],
+        globIgnores: ['figma/**'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],

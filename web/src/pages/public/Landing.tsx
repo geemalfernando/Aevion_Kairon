@@ -5,6 +5,7 @@ import {
   CircleDot,
   Cloud,
   CloudOff,
+  Download,
   FileSpreadsheet,
   Laptop,
   MonitorSmartphone,
@@ -16,6 +17,7 @@ import {
   TimerOff,
   type LucideIcon,
 } from 'lucide-react'
+import { Capacitor } from '@capacitor/core'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { HOME } from '../../components/shell/nav'
@@ -40,6 +42,7 @@ export function Landing() {
       <Coverage />
       <OfflineDemo />
       <FinalCta />
+      <AppDownload />
       <footer className="border-t border-line py-8">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 text-sm text-muted sm:px-6">
           <LandingBrand />
@@ -137,7 +140,7 @@ function Hero() {
           <div className="mt-7 flex flex-wrap gap-2" aria-label="Predict, plan, validate, deliver, recover">
             {VERBS.map((v, k) => (
               <span key={v} className={cn('rounded-md px-3 py-1.5 font-display text-sm font-semibold transition-all duration-500', k === i ? 'bg-chocolate text-white' : k < i ? 'bg-white/10 text-white' : 'bg-white/5 text-white/40')}>
-                {v}.
+                {v}
               </span>
             ))}
           </div>
@@ -713,6 +716,29 @@ function FinalCta() {
             Open the demo <ArrowRight className="size-4" />
           </Button>
         </Link>
+      </div>
+    </section>
+  )
+}
+
+/** Android download for field crews; hidden inside the installed app itself. */
+function AppDownload() {
+  if (Capacitor.isNativePlatform()) return null
+  return (
+    <section id="download" className="px-4 pb-16 sm:px-6">
+      <div className="mx-auto flex max-w-7xl flex-col items-start gap-5 rounded-3xl border border-line bg-surface p-6 sm:flex-row sm:items-center sm:p-8">
+        <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-brand-soft text-brand-ink">
+          <Smartphone className="size-6" />
+        </span>
+        <div className="flex-1">
+          <h2 className="text-xl font-bold">Get the Android app</h2>
+          <p className="mt-1 text-sm text-muted">Drivers and loaders keep working without signal; everything syncs to the shared operation when the connection returns. Android 7.0 or newer.</p>
+        </div>
+        <a href="/downloads/Kairon.apk" download="Kairon.apk" className="shrink-0">
+          <Button size="lg" icon={<Download className="size-4" />}>
+            Download APK
+          </Button>
+        </a>
       </div>
     </section>
   )

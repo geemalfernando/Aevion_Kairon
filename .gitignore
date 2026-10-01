@@ -8,7 +8,16 @@ dist/
 
 # Secrets
 .env
+.env.*
+!.env.example
 
 # Competition datasets must not be redistributed (Challenge Booklet · Terms and Conditions)
 data/**/*.csv
 data/**/*.zip
+data/catalog.json
+
+# Generated Vercel function bundle (npm --prefix server run bundle:vercel)
+web/api/_server.mjs
+
+# Leftover Flutter build output (app removed)
+/mobile/

@@ -1,8 +1,10 @@
-/** Seed a day, run the planner and print what limited it — used to calibrate the demo data. */
-import { seedOps, commands } from '@core/ops'
+/** Run the planner on a copy of the saved operation without writing changes. */
+import { commands } from '@core/ops'
+import { loadOps } from '../src/db'
 import { byId, scheduleOfTrip, vehicleDay } from '@core/rules'
 
-const d = seedOps({ today: process.argv[2] })
+const d = await loadOps()
+if (!d) throw new Error('Import operation data first')
 const count = <T,>(xs: T[], f: (x: T) => string) => xs.reduce<Record<string, number>>((m, x) => ((m[f(x)] = (m[f(x)] ?? 0) + 1), m), {})
 console.log('delivery date', d.deliveryDate)
 console.log('vehicles', count(d.vehicles, (v) => `${v.depot} ${v.type} ${v.status}${v.reserve ? ' reserve' : ''}`))
