@@ -1,5 +1,5 @@
-import { Check, Cpu, FlaskConical, Leaf, Loader2, Shirt, Snowflake, X } from 'lucide-react'
-import { useEffect, useId, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { Check, Cpu, Eye, EyeOff, FlaskConical, Leaf, Loader2, Shirt, Snowflake, X } from 'lucide-react'
+import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
 import { useTranslation } from 'react-i18next'
 import { create } from 'zustand'
 import type { Brand, OrderStatus, Severity, Temp } from '@core/types'
@@ -299,6 +299,25 @@ export function Field({ label, hint, children, className }: { label: string; hin
 const inputCls = 'w-full rounded-lg border border-line-strong bg-surface px-3 text-sm text-ink placeholder:text-faint transition focus:border-brand focus:outline-none focus:ring-3 focus:ring-brand/20'
 
 export const Input = ({ className, ...p }: InputHTMLAttributes<HTMLInputElement>) => <input {...p} className={cn(inputCls, 'h-11', className)} />
+/** Password field with a show/hide toggle, so people can check what they typed on a phone keyboard. */
+export function PasswordInput({ className, ...p }: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
+  const [visible, setVisible] = useState(false)
+  return (
+    <div className="relative">
+      <input {...p} type={visible ? 'text' : 'password'} className={cn(inputCls, 'h-11 pr-11', className)} />
+      <button
+        type="button"
+        onClick={() => setVisible((v) => !v)}
+        aria-label={visible ? 'Hide password' : 'Show password'}
+        aria-pressed={visible}
+        title={visible ? 'Hide password' : 'Show password'}
+        className="absolute inset-y-0 right-0 grid w-11 place-items-center rounded-r-lg text-muted transition hover:text-ink focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-brand/20"
+      >
+        {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+      </button>
+    </div>
+  )
+}
 export const Textarea = ({ className, ...p }: TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...p} className={cn(inputCls, 'min-h-20 py-2.5', className)} />
 export const Select = ({ className, children, ...p }: SelectHTMLAttributes<HTMLSelectElement>) => (
   <select {...p} className={cn(inputCls, 'h-10 pr-8', className)}>

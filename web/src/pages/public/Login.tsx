@@ -4,7 +4,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { isStandalone } from '../../components/Pwa'
 import { HOME } from '../../components/shell/nav'
-import { Button, Callout, Field, Input, Logo } from '../../components/ui'
+import { Button, Callout, Field, Input, Logo, PasswordInput } from '../../components/ui'
 import { signInWith, useSession } from '../../store'
 
 export function Login() {
@@ -66,7 +66,7 @@ export function Login() {
 
           <form onSubmit={submit} className="mt-8 space-y-4" noValidate>
             <Field label="Email">{(id) => <Input id={id} type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.lk" required />}</Field>
-            <Field label="Password">{(id) => <Input id={id} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />}</Field>
+            <Field label="Password">{(id) => <PasswordInput id={id} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" required />}</Field>
             {error && <Callout tone="critical" title="Couldn’t sign you in">{error}</Callout>}
             <Button type="submit" size="lg" block disabled={busy}>
               {busy ? 'Signing in…' : 'Sign in'}
