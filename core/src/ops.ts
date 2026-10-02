@@ -21,9 +21,10 @@ import {
   scheduleOfTrip,
   sequence,
   validate,
+  vehicleDay,
   type World,
 } from './rules'
-import { addDays, colomboDate, colomboTs, fmtClock, fmtDate, fmtMin, hm } from './time'
+import { addDays, colomboDate, colomboTs, fmtClock, fmtDate, fmtMin, hm, isoWeekOf } from './time'
 import type {
   AuditEvent,
   DeferralCode,
@@ -479,6 +480,62 @@ export const commands = {
 
   // ----- Dispatcher: planning -----
 
+  /**
+   * Close the delivery day and open the next operating day. Refused while a trip is still loading or on the road.
+   * - Fuel: what the day's completed trips used is added to each vehicle's fuel used this week, so the weekly quota
+   *   builds up day by day; a new ISO week starts every vehicle at 0.
+   * - Outlets: days since the last delivery, and "skipped on the previous run", which raises tomorrow's priority.
+   * - Orders: deferred orders join the next run's queue; orders that were never planned carry over.
+   * Trips of the closed day are cleared, so they no longer count towards a vehicle's trips, time or fuel.
+   */
+  startNextDay(d: OpsData) {
+    const open = d.trips.filter((t) => ['LOADING', 'LOADED', 'IN_PROGRESS', 'PAUSED'].includes(t.status))
+    if (open.length) return { ok: false as const, message: `${open.length} ${open.length === 1 ? 'trip is' : 'trips are'} still loading or on the road (${open.slice(0, 3).map((t) => t.id).join(', ')})` }
+    const from = d.deliveryDate
+    const to = nextOperatingDay(d.calendar, from)
+    const week = (date: string) => { const w = isoWeekOf(date); return `${w.iso_year}-${w.iso_week}` }
+    const newWeek = week(to) !== week(from)
+    const ran = d.trips.filter((t) => t.status === 'COMPLETED')
+    let litres = 0
+    for (const v of d.vehicles) {
+      const used = vehicleDay(v, ran, d).fuelL
+      litres += used
+      v.fuelUsedL = newWeek ? 0 : Math.round((v.fuelUsedL + used) * 10) / 10
+    }
+    const day = d.orders.filter((o) => o.deliveryDate === from)
+    const served = new Set(day.filter((o) => isDoneStatus(o.status)).map((o) => o.outletId))
+    const skipped = new Set(day.filter((o) => o.status === 'DEFERRED').map((o) => o.outletId))
+    for (const out of d.outlets) {
+      out.lastServedDaysAgo = served.has(out.id) ? 1 : out.lastServedDaysAgo + 1
+      out.deferredYesterday = skipped.has(out.id)
+      if (newWeek) out.deferralsThisWeek = 0
+    }
+    let carried = 0
+    for (const o of d.orders) {
+      if (o.status === 'DEFERRED' && o.deliveryDate === from) {
+        o.deliveryDate = o.deferral?.nextRun && o.deferral.nextRun > from ? o.deferral.nextRun : to
+        o.status = 'CONFIRMED'
+        carried++
+      } else if ((o.status === 'CONFIRMED' || o.status === 'PLANNED') && o.deliveryDate === from) {
+        o.deliveryDate = to
+        o.status = 'CONFIRMED'
+        o.tripId = undefined
+        carried++
+      }
+      if (o.deliveryDate === to && !isDoneStatus(o.status)) o.lock = undefined
+    }
+    d.trips = []
+    d.deliveryDate = to
+    d.ordersClosed = false
+    d.plan = 'NONE'
+    d.analysis = undefined
+    const text = `Closed ${fmtDate(from, { weekday: 'short', day: 'numeric', month: 'short' })}: ${Math.round(litres)} L of fuel recorded${newWeek ? ', new week (fuel quotas reset)' : ''}; ${carried} orders carried to ${fmtDate(to, { weekday: 'short', day: 'numeric', month: 'short' })}`
+    log(d, from, 'DISPATCHER', text)
+    notify(d, { to: ['DISPATCHER', 'LOADER', 'DRIVER'], severity: 'INFO', title: `Planning ${fmtDate(to, { weekday: 'long', day: 'numeric', month: 'long' })}`, body: text })
+    commit(d)
+    return { ok: true as const, from, to, litres: Math.round(litres), newWeek, carried }
+  },
+
   closeOrders(d: OpsData) {
     d.ordersClosed = true
     const n = d.orders.filter((o) => o.status === 'CONFIRMED' && o.deliveryDate === d.deliveryDate)
@@ -819,28 +876,52 @@ export const commands = {
   /** Demo: the rest of the fleet heads out so live operations have something to show. */
   /**
    * Demo only: a vehicle with no demo driver account (the reserve van) drives its next trip and delivers every stop,
-   * through the same field events a driver's phone sends. The operation clock moves on to the last delivery.
+   * through the same field events a driver's phone sends, each at its scheduled time. The operation clock only moves
+   * forward, to the last delivery.
    */
   simulateRun(d: OpsData, vehicleId: string) {
-    const t = d.trips.find((x) => x.vehicleId === vehicleId && ['PLANNED', 'LOADING', 'LOADED', 'IN_PROGRESS'].includes(x.status) && x.stops.some((id) => !isDoneStatus(byId(d.orders, id)?.status)))
+    // The vehicle's next trip in driving order (a Fresh trip 2 can leave before a Style trip 1).
+    const t = d.trips
+      .filter((x) => x.vehicleId === vehicleId && ['PLANNED', 'LOADING', 'LOADED', 'IN_PROGRESS'].includes(x.status) && x.stops.some((id) => !isDoneStatus(byId(d.orders, id)?.status)))
+      .sort((a, b) => Number(b.status === 'IN_PROGRESS') - Number(a.status === 'IN_PROGRESS') || a.departure - b.departure)[0]
     if (!t) return { ok: false as const, message: `${vehicleId} has nothing left to deliver` }
     const at = (min: number) => colomboTs(d.deliveryDate, min)
     if (t.status !== 'IN_PROGRESS') {
-      if (opMinutes(d) < t.departure) setClock(d, at(t.departure))
-      const r = applyEvent(d, { actor: 'DRIVER', event: { type: 'START_ROUTE', tripId: t.id }, at: opNow(d) })
+      const r = applyEvent(d, { actor: 'DRIVER', event: { type: 'START_ROUTE', tripId: t.id }, at: Math.max(at(t.departure), t.startedAt ?? 0) })
       if (r.status === 'rejected') return { ok: false as const, message: r.message ?? 'Could not start the trip' }
     }
     let delivered = 0
+    let last = opNow(d)
     for (const s of scheduleOfTrip(d, t).stops) {
       const o = byId(d.orders, s.orderId)
       if (!o || isDoneStatus(o.status)) continue
-      if (opMinutes(d) < s.finish) setClock(d, at(s.finish))
-      if (o.status !== 'ARRIVED') applyEvent(d, { actor: 'DRIVER', event: { type: 'ARRIVE', orderId: o.id, tripId: t.id }, at: opNow(d) })
-      const r = applyEvent(d, { actor: 'DRIVER', event: { type: 'DELIVER', orderId: o.id, tripId: t.id, record: { outcome: 'DELIVERED', receiver: outletOf(d, o).manager, arrivedAt: at(s.start), completedAt: opNow(d) } }, at: opNow(d) })
+      const done = at(s.finish)
+      if (o.status !== 'ARRIVED') applyEvent(d, { actor: 'DRIVER', event: { type: 'ARRIVE', orderId: o.id, tripId: t.id }, at: at(s.start) })
+      const r = applyEvent(d, { actor: 'DRIVER', event: { type: 'DELIVER', orderId: o.id, tripId: t.id, record: { outcome: 'DELIVERED', receiver: outletOf(d, o).manager, arrivedAt: at(s.start), completedAt: done } }, at: done })
       if (r.status === 'applied') delivered++
+      last = Math.max(last, done)
     }
+    if (last > opNow(d)) setClock(d, last)
     commit(d)
     return { ok: true as const, tripId: t.id, delivered }
+  },
+
+  /** Demo only: every vehicle drives its remaining trips, so the day can be closed. Paused trips stay as they are. */
+  simulateDayEnd(d: OpsData) {
+    let delivered = 0
+    let trips = 0
+    for (const v of d.vehicles) {
+      for (let i = 0; i < 4; i++) {
+        const r = commands.simulateRun(d, v.id)
+        if (!r.ok) break
+        delivered += r.delivered
+        trips++
+      }
+    }
+    // Trips whose stops were all delivered (or moved away) have nothing left to drive.
+    for (const t of d.trips) if (['PLANNED', 'LOADING', 'LOADED'].includes(t.status) && t.stops.every((id) => isDoneStatus(byId(d.orders, id)?.status))) t.status = t.stops.length ? 'COMPLETED' : 'ABORTED'
+    commit(d)
+    return { trips, delivered }
   },
 
   simulateFleet(d: OpsData, keep: string) {
@@ -888,6 +969,7 @@ export const COMMAND_ROLES: Record<CommandName, Role[] | 'demo'> = {
   storeIssue: ['STORE_MANAGER'],
   acknowledgeDeferral: ['STORE_MANAGER'],
   closeOrders: ['DISPATCHER'],
+  startNextDay: ['DISPATCHER'],
   generatePlan: ['DISPATCHER'],
   publishPlan: ['DISPATCHER'],
   assign: ['DISPATCHER'],
@@ -909,6 +991,7 @@ export const COMMAND_ROLES: Record<CommandName, Role[] | 'demo'> = {
   setClockMinutes: 'demo',
   simulateFleet: 'demo',
   simulateRun: 'demo',
+  simulateDayEnd: 'demo',
 }
 
 /** Which field events each role may record. */

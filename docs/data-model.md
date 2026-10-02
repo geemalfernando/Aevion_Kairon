@@ -143,6 +143,10 @@ The CSVs are validated on load (`core/src/csv.ts`) and never committed to the re
 - **Trip status:** `DRAFT` (before the plan is published) → `PLANNED` → `LOADING` → `LOADED` → `IN_PROGRESS` (or
   `PAUSED` after a breakdown) → `COMPLETED`, or `ABORTED`.
 - Every allocation, automatic or by hand, passes `validate()` against all 12 booklet rules; there is no override.
+  The planning page re-checks the whole current plan (`checkAllocations`) and shows the result.
+- **Closing a day** (`startNextDay`) adds the fuel of the day's completed trips to `Vehicle.fuelUsedL`, which resets
+  to 0 on a new ISO week. It also updates outlet service history, moves deferred orders to the next run, clears the
+  day's trips and advances `deliveryDate`.
 
 ## 2. Storage model
 

@@ -287,7 +287,9 @@ the bottom left of the app; it is presenter-only.
 2. **Dispatcher** (`dispatcher@kairon.demo`): open `/dispatcher/orders` and use Demo, **Close orders & generate plan**.
    Confirmed orders enter one queue, ordered by priority, then earliest window close. On the planning page
    (`/dispatcher/planning`) read the draft plan: served and deferred counts, the binding resource (on the demo day,
-   usually reefer capacity), and the recovery-reserve trade-off (VEH007 and VEH036 held back).
+   usually reefer capacity), and the recovery-reserve trade-off (VEH007 and VEH036 held back). A green line above it
+   confirms that every allocation passes every operating rule, re-checked independently of the planner and including
+   any change you make by hand.
 3. **A rule blocks an allocation.** Drag a chilled order onto a dry truck. Every rule is checked, there is no override,
    and vehicles that fit are suggested. Shortcut: `/dispatcher/planning?modal=blocked&demo=blocked`.
 4. **A deferral.** Open `/dispatcher/deferred` to review each deferral with its constraint, calculation and next run.
@@ -346,6 +348,10 @@ the bottom left of the app; it is presenter-only.
     `/store?demo=store-delivered`, `/store?modal=report-issue&demo=store-issue`.
 19. **The record.** Dispatcher, **History & audit**: search the order to see its whole day, from the order to the
     move and the confirmed receipt.
+20. **The next day** (optional). When every trip is completed, the planning page shows **Close day & plan next**. It
+    records the day's fuel against each vehicle's weekly quota (see `/dispatcher/vehicles`), carries deferred orders
+    to the next run with a higher priority, and opens the next operating day for ordering. To finish trips quickly
+    in the demo, use Demo, **Send the rest of the fleet out**.
 
 The `?demo=<id>` links open a sandboxed copy of the operation in a named state; nothing is saved or synced. The full
 list of states is in `web/src/demo/presets.ts`. Other URL switches: `frame=1` hides presenter chrome, `theme=dark|light`,
@@ -406,6 +412,11 @@ blocked when the fuel already used this week plus today's litres exceed `weekly_
 seeded deterministically on the demo day (fixed seed 29, 25 to 60 percent of the quota) so a fresh install behaves the
 same every time. VEH024 is fixed at 93 percent of its quota as the intentional fuel demo case, and VEH002 (the story
 vehicle) at 40 L (`enrichForDemo` in `core/src/demo.ts`).
+The quota builds up through the week: **Close day & plan next** on the planning page (`startNextDay`) adds the fuel
+of the day's completed trips to each vehicle's fuel used this week, and the first operating day of a new ISO week
+starts every vehicle at 0. Closing the day is refused while a trip is still loading or on the road. It also updates
+each outlet's service history (days since the last delivery, skipped on the previous run, which raises its priority)
+and puts deferred orders in the next run's queue.
 
 **Priority score** (`priorityOf`). Fresh chilled +60, Fresh dry +50, Tech +40, Style +30; skipped on the previous run
 +35; +20 for each run already deferred; +4 per day since the last delivery (up to 4 days); capped at 99. The queue is
@@ -538,8 +549,10 @@ stops at the designed times.
 
 - The real CSVs are not in the repository, so a local run without them uses placeholder data.
 - Judges on the deployed site share one operation; a reset by one judge resets it for everyone.
-- The recovery reserve and fuel already used this week are set only on the demo day. Real imports carry neither yet,
-  so on the hosted site no vehicle is held in reserve and every vehicle starts the week with a full quota.
+- The recovery reserve is set only on the demo day; a real import doesn't mark reserve vehicles yet. A real import
+  starts each vehicle's week at 0 L, and fuel then builds up as days are closed.
+- Fuel used is the planned distance of completed trips (the booklet's distance model), not a measured odometer or
+  fuel-card reading.
 - Late-risk and service-time estimates appear only after Datathon model output is loaded (`POST /api/predictions`);
   there are no placeholder predictions, so screens from the Designathon that showed late risk are blank until then.
 - Demo outlets are placed near their district centre (approximate); real maps need `latitude`/`longitude` in

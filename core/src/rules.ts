@@ -834,6 +834,27 @@ export function auditPlan(w: World, result: Pick<PlanResult, 'trips' | 'assigned
   return { ok: problems.length === 0, problems }
 }
 
+/**
+ * Re-check the operation as it stands now, manual changes included: every stop still to deliver on a trip of the
+ * delivery day is validated against every hard rule on its own trip. Delivered stops are history and not re-checked.
+ */
+export function checkAllocations(d: OpsData): { checked: number; problems: { orderId: string; vehicleId: string; failed: string[] }[] } {
+  const problems: { orderId: string; vehicleId: string; failed: string[] }[] = []
+  let checked = 0
+  for (const t of d.trips) {
+    if (t.status === 'ABORTED') continue
+    const v = byId(d.vehicles, t.vehicleId)
+    for (const id of t.stops) {
+      const o = byId(d.orders, id)
+      if (!o || !v || o.deliveryDate !== d.deliveryDate || isDoneStatus(o.status) || o.status === 'ARRIVED') continue
+      checked++
+      const failed = validate(o, v, d, t.rescue ? { joinTrip: t.id, rescueDeparture: t.departure } : { joinTrip: t.id }).checks.filter((c) => !c.ok && c.blocking)
+      if (failed.length) problems.push({ orderId: o.id, vehicleId: v.id, failed: failed.map((c) => `${c.label}: ${c.detail}`) })
+    }
+  }
+  return { checked, problems }
+}
+
 const UNEXPLAINED: DeferralInfo = { code: 'vehicle_capacity', reason: '', detail: '' }
 
 /** A plan before its deferrals are explained, as produced by one start. */

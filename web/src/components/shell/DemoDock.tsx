@@ -145,6 +145,16 @@ export function DemoDock() {
                   <Button size="sm" variant="secondary" onClick={reserveRun}>
                     {STORY.reserveVan} delivers the moved stop
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      const r = ops('simulateDayEnd')
+                      toast('Every vehicle finished its trips', { body: `${r.trips} trips, ${r.delivered} deliveries. Close the day on the planning page.` })
+                    }}
+                  >
+                    Finish every trip
+                  </Button>
                   <Button size="sm" variant="secondary" onClick={() => (ops('simulateFleet', 'VEH002'), toast('Fleet dispatched', { body: 'Other vehicles are now on the road' }))}>
                     Send the rest of the fleet out
                   </Button>
