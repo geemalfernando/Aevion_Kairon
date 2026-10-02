@@ -35,7 +35,7 @@ Every account uses the password **`kairon-demo`**.
 | Driver | `driver@kairon.demo` | Nimal, drives VEH014 |
 | Store manager | `store@kairon.demo` | Dilini, outlet OUT032 |
 
-The stack is PostgreSQL 16 plus one app container that serves the API and the web app. The first start creates the
+The stack has three containers: **frontend** (nginx serving the web app on port 8080 and forwarding `/api`), **backend** (the API) and **database** (PostgreSQL 16). The first start creates the
 schema and seeds one realistic delivery day: the network, fleet and calendar from the competition CSVs when they are in
 `data/`, otherwise placeholders, and about 150 orders. The clock starts at 15:20 on the ordering day, 40 minutes before
 the cutoff. Then follow the [judge walkthrough](#judge-walkthrough). The **Demo** pill at the bottom left (presenter

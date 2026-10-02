@@ -84,7 +84,7 @@ jobs:
           API_URL: http://localhost:8080
       - name: App logs
         if: failure()
-        run: docker compose logs app
+        run: docker compose logs backend frontend
       - if: always()
         run: docker compose down --volumes
 

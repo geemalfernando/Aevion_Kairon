@@ -1,9 +1,11 @@
 # `docker compose up --build`: the whole product on one machine, with no external service.
-# PostgreSQL holds the operation; the API serves the web app at http://localhost:8080 with the four demo accounts
-# (dispatcher@ / loader@ / driver@ / store@kairon.demo, password kairon-demo) and one seeded delivery day.
+#   frontend  nginx serving the web app at http://localhost:8080, forwarding /api to the backend
+#   backend   the Kairon API, with the four demo accounts (dispatcher@ / loader@ / driver@ / store@kairon.demo,
+#             password kairon-demo) and one seeded delivery day
+#   database  PostgreSQL, which holds the operation
 # The hosted deployment (Vercel + Supabase) is configured separately; see README.
 services:
-  db:
+  database:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: kairon
@@ -18,25 +20,35 @@ services:
       retries: 20
     restart: unless-stopped
 
-  app:
+  backend:
     build:
       context: .
-      args:
-        VITE_DEMO_MODE: "true"
+      target: api
     depends_on:
-      db:
+      database:
         condition: service_healthy
     environment:
       PORT: 8080
-      DATABASE_URL: postgres://kairon:kairon@db:5432/kairon
+      DATABASE_URL: postgres://kairon:kairon@database:5432/kairon
       # Signs local session tokens. Change it if this stack is reachable by anyone but you.
       AUTH_SECRET: ${AUTH_SECRET:-kairon-local-demo-secret-change-me}
       DEMO_MODE: "true"
       SEED_DEMO_DAY: "true"
       WEB_ORIGIN: http://localhost:${APP_PORT:-8080}
       LOG_LEVEL: info
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      target: frontend
+      args:
+        VITE_DEMO_MODE: "true"
+    depends_on:
+      backend:
+        condition: service_healthy
     ports:
-      - "${APP_PORT:-8080}:8080"
+      - "${APP_PORT:-8080}:80"
     restart: unless-stopped
 
 volumes:
