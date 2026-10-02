@@ -26,6 +26,11 @@ const run = (bin, args, options = {}) => {
 }
 const aws = (args, options) => run('aws', [...args, '--region', region], options)
 aws(['sts', 'get-caller-identity'])
+if (parameters.UseCloudFront === 'true' && !parameters.CloudFrontPrefixListId) {
+ const lists = JSON.parse(aws(['ec2', 'describe-managed-prefix-lists', '--filters', 'Name=prefix-list-name,Values=com.amazonaws.global.cloudfront.origin-facing', '--output', 'json'], { capture: true }))
+ parameters.CloudFrontPrefixListId = lists.PrefixLists?.[0]?.PrefixListId
+ if (!parameters.CloudFrontPrefixListId) throw new Error('CloudFront origin-facing prefix list not found in this AWS region')
+}
 const describe = spawnSync('aws', ['cloudformation', 'describe-stacks', '--stack-name', stack, '--region', region, '--output', 'json'], { encoding: 'utf8' })
 if (mode === 'bootstrap' && describe.status === 0) throw new Error('Stack already exists; bootstrap refuses to scale down an existing deployment')
 if (mode === 'bootstrap' && !describe.stderr?.includes('does not exist')) throw new Error('Could not verify stack absence; check AWS permissions')

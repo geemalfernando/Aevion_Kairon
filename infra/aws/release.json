@@ -15,12 +15,14 @@
     },
     "CertificateArn": {
       "Type": "String",
-      "Description": "Issued ACM certificate in this stack's region covering AppOrigin's hostname."
+      "Description": "Issued regional ACM certificate for direct ALB HTTPS; unused with UseCloudFront=true.",
+      "Default": ""
     },
     "AppOrigin": {
       "Type": "String",
-      "AllowedPattern": "https://[a-zA-Z0-9.-]+",
-      "Description": "Exact HTTPS origin, without a trailing slash or path."
+      "AllowedPattern": "^$|^https://[a-zA-Z0-9.-]+$",
+      "Description": "Exact HTTPS origin for direct ALB mode; omit with UseCloudFront=true (automatically assigned).",
+      "Default": ""
     },
     "SupabaseUrl": {
       "Type": "String",
@@ -127,6 +129,21 @@
         "false"
       ],
       "Description": "Create a private two-node encrypted Redis. Adds ongoing ElastiCache charges."
+    },
+    "UseCloudFront": {
+      "Type": "String",
+      "Default": "false",
+      "AllowedValues": [
+        "true",
+        "false"
+      ],
+      "Description": "Use an AWS-assigned cloudfront.net HTTPS hostname and private VPC origin; no registered domain required."
+    },
+    "CloudFrontPrefixListId": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "^$|^pl-[a-f0-9]+$",
+      "Description": "Regional com.amazonaws.global.cloudfront.origin-facing managed prefix list; deployment helper resolves automatically."
     }
   },
   "Resources": {
@@ -347,16 +364,29 @@
     "LoadBalancerSecurityGroup": {
       "Type": "AWS::EC2::SecurityGroup",
       "Properties": {
-        "GroupDescription": "Public HTTPS ingress only",
+        "GroupDescription": "Ingress from CloudFront only for private origin, or public HTTPS for custom domain",
         "VpcId": {
           "Ref": "VpcId"
         },
         "SecurityGroupIngress": [
           {
-            "IpProtocol": "tcp",
-            "FromPort": 443,
-            "ToPort": 443,
-            "CidrIp": "0.0.0.0/0"
+            "Fn::If": [
+              "UseCloudFront",
+              {
+                "IpProtocol": "tcp",
+                "FromPort": 80,
+                "ToPort": 80,
+                "SourcePrefixListId": {
+                  "Ref": "CloudFrontPrefixListId"
+                }
+              },
+              {
+                "IpProtocol": "tcp",
+                "FromPort": 443,
+                "ToPort": 443,
+                "CidrIp": "0.0.0.0/0"
+              }
+            ]
           }
         ],
         "SecurityGroupEgress": [
@@ -453,10 +483,24 @@
     "LoadBalancer": {
       "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
       "Properties": {
-        "Scheme": "internet-facing",
+        "Scheme": {
+          "Fn::If": [
+            "UseCloudFront",
+            "internal",
+            "internet-facing"
+          ]
+        },
         "Type": "application",
         "Subnets": {
-          "Ref": "PublicSubnets"
+          "Fn::If": [
+            "UseCloudFront",
+            {
+              "Ref": "PrivateSubnets"
+            },
+            {
+              "Ref": "PublicSubnets"
+            }
+          ]
         },
         "SecurityGroups": [
           {
@@ -503,16 +547,44 @@
         "LoadBalancerArn": {
           "Ref": "LoadBalancer"
         },
-        "Port": 443,
-        "Protocol": "HTTPS",
-        "SslPolicy": "ELBSecurityPolicy-TLS13-1-2-2021-06",
-        "Certificates": [
-          {
-            "CertificateArn": {
-              "Ref": "CertificateArn"
-            }
-          }
-        ],
+        "Port": {
+          "Fn::If": [
+            "UseCloudFront",
+            80,
+            443
+          ]
+        },
+        "Protocol": {
+          "Fn::If": [
+            "UseCloudFront",
+            "HTTP",
+            "HTTPS"
+          ]
+        },
+        "SslPolicy": {
+          "Fn::If": [
+            "UseCloudFront",
+            {
+              "Ref": "AWS::NoValue"
+            },
+            "ELBSecurityPolicy-TLS13-1-2-2021-06"
+          ]
+        },
+        "Certificates": {
+          "Fn::If": [
+            "UseCloudFront",
+            {
+              "Ref": "AWS::NoValue"
+            },
+            [
+              {
+                "CertificateArn": {
+                  "Ref": "CertificateArn"
+                }
+              }
+            ]
+          ]
+        },
         "DefaultActions": [
           {
             "Type": "forward",
@@ -573,7 +645,13 @@
             "Statement": {
               "RateBasedStatement": {
                 "Limit": 100,
-                "AggregateKeyType": "IP",
+                "AggregateKeyType": {
+                  "Fn::If": [
+                    "UseCloudFront",
+                    "FORWARDED_IP",
+                    "IP"
+                  ]
+                },
                 "ScopeDownStatement": {
                   "ByteMatchStatement": {
                     "FieldToMatch": {
@@ -588,6 +666,18 @@
                       }
                     ]
                   }
+                },
+                "ForwardedIPConfig": {
+                  "Fn::If": [
+                    "UseCloudFront",
+                    {
+                      "HeaderName": "x-kairon-client-ip",
+                      "FallbackBehavior": "NO_MATCH"
+                    },
+                    {
+                      "Ref": "AWS::NoValue"
+                    }
+                  ]
                 }
               }
             },
@@ -663,7 +753,13 @@
               },
               {
                 "Name": "TRUST_PROXY_HOPS",
-                "Value": "1"
+                "Value": {
+                  "Fn::If": [
+                    "UseCloudFront",
+                    "2",
+                    "1"
+                  ]
+                }
               },
               {
                 "Name": "DEMO_MODE",
@@ -680,13 +776,29 @@
               {
                 "Name": "WEB_ORIGIN",
                 "Value": {
-                  "Fn::Sub": "${AppOrigin},https://localhost,capacitor://localhost"
+                  "Fn::If": [
+                    "UseCloudFront",
+                    {
+                      "Fn::Sub": "https://${CloudFrontDistribution.DomainName},https://localhost,capacitor://localhost"
+                    },
+                    {
+                      "Fn::Sub": "${AppOrigin},https://localhost,capacitor://localhost"
+                    }
+                  ]
                 }
               },
               {
                 "Name": "PUBLIC_API_URL",
                 "Value": {
-                  "Ref": "AppOrigin"
+                  "Fn::If": [
+                    "UseCloudFront",
+                    {
+                      "Fn::Sub": "https://${CloudFrontDistribution.DomainName}"
+                    },
+                    {
+                      "Ref": "AppOrigin"
+                    }
+                  ]
                 }
               },
               {
@@ -1268,13 +1380,29 @@
               {
                 "Name": "WEB_ORIGIN",
                 "Value": {
-                  "Fn::Sub": "${AppOrigin},https://localhost,capacitor://localhost"
+                  "Fn::If": [
+                    "UseCloudFront",
+                    {
+                      "Fn::Sub": "https://${CloudFrontDistribution.DomainName},https://localhost,capacitor://localhost"
+                    },
+                    {
+                      "Fn::Sub": "${AppOrigin},https://localhost,capacitor://localhost"
+                    }
+                  ]
                 }
               },
               {
                 "Name": "PUBLIC_API_URL",
                 "Value": {
-                  "Ref": "AppOrigin"
+                  "Fn::If": [
+                    "UseCloudFront",
+                    {
+                      "Fn::Sub": "https://${CloudFrontDistribution.DomainName}"
+                    },
+                    {
+                      "Ref": "AppOrigin"
+                    }
+                  ]
                 }
               },
               {
@@ -1558,13 +1686,29 @@
               {
                 "Name": "WEB_ORIGIN",
                 "Value": {
-                  "Fn::Sub": "${AppOrigin},https://localhost,capacitor://localhost"
+                  "Fn::If": [
+                    "UseCloudFront",
+                    {
+                      "Fn::Sub": "https://${CloudFrontDistribution.DomainName},https://localhost,capacitor://localhost"
+                    },
+                    {
+                      "Fn::Sub": "${AppOrigin},https://localhost,capacitor://localhost"
+                    }
+                  ]
                 }
               },
               {
                 "Name": "PUBLIC_API_URL",
                 "Value": {
-                  "Ref": "AppOrigin"
+                  "Fn::If": [
+                    "UseCloudFront",
+                    {
+                      "Fn::Sub": "https://${CloudFrontDistribution.DomainName}"
+                    },
+                    {
+                      "Ref": "AppOrigin"
+                    }
+                  ]
                 }
               },
               {
@@ -2014,6 +2158,158 @@
           "Fn::Sub": "{\"redisUrl\":\"rediss://default:{{resolve:secretsmanager:${RedisAuthSecret}:SecretString:authToken}}@${Redis.PrimaryEndPoint.Address}:6379\"}"
         }
       }
+    },
+    "CloudFrontVpcOrigin": {
+      "Type": "AWS::CloudFront::VpcOrigin",
+      "Condition": "UseCloudFront",
+      "DependsOn": [
+        "Listener"
+      ],
+      "Properties": {
+        "VpcOriginEndpointConfig": {
+          "Arn": {
+            "Ref": "LoadBalancer"
+          },
+          "Name": {
+            "Fn::Sub": "${AWS::StackName}-origin"
+          },
+          "HTTPPort": 80,
+          "HTTPSPort": 443,
+          "OriginProtocolPolicy": "http-only"
+        }
+      }
+    },
+    "CloudFrontClientIp": {
+      "Type": "AWS::CloudFront::Function",
+      "Condition": "UseCloudFront",
+      "Properties": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}-client-ip"
+        },
+        "AutoPublish": true,
+        "FunctionConfig": {
+          "Comment": "Overwrite the trusted WAF client address header",
+          "Runtime": "cloudfront-js-2.0"
+        },
+        "FunctionCode": "function handler(event) { var request = event.request; request.headers['x-kairon-client-ip'] = { value: event.viewer.ip }; return request; }"
+      }
+    },
+    "CloudFrontDistribution": {
+      "Type": "AWS::CloudFront::Distribution",
+      "Condition": "UseCloudFront",
+      "Properties": {
+        "DistributionConfig": {
+          "Enabled": true,
+          "Comment": {
+            "Fn::Sub": "${AWS::StackName} HTTPS staging/application address"
+          },
+          "HttpVersion": "http2",
+          "IPV6Enabled": true,
+          "PriceClass": "PriceClass_All",
+          "ViewerCertificate": {
+            "CloudFrontDefaultCertificate": true
+          },
+          "Origins": [
+            {
+              "Id": "private-app",
+              "DomainName": {
+                "Fn::GetAtt": [
+                  "LoadBalancer",
+                  "DNSName"
+                ]
+              },
+              "VpcOriginConfig": {
+                "VpcOriginId": {
+                  "Fn::GetAtt": [
+                    "CloudFrontVpcOrigin",
+                    "Id"
+                  ]
+                },
+                "OriginReadTimeout": 30,
+                "OriginKeepaliveTimeout": 5
+              },
+              "ConnectionAttempts": 1
+            }
+          ],
+          "DefaultCacheBehavior": {
+            "TargetOriginId": "private-app",
+            "ViewerProtocolPolicy": "https-only",
+            "AllowedMethods": [
+              "GET",
+              "HEAD",
+              "OPTIONS",
+              "PUT",
+              "PATCH",
+              "POST",
+              "DELETE"
+            ],
+            "CachedMethods": [
+              "GET",
+              "HEAD"
+            ],
+            "CachePolicyId": "413f1605-6e8f-47f8-9382-7b4bc7c52c9d",
+            "OriginRequestPolicyId": "b689b0a8-53d0-40ab-baf2-68738e2966ac",
+            "Compress": false,
+            "FunctionAssociations": [
+              {
+                "EventType": "viewer-request",
+                "FunctionARN": {
+                  "Fn::GetAtt": [
+                    "CloudFrontClientIp",
+                    "FunctionARN"
+                  ]
+                }
+              }
+            ]
+          },
+          "CustomErrorResponses": [
+            {
+              "ErrorCode": 400,
+              "ErrorCachingMinTTL": 0
+            },
+            {
+              "ErrorCode": 403,
+              "ErrorCachingMinTTL": 0
+            },
+            {
+              "ErrorCode": 404,
+              "ErrorCachingMinTTL": 0
+            },
+            {
+              "ErrorCode": 405,
+              "ErrorCachingMinTTL": 0
+            },
+            {
+              "ErrorCode": 414,
+              "ErrorCachingMinTTL": 0
+            },
+            {
+              "ErrorCode": 416,
+              "ErrorCachingMinTTL": 0
+            },
+            {
+              "ErrorCode": 500,
+              "ErrorCachingMinTTL": 0
+            },
+            {
+              "ErrorCode": 501,
+              "ErrorCachingMinTTL": 0
+            },
+            {
+              "ErrorCode": 502,
+              "ErrorCachingMinTTL": 0
+            },
+            {
+              "ErrorCode": 503,
+              "ErrorCachingMinTTL": 0
+            },
+            {
+              "ErrorCode": 504,
+              "ErrorCachingMinTTL": 0
+            }
+          ]
+        }
+      }
     }
   },
   "Outputs": {
@@ -2105,6 +2401,25 @@
       "Value": {
         "Ref": "RedisUrlSecret"
       }
+    },
+    "ApplicationUrl": {
+      "Value": {
+        "Fn::If": [
+          "UseCloudFront",
+          {
+            "Fn::Sub": "https://${CloudFrontDistribution.DomainName}"
+          },
+          {
+            "Ref": "AppOrigin"
+          }
+        ]
+      }
+    },
+    "CloudFrontDistributionId": {
+      "Condition": "UseCloudFront",
+      "Value": {
+        "Ref": "CloudFrontDistribution"
+      }
     }
   },
   "Conditions": {
@@ -2180,6 +2495,14 @@
             ""
           ]
         }
+      ]
+    },
+    "UseCloudFront": {
+      "Fn::Equals": [
+        {
+          "Ref": "UseCloudFront"
+        },
+        "true"
       ]
     }
   },
@@ -2318,6 +2641,49 @@
             ]
           },
           "AssertDescription": "Email requires a verified SES sender identity."
+        }
+      ]
+    },
+    "CustomDomain": {
+      "RuleCondition": {
+        "Fn::Equals": [
+          {
+            "Ref": "UseCloudFront"
+          },
+          "false"
+        ]
+      },
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::And": [
+              {
+                "Fn::Not": [
+                  {
+                    "Fn::Equals": [
+                      {
+                        "Ref": "CertificateArn"
+                      },
+                      ""
+                    ]
+                  }
+                ]
+              },
+              {
+                "Fn::Not": [
+                  {
+                    "Fn::Equals": [
+                      {
+                        "Ref": "AppOrigin"
+                      },
+                      ""
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "AssertDescription": "Direct ALB HTTPS requires CertificateArn and AppOrigin."
         }
       ]
     }

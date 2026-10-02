@@ -1,5 +1,6 @@
 /** Client for the authenticated, Supabase-backed API. */
 import type { CommandName } from '@core/ops'
+import type { PublicSummary } from '@core/summary'
 import type { OpsData, QueuedEvent, User } from '@core/types'
 import { Capacitor } from '@capacitor/core'
 
@@ -68,6 +69,8 @@ export const api = {
   /** Demo mode only: the server puts the seeded delivery day back. */
   reset: (token: string) => request<{ version: number }>('/api/demo/reset', { token, body: {} }),
   health: () => request<{ ok: boolean }>('/api/health', { timeoutMs: 4000 }),
+  /** Landing page figures; no sign-in needed. */
+  publicSummary: () => request<PublicSummary>('/api/public/summary', { timeoutMs: 8000 }),
   /** Live version updates (server-sent events). Returns a close function. */
   stream(token: string, onVersion: (v: number) => void, onStatus: (open: boolean) => void) {
     // fetch supports Authorization headers; EventSource would put the access token in the URL.

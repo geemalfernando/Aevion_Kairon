@@ -13,6 +13,7 @@ import type { QueuedEvent } from '@core/types'
 import { login, logout, refreshSession, verifyToken, type Session } from './auth'
 import { config, validateDeployment } from './config'
 import { HttpError, Operation } from './operation'
+import { publicSummary } from '@core/summary'
 import { signProofs, verifyMedia } from './media-access'
 import { contacts, registerPush, registerNativePush, securityAudit, subscriptionId, type Preferences } from './notifications/store'
 import { supabaseAdmin } from './supabase'
@@ -63,6 +64,13 @@ export async function buildApp() {
   // ---------- Health & auth ----------
 
   app.get('/api/health', async () => ({ ok: true, version: op.data?.version ?? 0, demoMode: config.demoMode, dataSources: op.sources }))
+
+  /** Landing page figures for visitors who are not signed in: aggregates only (see core/src/summary.ts). */
+  app.get('/api/public/summary', async (_req, reply) => {
+    await op.reload()
+    reply.header('cache-control', 'public, max-age=30')
+    return publicSummary(op.data)
+  })
 
   app.post('/api/auth/login', { bodyLimit: 4096, config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req, reply) => {
     if (cookieMode(req)) originGuard(req)
