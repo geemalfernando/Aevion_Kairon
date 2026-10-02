@@ -4,6 +4,7 @@
  * and only then becomes visible. Writes are serialised so concurrent devices can't interleave half-applied changes.
  */
 import crypto from 'node:crypto'
+import { notificationVisible, projectState, mergeDepot } from '@core/access'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { Catalog } from '@core/catalog'
@@ -41,7 +42,7 @@ const repository = { loadOps, persistState, transaction, seenEvents, loadMedia }
 const CSV_NAMES: CsvName[] = ['outlets', 'vehicles', 'calendar', 'district_travel', 'service_allowance', 'fleet_status']
 
 /** Find the competition CSVs anywhere under DATA_DIR (the datasets ship in sub-folders such as "General Data/"). */
-function readCsvs(dir: string): Partial<Record<CsvName, string>> {
+export function readCsvs(dir: string): Partial<Record<CsvName, string>> {
   const found: Partial<Record<CsvName, string>> = {}
   const walk = (d: string, depth = 0) => {
     if (depth > 3 || !fs.existsSync(d)) return
@@ -138,13 +139,17 @@ export class Operation {
   }
 
   /** Run one mutation on a draft, persist the difference, then publish it. */
-  private mutate<T>(fn: (draft: OpsData, c: Tx) => Promise<T> | T): Promise<T> {
+  private mutate<T>(fn: (draft: OpsData, c: Tx) => Promise<T> | T, user?: Session): Promise<T> {
     return this.lock.run(async () => {
       const before = await this.db.loadOps() ?? this.state
       const draft = structuredClone(before)
       Object.assign(draft.presence, this.presence)
       const c = this.db.transaction()
       const out = await fn(draft, c)
+      const oldNotifications = new Set(before.notifications.map((n) => n.id))
+      const oldAudit = new Set(before.audit.map((a) => a.id))
+      for (const n of draft.notifications) if (!oldNotifications.has(n.id)) n.depot ??= user?.depot
+      for (const a of draft.audit) if (!oldAudit.has(a.id)) { a.depot ??= user?.depot; a.userId ??= user?.id }
       await this.db.persistState(before, draft, c)
       this.state = draft
       this.emit()
@@ -166,13 +171,50 @@ export class Operation {
     if (cmd === 'createOrder' && a[0] !== user.assignedOutlet) throw new HttpError(403, 'You can only order for your own outlet')
     if (cmd === 'confirmReceipt' || cmd === 'storeIssue' || cmd === 'acknowledgeDeferral') ownOrder(a[0])
     if (cmd === 'heartbeat') a[0] = user.email
-    if (cmd === 'markRead') a[0] = user.role
     if (cmd === 'recordSync') a[0] = { ...(a[0] as object), email: user.email, name: user.name, role: user.role, vehicleId: user.assignedVehicle }
     return this.mutate((d) => {
       d.presence[user.email] = Date.now()
       if (user.role === 'DRIVER' && user.assignedVehicle) d.presence[`vehicle:${user.assignedVehicle}`] = Date.now()
-      return (commands[cmd] as (d: OpsData, ...rest: unknown[]) => unknown)(d, ...a)
-    })
+      if (cmd === 'markRead') {
+        for (const n of d.notifications) if (notificationVisible(d, n, user)) {
+          n.readByUserIds ??= []
+          if (!n.readByUserIds.includes(user.id)) n.readByUserIds.push(user.id)
+        }
+        return
+      }
+      if (user.role === 'STORE_MANAGER') {
+        const outlet = byId(d.outlets, user.assignedOutlet)
+        if (!outlet || outlet.depot !== user.depot) throw new HttpError(403, 'Outlet assignment required')
+        if (['confirmReceipt', 'storeIssue', 'acknowledgeDeferral'].includes(cmd) && byId(d.orders, String(a[0]))?.outletId !== outlet.id) throw new HttpError(403, 'Not your outlet’s order')
+        const closed = d.ordersClosed
+        d.ordersClosed = d.ordersClosedByDepot?.[user.depot] ?? closed
+        try { return (commands[cmd] as (d: OpsData, ...rest: unknown[]) => unknown)(d, ...a) }
+        finally { d.ordersClosed = closed }
+      }
+      if (user.role !== 'DISPATCHER' || allowed === 'demo') return (commands[cmd] as (d: OpsData, ...rest: unknown[]) => unknown)(d, ...a)
+      const working = projectState(d, user)
+      const before = structuredClone(working)
+      const own = (list: { id: string }[], id: unknown) => { if (typeof id !== 'string' || !list.some((x) => x.id === id)) throw new HttpError(403, 'Resource belongs to another depot or does not exist') }
+      if (['assign', 'unassign', 'lockStop', 'unlockStop', 'defer', 'confirmDeferral', 'moveStop'].includes(cmd)) own(working.orders, a[0])
+      if (['assign', 'moveStop'].includes(cmd) || cmd === 'lockStop' && a[1] !== undefined) own(working.vehicles, a[1])
+      if (['lockTrip', 'unlockTrip'].includes(cmd)) own(working.trips, a[0])
+      if (['resolveIssue', 'applyRecovery'].includes(cmd)) own(working.issues, a[0])
+      if (cmd === 'applyRecovery') {
+        const plan = a[1] as { options?: { vehicleId: string; orderIds: string[] }[]; defer?: string[] }
+        if (!plan || !Array.isArray(plan.options) || !Array.isArray(plan.defer)) throw new HttpError(400, 'Invalid recovery plan')
+        for (const option of plan.options) { own(working.vehicles, option.vehicleId); for (const id of option.orderIds ?? []) own(working.orders, id) }
+        for (const id of plan.defer) own(working.orders, id)
+      }
+      if (cmd === 'loadPredictions') {
+        const p = a[0] as { service?: Record<string, unknown>; demand?: { depot: string }[] }
+        if (!p || typeof p !== 'object') throw new HttpError(400, 'Invalid predictions')
+        for (const id of Object.keys(p.service ?? {})) own(working.orders, id)
+        if (p.demand?.some((row) => row.depot !== user.depot)) throw new HttpError(403, 'Predictions belong to another depot')
+      }
+      const out = (commands[cmd] as (d: OpsData, ...rest: unknown[]) => unknown)(working, ...a)
+      mergeDepot(d, before, working, user.depot)
+      return out
+    }, user)
   }
 
   /** Why this user may not record this event (or undefined when they may). */
@@ -184,6 +226,15 @@ export class Operation {
       const vehicle =
         e.type === 'VEHICLE_ISSUE' ? e.vehicleId : e.type === 'PROOF' ? vehicleOfTrip(byId(d.orders, e.orderId)?.tripId ?? '') : 'tripId' in e ? vehicleOfTrip(e.tripId) : undefined
       if (vehicle !== user.assignedVehicle) return 'Not your vehicle'
+      if (byId(d.vehicles, vehicle)?.depot !== user.depot) return 'Vehicle belongs to another depot'
+    }
+    if ('orderId' in e) {
+      const order = byId(d.orders, e.orderId)
+      if (!order || byId(d.outlets, order.outletId)?.depot !== user.depot) return 'Order belongs to another depot'
+      if (user.role === 'DRIVER' && 'tripId' in e) {
+        const trip = byId(d.trips, e.tripId)
+        if (!trip?.stops.includes(e.orderId) && !trip?.changes?.some((change) => change.removed.some((r) => r.orderId === e.orderId))) return 'Order does not belong to this trip'
+      }
     }
     if (user.role === 'LOADER') {
       const tripId = 'tripId' in e ? e.tripId : byId(d.orders, 'orderId' in e ? e.orderId : '')?.tripId
@@ -197,8 +248,13 @@ export class Operation {
   private async extractMedia(c: Tx, e: FieldEvent): Promise<FieldEvent> {
     const store = async (dataUrl: string | undefined, _kind: string, _orderId: string) => {
       const m = dataUrl && /^data:([\w/+.-]+);base64,(.+)$/.exec(dataUrl)
-      if (!m) return dataUrl
+      if (!dataUrl) return undefined
+      if (!m) throw new HttpError(400, 'Proof must be an inline image')
       if (!['image/png', 'image/jpeg', 'image/webp'].includes(m[1])) throw new HttpError(400, 'Proof must be a PNG, JPEG or WebP image')
+      if (!/^[A-Za-z0-9+/]+={0,2}$/.test(m[2]) || m[2].length > 4 * 1024 * 1024) throw new HttpError(400, 'Invalid or oversized proof image')
+      const bytes = Buffer.from(m[2], 'base64')
+      const valid = m[1] === 'image/png' ? bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) : m[1] === 'image/jpeg' ? bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255 : bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP'
+      if (!valid) throw new HttpError(400, 'Proof content does not match its image type')
       const id = crypto.randomBytes(16).toString('hex')
       c.media.push({ id, content_type: m[1], data: m[2] })
       return `${config.publicApiUrl}/api/media/${id}`
@@ -238,6 +294,7 @@ export class Operation {
           name: user.name,
           role: user.role,
           vehicleId: user.assignedVehicle,
+          depot: user.depot,
           offlineFrom: sync.offlineFrom,
           events: applied.length,
           deliveries: list.filter((q, i) => q.event.type === 'DELIVER' && results[i].status === 'applied').length,
@@ -248,7 +305,7 @@ export class Operation {
       d.presence[user.email] = Date.now()
       if (user.role === 'DRIVER' && user.assignedVehicle) d.presence[`vehicle:${user.assignedVehicle}`] = Date.now()
       return results
-    })
+    }, user)
   }
 
   async media(id: string) {

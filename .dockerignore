@@ -1,15 +1,18 @@
+# Only core/, server/, web/ and docker/ are needed to build the images.
 **/node_modules
 **/dist
 **/.vite
-mobile
+**/*.log
 .git
+.github
 .env
 .env.*
-*.log
-server/scripts/debug-*.ts
-server/test
+# Competition data is mounted at runtime, never baked into an image.
+data
+mobile
+supabase
 web/android
 web/ios
 web/api/_server.mjs
-.github
+server/test
 docker-compose*.yml

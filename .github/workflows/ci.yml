@@ -45,6 +45,7 @@ jobs:
           name: api-test-results
           path: server/test-results.xml
           retention-days: 14
+      - run: npm run test:notifications:db
       - name: Bundle the Vercel function
         run: npm run bundle:vercel
 
@@ -80,6 +81,11 @@ jobs:
       - name: Walk through the delivery day as all four roles
         working-directory: server
         run: npm ci && npm run test:walkthrough
+        env:
+          API_URL: http://localhost:8080
+      - name: Verify HTTP security
+        working-directory: server
+        run: npm run test:security
         env:
           API_URL: http://localhost:8080
       - name: App logs

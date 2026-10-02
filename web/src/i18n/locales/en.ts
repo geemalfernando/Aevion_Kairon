@@ -3,6 +3,7 @@
  * Shared vocabulary (status, deferral, meter, sync, risk) matches the team's reference strings.
  */
 const en = {
+  notificationSettings: {"push": "Browser push", "email": "Email", "sms": "SMS (urgent updates)", "criticalOnly": "Only high and critical alerts", "loading": "Loading notification preferences…", "failed": "Could not update notifications. Check permission and connection.", "unavailable": "Not configured", "refresh": "Refresh settings", "phoneHint": "SMS requires an administrator-verified phone number. Manage consent here.", "logoutFailed": "Could not revoke the server session. Reconnect and sign out again."},
   app: { name: 'Kairon', tagline: 'Delivery planning for Waypoint Group' },
   language: { label: 'Language', en: 'EN', si: 'සිං', ta: 'த', draft: 'Draft translation — awaiting native-speaker review' },
   brand: { Fresh: 'Fresh', Style: 'Style', Tech: 'Tech' },

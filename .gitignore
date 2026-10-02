@@ -24,3 +24,15 @@ web/api/_server.mjs
 
 # Test reports written by npm --prefix server run test:ci
 server/test-results.xml
+
+# Generated demo seed (npm --prefix server run export:seed); contains the datasets when CSVs are present
+data/seed/
+
+# Local deployment/release files and native notification configuration
+artifacts/
+infra/aws/parameters.json
+**/google-services.json
+**/GoogleService-Info.plist
+**/*service-account*.json
+**/*.p8
+web/ios/App/CapApp-SPM/symlinks/

@@ -117,8 +117,9 @@ function log(d: OpsData, entity: string, actor: Role | 'SYSTEM', text: string, a
 }
 
 function notify(d: OpsData, n: Omit<Notification, 'id' | 'at' | 'readBy'>) {
-  d.notifications.unshift({ ...n, id: uid('n'), at: opNow(d), readBy: [] })
-  if (d.notifications.length > 200) d.notifications.length = 200
+  const depot = n.depot ?? (n.outletId ? d.outlets.find((o) => o.id === n.outletId)?.depot : n.vehicleId ? d.vehicles.find((v) => v.id === n.vehicleId)?.depot : undefined)
+  d.notifications.unshift({ ...n, depot, id: uid('n'), at: opNow(d), readBy: [] })
+  // Never drop newly generated notifications before the database can persist its atomic outbox.
 }
 
 function raise(d: OpsData, i: Omit<Issue, 'id' | 'createdAt'>) {

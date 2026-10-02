@@ -1,9 +1,16 @@
-# `docker compose up --build`: the whole product on one machine, with no external service.
-#   frontend  nginx serving the web app at http://localhost:8080, forwarding /api to the backend
-#   backend   the Kairon API, with the four demo accounts (dispatcher@ / loader@ / driver@ / store@kairon.demo,
-#             password kairon-demo) and one seeded delivery day
-#   database  PostgreSQL, which holds the operation
+# The whole product on one machine, no external services:
+#   docker compose up --build        then open http://localhost:8080
+#
+#   frontend  web app (nginx) on port 8080; forwards /api to the backend
+#   backend   Kairon API with the four demo accounts and one seeded delivery day
+#             dispatcher@ / loader@ / driver@ / store@kairon.demo, password kairon-demo
+#   database  PostgreSQL 16, the operation's storage (kept in the db-data volume)
+#
+# Competition CSVs and catalog.json in ./data are read at start (mounted read-only); otherwise placeholders.
+# Start over with a clean database: docker compose down -v && docker compose up --build
 # The hosted deployment (Vercel + Supabase) is configured separately; see README.
+name: kairon
+
 services:
   database:
     image: postgres:16-alpine
@@ -23,19 +30,22 @@ services:
   backend:
     build:
       context: .
-      target: api
+      target: backend
     depends_on:
       database:
         condition: service_healthy
     environment:
       PORT: 8080
       DATABASE_URL: postgres://kairon:kairon@database:5432/kairon
-      # Signs local session tokens. Change it if this stack is reachable by anyone but you.
+      # Signs local session tokens. Set your own if anyone else can reach this stack.
       AUTH_SECRET: ${AUTH_SECRET:-kairon-local-demo-secret-change-me}
       DEMO_MODE: "true"
       SEED_DEMO_DAY: "true"
+      DATA_DIR: /app/data
       WEB_ORIGIN: http://localhost:${APP_PORT:-8080}
       LOG_LEVEL: info
+    volumes:
+      - ./data:/app/data:ro
     restart: unless-stopped
 
   frontend:

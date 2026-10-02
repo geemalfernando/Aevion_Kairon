@@ -28,7 +28,7 @@ export function deliveryTimeline(o: Order) {
 export function etaFor(d: OpsData, o: Order) {
   const t = tripOf(d, o.tripId)
   if (!t) return null
-  const s = scheduleOf(d, t).stops.find((x) => x.orderId === o.id)
+  const s = o.projectedEta ? { eta: o.projectedEta.minutes, window: o.projectedEta.window } : scheduleOf(d, t).stops.find((x) => x.orderId === o.id)
   if (!s) return null
   return { from: fmtMin(s.eta), to: fmtMin(s.eta + 20), window: fmtWindow(s.window), vehicle: t.vehicleId, trip: t.number }
 }
