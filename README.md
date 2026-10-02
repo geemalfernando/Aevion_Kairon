@@ -63,7 +63,7 @@ clean database: `docker compose down -v && docker compose up --build`. To check 
 | Web | React 19, TypeScript, Vite, Tailwind CSS v4, Zustand, React Router, i18next (English, Sinhala, Tamil), Leaflet; Capacitor for the Android and iOS apps |
 | Offline | vite-plugin-pwa (Workbox service worker), IndexedDB outbox, conflict detection in `web/src/store/conflict.ts` |
 | Server | Fastify 5, TypeScript run with tsx, server-sent events at `GET /api/stream` |
-| Storage | PostgreSQL: Supabase on the hosted site, a local PostgreSQL container with `docker compose` (see [Data model](#data-model)) |
+| Storage | PostgreSQL: Supabase on the hosted site, a local PostgreSQL container with `docker compose` (see [docs/data-model.md](docs/data-model.md)) |
 | Auth | Supabase Auth on the hosted site (JWTs checked against the project's JWKS); the four demo accounts with HMAC-signed tokens locally |
 | Deploy | Vercel (web + serverless API) with Supabase; or `docker compose up` on any machine |
 
@@ -102,7 +102,7 @@ server/       Fastify API
 supabase/     SQL migrations for the hosted database
 web/          React app: pages per role in src/pages/, demo states in src/demo/; android/ and ios/ (Capacitor)
 data/         Put the competition CSVs and catalog.json here (git-ignored)
-docs/         Project documentation (AI disclosure)
+docs/         Architecture, data model (with diagrams) and AI disclosure
 Dockerfile, docker-compose.yml, .env.example, .github/workflows/ci.yml
 ```
 
@@ -230,33 +230,20 @@ file, every vehicle is available. `traffic_speed.csv` and `road_conditions.csv` 
 `docker compose build` copies `data/` into the image, so do not push an image built with the real CSVs to a public
 registry.
 
-## Data model
+## Architecture and data model
 
-**Domain model** (`core/src/types.ts`). One `OpsData` per operation: reference data (`outlets`, `vehicles`,
-`districts`, `allowances`, `calendar`, `catalog`), the day's `orders` (one per outlet, brand and temperature; whole
-orders only), `trips` (vehicle, trip number 1 or 2, ordered stops), the `plan` status, `issues` (shortfalls,
-breakdowns, store reports), `notifications`, `syncLog` (offline sync reports), an `audit` log, `predictions` loaded from the Datathon
-models, the operation `clock`, and a `version`. An order points at its trip (`tripId`) and may carry a `lock` to a vehicle.
+- [`docs/architecture.md`](docs/architecture.md): components, the two deployments, how one delivery moves through the
+  system (including an offline driver), how every write is committed, the planner pipeline, and security.
+- [`docs/data-model.md`](docs/data-model.md): the domain model (outlets, vehicles, orders, trips and what happens to
+  them), how each competition CSV maps onto it, the storage tables, and why the operation is stored as one versioned
+  snapshot.
 
-**Storage** (`supabase/migrations/202610010001_kairon.sql`, the same schema locally):
+The diagrams are Mermaid, so GitHub draws them in place; PNG copies are in [`docs/diagrams/`](docs/diagrams/).
 
-| Table | Holds |
-|---|---|
-| `kairon_state` | One row: the whole `OpsData` as JSONB, plus its `version` |
-| `kairon_events` | One receipt per field event a device sent, keyed by the device-generated id |
-| `kairon_media` | Proof-of-delivery photos and signatures (base64), referenced by URL from the state |
-
-Every write goes through `kairon_commit`: it checks the version the server read, then writes the new state, the event
-receipts and the media in one transaction.
-
-**Why a snapshot and not one table per entity.** A plan is only valid as a whole: moving one stop changes the arrival
-times of every later stop on that trip, and the rules (trip time, two-trip limit, fuel quota) are checked across all of
-a vehicle's trips. The shared core validates and changes the whole operation in memory, so the server stores the result
-of each command as one versioned document. This keeps every commit consistent, makes concurrent writes from several
-devices or serverless instances safe (a stale version is refused with 409 and the client reloads), and lets an offline
-outbox be replayed exactly once (`kairon_events`). The cost: the database can't be queried per order with SQL, and the
-document grows with the day's history. That is acceptable for one regional operation of about 150 orders a day; a
-multi-day archive or reporting would need per-entity tables.
+In short: the whole operation for the day is one versioned JSON document in `kairon_state`. Every command or field
+event is checked by the shared rules in `core/` and committed with `kairon_commit` in one transaction, together with
+the ids of replayed offline events (`kairon_events`, so an outbox is applied once) and proof photos (`kairon_media`).
+A write against an old version is refused, so devices and serverless instances never overwrite each other.
 
 ## Checks and tests
 
@@ -347,18 +334,27 @@ the bottom left of the app; it is presenter-only.
 
 **Delivery and receipt**
 
-16. **Store manager**: at `/store` see the ETA, then confirm what arrived or report an issue (missing, damaged or wrong
-    goods, with a photo) which reaches the dispatcher. Shortcuts: `/store?demo=store-delivered`,
-    `/store?modal=report-issue&demo=store-issue`.
+16. **Store manager** (`store@kairon.demo`): `/store` puts the delivery with something happening first. After step 12
+    it shows Borella's chilled order on **VEH036**, with "Delivery vehicle changed: now VEH036 instead of VEH002", the
+    reason, and the van's arrival time. (Between the road report and the move, it shows the driver's reported delay.)
+17. **The reserve van delivers.** The van has no demo driver account, so the dispatcher uses Demo, **VEH036 delivers
+    the moved stop**. It drives the van's trip with the same field events a phone sends, and moves the clock to the
+    delivery time.
+18. **Receipt.** On `/store` the card now shows **Delivery arrived**: enter the units received, the condition and the
+    receiver, then **Confirm receipt**; the order becomes Received. Or use **Something wrong? Report an issue**
+    (missing, damaged or wrong goods, with a photo), which reaches the dispatcher's **Issues**. Shortcuts:
+    `/store?demo=store-delivered`, `/store?modal=report-issue&demo=store-issue`.
+19. **The record.** Dispatcher, **History & audit**: search the order to see its whole day, from the order to the
+    move and the confirmed receipt.
 
 The `?demo=<id>` links open a sandboxed copy of the operation in a named state; nothing is saved or synced. The full
 list of states is in `web/src/demo/presets.ts`. Other URL switches: `frame=1` hides presenter chrome, `theme=dark|light`,
-`lang=en|si|ta`, `day=YYYY-MM-DD` pins the ordering day. TODO: confirm whether a preset link needs the matching role to
-be signed in first.
+`lang=en|si|ta`, `day=YYYY-MM-DD` pins the ordering day. A preset link signs in the role that matches its path, so no
+sign-in is needed first.
 
 Other useful screens: `/dispatcher/capacity` (demand forecast), `/dispatcher/simulator`, `/states` (index of screen
-states). The `?demo=` links, `/states` and the Demo pill exist only in the demo build (`VITE_DEMO_MODE=true`, which
-`docker compose` uses); the hosted site has none of them.
+states). The `?demo=` links, `/states` and the Demo pill exist only in a demo build (`VITE_DEMO_MODE=true`, used by
+`docker compose` and the judges' deployed site); a production build has none of them.
 
 ## Booklet rules enforced
 
