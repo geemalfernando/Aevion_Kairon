@@ -817,6 +817,32 @@ export const commands = {
   },
 
   /** Demo: the rest of the fleet heads out so live operations have something to show. */
+  /**
+   * Demo only: a vehicle with no demo driver account (the reserve van) drives its next trip and delivers every stop,
+   * through the same field events a driver's phone sends. The operation clock moves on to the last delivery.
+   */
+  simulateRun(d: OpsData, vehicleId: string) {
+    const t = d.trips.find((x) => x.vehicleId === vehicleId && ['PLANNED', 'LOADING', 'LOADED', 'IN_PROGRESS'].includes(x.status) && x.stops.some((id) => !isDoneStatus(byId(d.orders, id)?.status)))
+    if (!t) return { ok: false as const, message: `${vehicleId} has nothing left to deliver` }
+    const at = (min: number) => colomboTs(d.deliveryDate, min)
+    if (t.status !== 'IN_PROGRESS') {
+      if (opMinutes(d) < t.departure) setClock(d, at(t.departure))
+      const r = applyEvent(d, { actor: 'DRIVER', event: { type: 'START_ROUTE', tripId: t.id }, at: opNow(d) })
+      if (r.status === 'rejected') return { ok: false as const, message: r.message ?? 'Could not start the trip' }
+    }
+    let delivered = 0
+    for (const s of scheduleOfTrip(d, t).stops) {
+      const o = byId(d.orders, s.orderId)
+      if (!o || isDoneStatus(o.status)) continue
+      if (opMinutes(d) < s.finish) setClock(d, at(s.finish))
+      if (o.status !== 'ARRIVED') applyEvent(d, { actor: 'DRIVER', event: { type: 'ARRIVE', orderId: o.id, tripId: t.id }, at: opNow(d) })
+      const r = applyEvent(d, { actor: 'DRIVER', event: { type: 'DELIVER', orderId: o.id, tripId: t.id, record: { outcome: 'DELIVERED', receiver: outletOf(d, o).manager, arrivedAt: at(s.start), completedAt: opNow(d) } }, at: opNow(d) })
+      if (r.status === 'applied') delivered++
+    }
+    commit(d)
+    return { ok: true as const, tripId: t.id, delivered }
+  },
+
   simulateFleet(d: OpsData, keep: string) {
     if (opMinutes(d) < hm(5, 40)) setClock(d, colomboTs(d.deliveryDate, hm(5, 40)))
     const now = opNow(d)
@@ -882,6 +908,7 @@ export const COMMAND_ROLES: Record<CommandName, Role[] | 'demo'> = {
   setClock: 'demo',
   setClockMinutes: 'demo',
   simulateFleet: 'demo',
+  simulateRun: 'demo',
 }
 
 /** Which field events each role may record. */

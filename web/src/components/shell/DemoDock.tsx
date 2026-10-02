@@ -61,6 +61,13 @@ export function DemoDock() {
     else toast('Could not move the stop', { tone: 'critical', body: r.message })
   }
 
+  /** The reserve van has no demo driver: deliver its stops so the store can confirm receipt. */
+  const reserveRun = () => {
+    const r = ops('simulateRun', STORY.reserveVan)
+    if (!r.ok) return toast(`Nothing for ${STORY.reserveVan} to deliver`, { tone: 'info', body: 'Move a stop to the reserve van first.' })
+    toast(`${STORY.reserveVan} delivered ${r.delivered} ${r.delivered === 1 ? 'stop' : 'stops'}`, { body: 'The store can now confirm receipt.' })
+  }
+
   /** Second degradation: change VEH002 after loading has started. */
   const changeDuringLoading = () => {
     const d = useOps.getState().data
@@ -134,6 +141,9 @@ export function DemoDock() {
                   </Button>
                   <Button size="sm" variant="secondary" onClick={moveStop}>
                     Move a VEH002 stop to the reserve van
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={reserveRun}>
+                    {STORY.reserveVan} delivers the moved stop
                   </Button>
                   <Button size="sm" variant="secondary" onClick={() => (ops('simulateFleet', 'VEH002'), toast('Fleet dispatched', { body: 'Other vehicles are now on the road' }))}>
                     Send the rest of the fleet out
