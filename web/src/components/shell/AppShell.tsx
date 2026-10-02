@@ -4,10 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { fmtClock, fmtDate, timeAgo } from '@core/time'
 import type { Notification, Role, User } from '@core/types'
-import { FRAME, ops, PREVIEW, useNetwork, useNow, useSession, useTheme, useView } from '../../store'
+import { ops, useNetwork, useNow, useSession, useTheme, useView } from '../../store'
 import { Copyright } from '../Copyright'
 import { LanguageSwitch } from '../LanguageSwitch'
-import { InstallPrompt } from '../Pwa'
 import { Badge, cn, IconButton, Logo, severityTone, toast, toneDot } from '../ui'
 import { HOME, NAV, ROLE_LABEL, type NavItem } from './nav'
 import { SearchDialog } from './SearchDialog'
@@ -92,7 +91,6 @@ export function AppShell() {
 
       <NotificationsDrawer open={notifOpen} onClose={() => setNotifOpen(false)} user={user} />
       <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
-      {!FRAME && !PREVIEW && field && (loc.pathname === '/driver' || loc.pathname === '/loader') && <InstallPrompt />}
     </div>
   )
 }

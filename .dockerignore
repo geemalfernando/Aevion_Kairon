@@ -8,3 +8,8 @@ mobile
 *.log
 server/scripts/debug-*.ts
 server/test
+web/android
+web/ios
+web/api/_server.mjs
+.github
+docker-compose*.yml

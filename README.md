@@ -4,6 +4,29 @@ Delivery planning and operations for dispatchers, loaders, drivers and store man
 
 The application starts empty. It does not create sample outlets, vehicles, products, orders, deliveries, GPS movements or forecasts. Synthetic data lives only in server test fixtures.
 
+## Quick start: one command with Docker
+
+Needs only Docker. No Supabase account or `.env` file.
+
+```bash
+docker compose up
+```
+
+When the `app` container reports healthy, open http://localhost:8080 and sign in:
+
+| Role | Email | Password |
+|---|---|---|
+| Dispatcher | `dispatcher@kairon.local` | `kairon-demo-2026` |
+| Loader | `loader@kairon.local` | `kairon-demo-2026` |
+| Driver | `driver@kairon.local` | `kairon-demo-2026` |
+| Store manager | `store@kairon.local` | `kairon-demo-2026` |
+
+It starts the **frontend** (nginx on port 8080, forwarding `/api`), the **backend** (Kairon API) and the **database** (Supabase Postgres with the migration applied), plus Supabase's Auth and REST services behind a small gateway. The backend creates these accounts on first start. Put the competition CSVs and `catalog.json` in [`data/`](data/README.md) before starting and they are imported automatically; without them the operation starts with no outlets or vehicles. Data persists in a Docker volume; `docker compose down -v` resets everything. All passwords and keys in `docker-compose.yml` are local-only defaults.
+
+Optional: `SEED_DRIVER_VEHICLE=VEH001 SEED_STORE_OUTLET=<outlet id> docker compose up` assigns the driver a vehicle and the store manager an outlet when the accounts are first created.
+
+The sections below set up Kairon against a hosted Supabase project instead.
+
 ## Set up Supabase
 
 1. Open your Supabase project → **SQL Editor** → **New query**.
@@ -55,7 +78,7 @@ The API is always required. Field devices cache authenticated state and queue fi
 
 ## Deployment
 
-`docker compose up --build` runs the API and built frontend on port 8080, using `.env`. There is no local PostgreSQL container. Run the migration, user seed and reference import separately.
+`docker compose -f docker-compose.cloud.yml up --build` runs the API and built frontend on port 8080 against the hosted Supabase project in `.env`. Run the migration, user seed and reference import separately. (Plain `docker compose up` is the self-contained local stack above.)
 
 For a separately hosted frontend such as Vercel, set `VITE_API_URL` at build time to your public API origin. On the API, set `WEB_ORIGIN` to the frontend origin and `PUBLIC_API_URL` to the API origin so proof image URLs resolve correctly. Both should use HTTPS. See [`web/README.md`](web/README.md).
 

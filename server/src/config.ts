@@ -13,6 +13,8 @@ export const config = {
   supabaseUrl: env.SUPABASE_URL ?? '',
   supabasePublishableKey: env.SUPABASE_PUBLISHABLE_KEY ?? '',
   supabaseSecretKey: env.SUPABASE_SECRET_KEY ?? '',
+  // Only for the self-contained Docker stack (docker compose up); hosted Supabase uses the JWKS URL.
+  supabaseJwtSecret: env.SUPABASE_JWT_SECRET ?? '',
   supabaseJwksUrl: env.SUPABASE_JWKS_URL ?? `${env.SUPABASE_URL}/auth/v1/.well-known/jwks.json`,
   demoMode: false,
   webOrigins: (env.WEB_ORIGIN ?? 'http://localhost:5173').split(',').map((s) => s.trim()),

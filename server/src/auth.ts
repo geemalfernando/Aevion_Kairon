@@ -14,8 +14,11 @@ let jwks: ReturnType<typeof createRemoteJWKSet> | undefined
 export async function verifyToken(token: string | undefined): Promise<Session | null> {
   if (!token) return null
   try {
-    jwks ??= createRemoteJWKSet(new URL(config.supabaseJwksUrl))
-    const { payload } = await jwtVerify(token, jwks, { issuer: `${config.supabaseUrl}/auth/v1`, audience: 'authenticated', algorithms: ['ES256', 'RS256'] })
+    const claims = { issuer: `${config.supabaseUrl}/auth/v1`, audience: 'authenticated' }
+    // Hosted Supabase signs with asymmetric keys (JWKS); the self-contained Docker stack uses a shared HS256 secret.
+    const { payload } = config.supabaseJwtSecret
+      ? await jwtVerify(token, new TextEncoder().encode(config.supabaseJwtSecret), { ...claims, algorithms: ['HS256'] })
+      : await jwtVerify(token, (jwks ??= createRemoteJWKSet(new URL(config.supabaseJwksUrl))), { ...claims, algorithms: ['ES256', 'RS256'] })
     if (!payload.sub || !payload.exp) return null
     const user = profile(payload.email as string, (payload.app_metadata ?? {}) as Record<string, unknown>)
     return user ? { ...user, id: payload.sub, exp: payload.exp * 1000 } : null

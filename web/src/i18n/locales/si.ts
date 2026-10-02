@@ -395,6 +395,18 @@ const si: Messages = {
     critical: 'අත්‍යවශ්‍ය පමණයි',
     language: 'භාෂාව',
   },
+  install: {
+    title: 'Kairon ස්ථාපනය කරන්න',
+    bookmarkTitle: 'Kairon එක ක්ලික් කිරීමකින් විවෘත කරන්න',
+    body: 'ඔබගේ උපාංගයෙන්ම Kairon විවෘත කර, සංඥාව නැති විටත් දිගටම වැඩ කරන්න.',
+    button: 'යෙදුම ස්ථාපනය කරන්න',
+    later: 'දැන් නොවේ',
+    dismiss: 'වසන්න',
+    ios: 'Share ඔබා, Add to Home Screen තෝරන්න.',
+    android: 'බ්‍රවුසර මෙනුව (⋮) විවෘත කර Install app හෝ Add to Home screen තෝරන්න.',
+    macSafari: 'Safari හි File → Add to Dock තෝරන්න.',
+    bookmark: 'Kairon පොත්සලකුණු කිරීමට {{keys}} ඔබන්න.',
+  },
 }
 
 export default si
