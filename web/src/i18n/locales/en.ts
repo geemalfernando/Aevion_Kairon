@@ -395,6 +395,18 @@ const en = {
     critical: 'Critical only',
     language: 'Language',
   },
+  install: {
+    title: 'Install Kairon',
+    bookmarkTitle: 'Keep Kairon one click away',
+    body: 'Open Kairon straight from your device and keep working when the signal drops.',
+    button: 'Install app',
+    later: 'Not now',
+    dismiss: 'Dismiss',
+    ios: 'Tap Share, then Add to Home Screen.',
+    android: 'Open the browser menu (⋮), then Install app or Add to Home screen.',
+    macSafari: 'In Safari, choose File → Add to Dock.',
+    bookmark: 'Press {{keys}} to bookmark Kairon.',
+  },
 }
 
 export default en

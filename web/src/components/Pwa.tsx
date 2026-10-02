@@ -1,5 +1,7 @@
-import { Download, RefreshCw, Share, WifiOff, X } from 'lucide-react'
+import { Capacitor } from '@capacitor/core'
+import { Bookmark, Download, RefreshCw, Share, WifiOff, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import { create } from 'zustand'
 import { Button, IconButton, Logo } from './ui'
@@ -74,51 +76,74 @@ export function PwaUpdater() {
   )
 }
 
-/** Friendly install card for field roles; falls back to Add-to-Home-Screen steps on iOS. */
+const DISMISS_KEY = 'kairon-install-dismissed'
+const DISMISS_DAYS = 7
+
+/** Which way this browser can save Kairon: a real install prompt, or the manual steps for its platform. */
+function installMethod(hasPrompt: boolean): 'prompt' | 'ios' | 'android' | 'macSafari' | 'bookmark' {
+  if (hasPrompt) return 'prompt'
+  const ua = navigator.userAgent
+  if (isIos()) return 'ios'
+  if (/android/i.test(ua)) return 'android'
+  if (/macintosh/i.test(ua) && /safari/i.test(ua) && !/chrome|chromium|crios|edg|firefox|fxios/i.test(ua)) return 'macSafari'
+  return 'bookmark'
+}
+
+/** Install / bookmark reminder for every visitor; hidden in the native app, once installed, or for a week after dismissal. */
 export function InstallPrompt() {
+  const { t } = useTranslation()
   const evt = useInstall((s) => s.evt)
   const installed = useInstall((s) => s.installed)
   const prompt = useInstall((s) => s.prompt)
+  // Wait for the splash screen and first paint before asking.
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    const timer = setTimeout(() => setReady(true), 4000)
+    return () => clearTimeout(timer)
+  }, [])
   const [hidden, setHidden] = useState(() => {
     try {
-      return localStorage.getItem('kairon-install-dismissed') === '1'
+      return Date.now() - Number(localStorage.getItem(DISMISS_KEY) ?? 0) < DISMISS_DAYS * 86_400_000
     } catch {
       return false
     }
   })
-  const ios = isIos()
-  if (installed || hidden || (!evt && !ios)) return null
+  if (!ready || installed || hidden || Capacitor.isNativePlatform()) return null
   const dismiss = () => {
     setHidden(true)
     try {
-      localStorage.setItem('kairon-install-dismissed', '1')
+      localStorage.setItem(DISMISS_KEY, String(Date.now()))
     } catch {
       /* ignore */
     }
   }
+  const method = installMethod(!!evt)
+  const keys = /mac/i.test(navigator.userAgent) ? '⌘ D' : 'Ctrl + D'
   return (
-    <div className="fixed inset-x-3 bottom-20 z-40 mx-auto max-w-md animate-rise rounded-2xl border border-line bg-surface p-4 shadow-pop lg:bottom-6 lg:left-auto lg:right-6">
+    <div role="dialog" aria-labelledby="install-title" className="fixed inset-x-3 bottom-20 z-[60] mx-auto max-w-md animate-rise rounded-2xl border border-line bg-surface p-4 shadow-pop lg:bottom-6 lg:left-auto lg:right-6">
       <div className="flex items-start gap-3">
         <Logo className="!gap-0 !text-[0px]" />
         <div className="flex-1">
-          <div className="font-semibold">Install Kairon</div>
-          <p className="text-sm text-muted">Access your routes quickly and continue working when connectivity drops.</p>
-          {evt ? (
+          <div id="install-title" className="font-semibold">{t(method === 'bookmark' ? 'install.bookmarkTitle' : 'install.title')}</div>
+          <p className="text-sm text-muted">{t('install.body')}</p>
+          {method === 'prompt' ? (
             <div className="mt-3 flex gap-2">
               <Button size="sm" icon={<Download className="size-4" />} onClick={() => prompt().then(dismiss)}>
-                Install app
+                {t('install.button')}
               </Button>
               <Button size="sm" variant="ghost" onClick={dismiss}>
-                Not now
+                {t('install.later')}
               </Button>
             </div>
           ) : (
-            <p className="mt-2 flex flex-wrap items-center gap-1 text-sm">
-              Tap <Share className="inline size-4 text-info" /> <b>Share</b>, then <b>Add to Home Screen</b>.
+            <p className="mt-2 text-sm">
+              {method === 'ios' && <Share className="mr-1 inline size-4 align-[-3px] text-info" />}
+              {method === 'bookmark' && <Bookmark className="mr-1 inline size-4 align-[-3px] text-info" />}
+              {t(`install.${method}`, { keys })}
             </p>
           )}
         </div>
-        <IconButton label="Dismiss" onClick={dismiss} className="-mr-2 -mt-2">
+        <IconButton label={t('install.dismiss')} onClick={dismiss} className="-mr-2 -mt-2">
           <X className="size-4" />
         </IconButton>
       </div>

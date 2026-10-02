@@ -2,7 +2,7 @@ import { Callout } from './components/ui'
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/shell/AppShell'
 import { HOME } from './components/shell/nav'
-import { PwaUpdater } from './components/Pwa'
+import { InstallPrompt, PwaUpdater } from './components/Pwa'
 import { Splash } from './components/Splash'
 import { Toaster } from './components/ui'
 import type { Role } from '@core/types'
@@ -97,6 +97,7 @@ export default function App() {
       </Routes>
       {!FRAME && <Toaster />}
       {!FRAME && !PREVIEW && <PwaUpdater />}
+      {!FRAME && !PREVIEW && <InstallPrompt />}
       {!FRAME && !PREVIEW && <Splash />}
     </BrowserRouter>
   )

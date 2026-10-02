@@ -395,6 +395,18 @@ const ta: Messages = {
     critical: 'முக்கியமானவை மட்டும்',
     language: 'மொழி',
   },
+  install: {
+    title: 'Kairon-ஐ நிறுவுங்கள்',
+    bookmarkTitle: 'Kairon-ஐ ஒரே கிளிக்கில் திறக்கவும்',
+    body: 'உங்கள் சாதனத்திலிருந்தே Kairon-ஐத் திறந்து, சிக்னல் இல்லாதபோதும் வேலையைத் தொடருங்கள்.',
+    button: 'செயலியை நிறுவு',
+    later: 'இப்போது வேண்டாம்',
+    dismiss: 'மூடு',
+    ios: 'Share-ஐத் தட்டி, Add to Home Screen-ஐத் தேர்ந்தெடுக்கவும்.',
+    android: 'உலாவி மெனுவை (⋮) திறந்து Install app அல்லது Add to Home screen-ஐத் தேர்ந்தெடுக்கவும்.',
+    macSafari: 'Safari-யில் File → Add to Dock-ஐத் தேர்ந்தெடுக்கவும்.',
+    bookmark: 'Kairon-ஐ புக்மார்க் செய்ய {{keys}} அழுத்தவும்.',
+  },
 }
 
 export default ta
