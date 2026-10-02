@@ -227,7 +227,7 @@ function CommandPreview() {
         <div className="mt-5 rounded-xl bg-[#0a1315]/60 p-4">
           <div className="flex items-baseline justify-between">
             <div>
-              <div className="font-mono text-sm font-semibold">VEH014</div>
+              <div className="font-mono text-sm font-semibold">VEH002</div>
               <div className="text-xs text-white/50">Peliyagoda → Colombo · Reefer</div>
             </div>
             <span className="rounded-full bg-[#5fd0cf]/15 px-2 py-0.5 text-[11px] font-semibold text-[#5fd0cf]">{step === 0 ? 'Loading' : 'Departed'}</span>
@@ -334,9 +334,9 @@ function RouteScene() {
         <DeliveryScene className="shadow-pop ring-1 ring-white/5" />
         <div className="mt-4 grid gap-3 text-sm text-muted sm:grid-cols-3">
           {[
-            ['04:36', 'Reefer VEH014 leaves Peliyagoda with the stops loaded last-first.'],
+            ['04:36', 'Reefer VEH002 leaves Peliyagoda with the stops loaded last-first.'],
             ['05:10', 'Signal drops on the way — the route, proof capture and issues keep working.'],
-            ['06:12', 'OUT032 delivered, signed and photographed. It syncs the moment coverage returns.'],
+            ['06:12', 'OUT005 delivered, signed and photographed. It syncs the moment coverage returns.'],
           ].map(([t, d]) => (
             <p key={t} className="flex gap-3">
               <span className="font-mono font-semibold text-brand-ink">{t}</span>

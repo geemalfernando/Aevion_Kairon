@@ -108,19 +108,19 @@ describe('multi-start planner on the demo day', () => {
     assert.ok(auditPlan(w, released, w.deliveryDate, { releaseReserve: true }).ok)
     assert.ok(Object.keys(released.assigned).length >= Object.keys(plan.assigned).length)
   })
-  it('keeps the hero trip exactly the 5 designed stops at their story times (04:36 departure, OUT032 at 06:09)', () => {
+  it('keeps the hero trip exactly the 5 designed stops at their story times (04:36 departure, OUT005 at 06:09)', () => {
     const d = demoDay()
     commands.generatePlan(d)
-    const v = byId(d.vehicles, 'VEH014')!
-    const story = d.orders.filter((o) => o.lock?.vehicleId === 'VEH014')
+    const v = byId(d.vehicles, 'VEH002')!
+    const story = d.orders.filter((o) => o.lock?.vehicleId === 'VEH002')
     assert.equal(story.length, 5)
-    for (const o of story) assert.equal(byId(d.trips, o.tripId)?.vehicleId, 'VEH014')
-    const trip = byId(d.trips, 'TRP-014-1')!
+    for (const o of story) assert.equal(byId(d.trips, o.tripId)?.vehicleId, 'VEH002')
+    const trip = byId(d.trips, 'TRP-002-1')!
     assert.ok(isTripLocked(trip, d))
-    assert.deepEqual(trip.stops.map((id) => byId(d.orders, id)!.outletId), ['OUT047', 'OUT004', 'OUT018', 'OUT032', 'OUT056'])
+    assert.deepEqual(trip.stops.map((id) => byId(d.orders, id)!.outletId), ['OUT008', 'OUT010', 'OUT013', 'OUT005', 'OUT012'])
     assert.equal(fmtMin(trip.departure), '04:36')
-    const out032 = story.find((o) => o.outletId === 'OUT032')!
-    assert.equal(fmtMin(etaOf(d, v, out032.id)!), '06:09')
+    const storeOrder = story.find((o) => o.outletId === 'OUT005')!
+    assert.equal(fmtMin(etaOf(d, v, storeOrder.id)!), '06:09')
   })
   it('explains chilled deferrals as reefer time, keeping the reason code', () => {
     const w = demoDay()

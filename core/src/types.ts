@@ -1,4 +1,4 @@
-import type { BrandName, CalendarRow, DemandForecastRow, DepotName, DistrictTravelRow, DockType, ParkingConstraint, ServiceAllowanceRow } from './csv'
+import type { BrandName, CalendarRow, CsvName, DemandForecastRow, DepotName, DistrictTravelRow, DockType, FleetStatusRow, OutletRow, ParkingConstraint, ServiceAllowanceRow, VehicleRow } from './csv'
 import type { Minutes } from './time'
 
 export type { Minutes }
@@ -317,6 +317,11 @@ export interface OpsData {
   presence: Record<string, number>
   predictions: Predictions
   analysis?: PlanAnalysis
+  /**
+   * Demo days only: the reference rows the day was built from (calendar and allowances are already above), so a demo
+   * reset on a server without the CSVs (Vercel) rebuilds the same network and fleet.
+   */
+  demoSource?: { outlets: OutletRow[]; vehicles: VehicleRow[]; districts: DistrictTravelRow[]; fleet: FleetStatusRow[]; sources: Record<CsvName, 'csv' | 'placeholder' | 'missing'> }
 }
 
 /** Actions that happen in the field and can be queued while offline. */

@@ -11,7 +11,7 @@ import { ops, PREVIEW, resetDemo, signInWith, useDevice, useNow, useOps, useSess
 import { Badge, Button, cn, IconButton, toast } from '../ui'
 import { HOME, ROLE_LABEL } from './nav'
 
-const STORY_TRIP = 'TRP-014-1'
+const STORY_TRIP = 'TRP-002-1'
 
 /** Demo-only tools for presenters and judges. Clearly separated from the product UI. */
 export function DemoDock() {
@@ -38,30 +38,30 @@ export function DemoDock() {
     }
   }
 
-  /** The hero scenario's trigger: take a not-yet-delivered stop off VEH014 while its driver may be offline. */
+  /** The hero scenario's trigger: take a not-yet-delivered stop off VEH002 while its driver may be offline. */
   const moveStop = () => {
     const d = useOps.getState().data
     const trip = byId(d.trips, STORY_TRIP)
     const stop = trip?.stops.find((id) => !['DELIVERED', 'PARTIAL', 'FAILED', 'RECEIVED', 'ARRIVED'].includes(byId(d.orders, id)?.status ?? ''))
     const target = stop && [...trip!.stops].reverse().find((id) => !['DELIVERED', 'PARTIAL', 'FAILED', 'RECEIVED', 'ARRIVED'].includes(byId(d.orders, id)?.status ?? ''))
-    if (!trip || trip.status !== 'IN_PROGRESS' || !target) return toast('Start VEH014’s route first', { tone: 'info', body: 'The driver needs to be on the road.' })
-    const r = ops('moveStop', target, 'VEH031', 'Late-window risk — sent from the depot on the reserve van')
-    if (r.ok) toast(`${byId(d.orders, target)?.outletId} moved to VEH031`, { body: 'The driver sees it when their phone reconnects.' })
+    if (!trip || trip.status !== 'IN_PROGRESS' || !target) return toast('Start VEH002’s route first', { tone: 'info', body: 'The driver needs to be on the road.' })
+    const r = ops('moveStop', target, 'VEH036', 'Late-window risk — sent from the depot on the reserve van')
+    if (r.ok) toast(`${byId(d.orders, target)?.outletId} moved to VEH036`, { body: 'The driver sees it when their phone reconnects.' })
     else toast('Could not move the stop', { tone: 'critical', body: r.message })
   }
 
-  /** Second degradation: change VEH014 after loading has started. */
+  /** Second degradation: change VEH002 after loading has started. */
   const changeDuringLoading = () => {
     const d = useOps.getState().data
     const trip = byId(d.trips, STORY_TRIP)
-    if (!trip || !['LOADING', 'LOADED'].includes(trip.status)) return toast('Start loading VEH014 first', { tone: 'info', body: 'The loader needs to have begun loading.' })
+    if (!trip || !['LOADING', 'LOADED'].includes(trip.status)) return toast('Start loading VEH002 first', { tone: 'info', body: 'The loader needs to have begun loading.' })
     const last = trip.stops.at(-1)!
     ops('unassign', last)
     const veh = byId(d.vehicles, trip.vehicleId)!
     const fresh = useOps.getState().data
     const add = fresh.orders.filter((o) => o.status === 'DEFERRED' && o.temp === 'CHILLED' && byId(fresh.outlets, o.outletId)?.district === trip.district).find((o) => validate(o, veh, fresh).ok)
     if (add) ops('assign', add.id, veh.id)
-    toast('VEH014 changed during loading', { tone: 'attention', body: 'The loader must confirm the new load before departure.' })
+    toast('VEH002 changed during loading', { tone: 'attention', body: 'The loader must confirm the new load before departure.' })
   }
 
   const clock = (min: number, label: string) => {
@@ -119,12 +119,12 @@ export function DemoDock() {
               {plan === 'PUBLISHED' && (
                 <>
                   <Button size="sm" variant="secondary" onClick={changeDuringLoading}>
-                    Change VEH014’s plan during loading
+                    Change VEH002’s plan during loading
                   </Button>
                   <Button size="sm" variant="secondary" onClick={moveStop}>
-                    Move a VEH014 stop to the reserve van
+                    Move a VEH002 stop to the reserve van
                   </Button>
-                  <Button size="sm" variant="secondary" onClick={() => (ops('simulateFleet', 'VEH014'), toast('Fleet dispatched', { body: 'Other vehicles are now on the road' }))}>
+                  <Button size="sm" variant="secondary" onClick={() => (ops('simulateFleet', 'VEH002'), toast('Fleet dispatched', { body: 'Other vehicles are now on the road' }))}>
                     Send the rest of the fleet out
                   </Button>
                 </>

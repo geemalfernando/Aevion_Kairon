@@ -57,8 +57,8 @@ test('roles and assignments are enforced even if the client bypasses its UI', as
   const op = new Operation(log, memoryRepository(seedOps()))
   await op.init()
   await assert.rejects(op.command(user('STORE_MANAGER'), 'generatePlan', []), /may not run/)
-  await assert.rejects(op.command(user('STORE_MANAGER', { assignedOutlet: 'OUT032' }), 'createOrder', ['OUT001', [], '']), /own outlet/)
-  await assert.rejects(op.command(user('DISPATCHER'), 'simulateFleet', ['VEH014']), /may not run/)
+  await assert.rejects(op.command(user('STORE_MANAGER', { assignedOutlet: 'OUT005' }), 'createOrder', ['OUT001', [], '']), /own outlet/)
+  await assert.rejects(op.command(user('DISPATCHER'), 'simulateFleet', ['VEH002']), /may not run/)
   const event: QueuedEvent = { id: 'unassigned', at: Date.now(), actor: 'DRIVER', status: 'pending', event: { type: 'START_ROUTE', tripId: 'missing' } }
   assert.equal((await op.events(user('DRIVER'), [event]))[0].status, 'rejected')
 })

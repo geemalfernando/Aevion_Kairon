@@ -44,7 +44,7 @@ export function SearchDialog({ open, onClose }: { open: boolean; onClose: () => 
           autoFocus
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder={store ? 'ORD1456' : 'ORD1456, OUT032, VEH014, Nimal…'}
+          placeholder={store ? 'ORD1456' : 'ORD1456, OUT005, VEH002, Nimal…'}
           className="h-12 w-full rounded-lg border border-line-strong bg-surface pl-10 pr-3 text-[15px] focus:border-brand focus:outline-none focus:ring-3 focus:ring-brand/20"
         />
       </div>

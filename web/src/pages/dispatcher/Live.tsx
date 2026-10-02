@@ -35,7 +35,7 @@ export function Live() {
         actions={
           d.plan === 'PUBLISHED' &&
           active.length < 2 && (
-            <Button variant="secondary" onClick={() => (ops('simulateFleet', 'VEH014'), toast('Fleet dispatched', { body: 'Demo: other vehicles are now on the road' }))}>
+            <Button variant="secondary" onClick={() => (ops('simulateFleet', 'VEH002'), toast('Fleet dispatched', { body: 'Demo: other vehicles are now on the road' }))}>
               Simulate fleet departure
             </Button>
           )
@@ -89,7 +89,7 @@ export function Live() {
 
       {active.length === 0 ? (
         <Card>
-          <EmptyState icon={<Radar className="size-5" />} title="No vehicles on the road yet" body="Vehicles appear here as soon as drivers start their routes. Publish the plan, load VEH014 as the loader, and start the route as the driver." />
+          <EmptyState icon={<Radar className="size-5" />} title="No vehicles on the road yet" body="Vehicles appear here as soon as drivers start their routes. Publish the plan, load VEH002 as the loader, and start the route as the driver." />
         </Card>
       ) : (
         <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
@@ -100,7 +100,7 @@ export function Live() {
               id: t.id,
               depot: v.depot,
               highlight: focus ? focus === t.id : undefined,
-              color: t.status === 'PAUSED' ? 'var(--critical)' : t.vehicleId === 'VEH014' ? 'var(--attention)' : 'var(--brand)',
+              color: t.status === 'PAUSED' ? 'var(--critical)' : t.vehicleId === 'VEH002' ? 'var(--attention)' : 'var(--brand)',
               stops: t.stops.map((id, i) => {
                 const o = orderOf(d, id)!
                 return { outlet: outletOf(d, o.outletId)!, state: isDone(o) ? (o.status === 'FAILED' ? 'problem' : 'done') : i === nextIdx ? 'current' : 'todo' }
