@@ -4,6 +4,11 @@
  * and only then becomes visible. Writes are serialised so concurrent devices can't interleave half-applied changes.
  */
 import crypto from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
+import type { Catalog } from '@core/catalog'
+import type { CsvName } from '@core/csv'
+import { buildDemoReference, seedDemoOps } from '@core/demo'
 import { applyEvent, COMMAND_ROLES, commands, EVENT_ROLES, seedOps, type ApplyResult, type CommandName } from '@core/ops'
 import type { Reference } from '@core/reference'
 import { byId } from '@core/rules'
@@ -33,6 +38,23 @@ class Mutex {
 type Logger = { info: (m: string | object, msg?: string) => void; warn: (m: string | object, msg?: string) => void }
 
 const repository = { loadOps, persistState, transaction, seenEvents, loadMedia }
+const CSV_NAMES: CsvName[] = ['outlets', 'vehicles', 'calendar', 'district_travel', 'service_allowance', 'fleet_status']
+
+/** Find the competition CSVs anywhere under DATA_DIR (the datasets ship in sub-folders such as "General Data/"). */
+function readCsvs(dir: string): Partial<Record<CsvName, string>> {
+  const found: Partial<Record<CsvName, string>> = {}
+  const walk = (d: string, depth = 0) => {
+    if (depth > 3 || !fs.existsSync(d)) return
+    for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, entry.name)
+      if (entry.isDirectory()) walk(p, depth + 1)
+      const name = CSV_NAMES.find((n) => `${n}.csv` === entry.name.toLowerCase())
+      if (name && !found[name]) found[name] = fs.readFileSync(p, 'utf8')
+    }
+  }
+  walk(dir)
+  return found
+}
 export interface EventResult extends ApplyResult {
   id: string
 }
@@ -63,17 +85,44 @@ export class Operation {
     const existing = await this.db.loadOps()
     if (existing) {
       this.state = existing
+      if (config.seedDemoDay) this.sources = buildDemoReference(readCsvs(config.dataDir)).sources
       this.log.info(`Loaded operation for ${existing.deliveryDate} (version ${existing.version})`)
       return
     }
     await this.reset()
   }
 
+  /**
+   * The starting operation. Normally empty (reference data comes from `npm run import:data`). With SEED_DEMO_DAY=true:
+   * one realistic delivery day, built from the competition CSVs in DATA_DIR when present, otherwise placeholders.
+   */
+  private seed(): OpsData {
+    if (!config.seedDemoDay) return seedOps()
+    const csv = readCsvs(config.dataDir)
+    const catalogFile = path.join(config.dataDir, 'catalog.json')
+    const catalog = fs.existsSync(catalogFile) ? (JSON.parse(fs.readFileSync(catalogFile, 'utf8')) as Catalog) : undefined
+    this.sources = buildDemoReference(csv).sources
+    return seedDemoOps({ csv, catalog })
+  }
+
   private async reset() {
-    const next = seedOps()
+    const next = this.seed()
     await this.db.persistState(null, next, this.db.transaction())
     this.state = next
-    this.log.info('Initialized empty operation')
+    this.log.info(config.seedDemoDay ? { sources: this.sources, deliveryDate: next.deliveryDate, orders: next.orders.length } : {}, config.seedDemoDay ? 'Seeded demo delivery day' : 'Initialized empty operation')
+  }
+
+  /** Demo mode only: start the demo delivery day again, replacing the current operation for every device. */
+  async resetDemo() {
+    if (!config.demoMode || !config.seedDemoDay) throw new HttpError(403, 'Demo reset is only available in demo mode')
+    return this.lock.run(async () => {
+      const before = (await this.db.loadOps()) ?? this.state
+      const next = this.seed()
+      await this.db.persistState(before, next, this.db.transaction())
+      this.state = next
+      this.emit()
+      this.log.info({ deliveryDate: next.deliveryDate, orders: next.orders.length }, 'Demo reset')
+    })
   }
 
   async reload() {

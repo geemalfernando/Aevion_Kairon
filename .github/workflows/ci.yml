@@ -1,5 +1,6 @@
 # Automated checks for every push and pull request:
-# API tests and typecheck, web lint and build, Android and iOS app builds, and a smoke test of production.
+# API tests and typecheck, web lint and build, the Docker stack with a 4-role walkthrough,
+# Android and iOS app builds, and a smoke test of production.
 name: CI
 
 on:
@@ -63,6 +64,29 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
+
+  docker:
+    name: Docker · local stack and 4-role walkthrough
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: Start PostgreSQL and the app from a clean state
+        run: docker compose up --build --detach --wait
+      - name: Walk through the delivery day as all four roles
+        working-directory: server
+        run: npm ci && npm run test:walkthrough
+        env:
+          API_URL: http://localhost:8080
+      - name: App logs
+        if: failure()
+        run: docker compose logs app
+      - if: always()
+        run: docker compose down --volumes
 
   android:
     name: Android · build APK

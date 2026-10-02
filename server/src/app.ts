@@ -113,6 +113,14 @@ export async function buildApp() {
     })
   })
 
+  /** Demo mode only: put the seeded delivery day back so a judge can run the walkthrough again. */
+  app.post('/api/demo/reset', async (req) => {
+    const user = await auth(req)
+    if (user.role !== 'DISPATCHER') throw new HttpError(403, 'Only the dispatcher can reset the demo')
+    await op.resetDemo()
+    return { version: op.data.version, data: op.data }
+  })
+
   // ---------- Datathon outputs ----------
 
   /** Load Datathon model outputs (submission_task1 rows and Task 2A rows joined with their depot/brand/week). */

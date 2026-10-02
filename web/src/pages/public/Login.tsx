@@ -1,10 +1,13 @@
 import { Copyright } from '../../components/Copyright'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { DEMO_PASSWORD, DEMO_USERS } from '@core/demo'
+import type { Role } from '@core/types'
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { isStandalone } from '../../components/Pwa'
-import { HOME } from '../../components/shell/nav'
+import { HOME, ROLE_LABEL } from '../../components/shell/nav'
 import { Button, Callout, Field, Input, Logo, PasswordInput } from '../../components/ui'
+import { DEMO } from '../../demo/mode'
 import { signInWith, useSession } from '../../store'
 
 export function Login() {
@@ -16,8 +19,7 @@ export function Login() {
   const current = useSession((s) => s.user)
   const navigate = useNavigate()
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault()
+  const signIn = async (email: string, password: string) => {
     setBusy(true)
     setError('')
     try {
@@ -26,6 +28,10 @@ export function Login() {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unable to sign in')
     } finally { setBusy(false) }
+  }
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    void signIn(email, password)
   }
 
   // The installed app opens on /login; send signed-in people straight to work.
@@ -73,7 +79,27 @@ export function Login() {
             </Button>
           </form>
 
-
+          {DEMO && (
+            <>
+              <div className="my-8 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.14em] text-faint">
+                <span className="h-px flex-1 bg-line" /> Demo accounts <span className="h-px flex-1 bg-line" />
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {(Object.keys(DEMO_USERS) as Role[]).map((r) => (
+                  <button key={r} disabled={busy} onClick={() => void signIn(DEMO_USERS[r].email, DEMO_PASSWORD)} className="group flex items-center gap-3 rounded-xl border border-line p-3 text-left transition hover:border-brand hover:bg-brand-soft">
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold">{ROLE_LABEL[r]}</span>
+                      <span className="block truncate text-xs text-muted">{DEMO_USERS[r].email}</span>
+                    </span>
+                    <ArrowRight className="size-4 text-faint group-hover:text-brand-ink" />
+                  </button>
+                ))}
+              </div>
+              <p className="mt-4 text-center text-xs text-muted">
+                Password for every demo account: <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono">{DEMO_PASSWORD}</code>
+              </p>
+            </>
+          )}
         </div>
         <footer className="text-center text-xs text-muted">
           <Copyright />

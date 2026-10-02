@@ -1,10 +1,43 @@
-# Supabase provides Auth and PostgreSQL. Run the SQL migration before starting.
+# `docker compose up --build`: the whole product on one machine, with no external service.
+# PostgreSQL holds the operation; the API serves the web app at http://localhost:8080 with the four demo accounts
+# (dispatcher@ / loader@ / driver@ / store@kairon.demo, password kairon-demo) and one seeded delivery day.
+# The hosted deployment (Vercel + Supabase) is configured separately; see README.
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: kairon
+      POSTGRES_USER: kairon
+      POSTGRES_PASSWORD: kairon
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kairon -d kairon"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
   app:
-    build: .
-    env_file: .env
+    build:
+      context: .
+      args:
+        VITE_DEMO_MODE: "true"
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
       PORT: 8080
+      DATABASE_URL: postgres://kairon:kairon@db:5432/kairon
+      # Signs local session tokens. Change it if this stack is reachable by anyone but you.
+      AUTH_SECRET: ${AUTH_SECRET:-kairon-local-demo-secret-change-me}
+      DEMO_MODE: "true"
+      SEED_DEMO_DAY: "true"
+      WEB_ORIGIN: http://localhost:${APP_PORT:-8080}
+      LOG_LEVEL: info
     ports:
       - "${APP_PORT:-8080}:8080"
     restart: unless-stopped
+
+volumes:
+  db-data:

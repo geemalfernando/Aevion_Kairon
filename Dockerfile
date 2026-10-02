@@ -8,8 +8,9 @@ COPY core ./core
 COPY web/package.json web/package-lock.json ./web/
 RUN cd web && npm ci
 COPY web ./web
-# The web app always talks to the API.
-RUN cd web && npm run build
+# The web app always talks to the API. VITE_DEMO_MODE=true adds the judges' demo tools (docker-compose.yml sets it).
+ARG VITE_DEMO_MODE=false
+RUN cd web && VITE_DEMO_MODE=$VITE_DEMO_MODE npm run build
 
 # ---------- API ----------
 FROM node:22-alpine AS app

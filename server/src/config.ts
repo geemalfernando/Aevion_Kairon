@@ -14,7 +14,19 @@ export const config = {
   supabasePublishableKey: env.SUPABASE_PUBLISHABLE_KEY ?? '',
   supabaseSecretKey: env.SUPABASE_SECRET_KEY ?? '',
   supabaseJwksUrl: env.SUPABASE_JWKS_URL ?? `${env.SUPABASE_URL}/auth/v1/.well-known/jwks.json`,
-  demoMode: false,
+  /**
+   * Storage and sign-in. With SUPABASE_URL set: Supabase (the hosted deployment). Without it: a local PostgreSQL at
+   * DATABASE_URL and the four local demo accounts, which is how `docker compose up` runs with no external service.
+   */
+  backend: (env.SUPABASE_URL ? 'supabase' : 'postgres') as 'supabase' | 'postgres',
+  databaseUrl: env.DATABASE_URL ?? '',
+  /** Signs local session tokens (local backend only). Use a long random value outside local demos. */
+  authSecret: env.AUTH_SECRET ?? '',
+  tokenTtlHours: Number(env.TOKEN_TTL_HOURS ?? 12),
+  /** Demo controls for judges: operation clock, fleet simulation and demo reset. Off unless DEMO_MODE=true. */
+  demoMode: env.DEMO_MODE === 'true',
+  /** Seed one realistic delivery day (demo network or DATA_DIR CSVs) when the store is empty or reset. */
+  seedDemoDay: env.SEED_DEMO_DAY === 'true',
   webOrigins: (env.WEB_ORIGIN ?? 'http://localhost:5173').split(',').map((s) => s.trim()),
   publicApiUrl: (env.PUBLIC_API_URL ?? '').replace(/\/$/, ''),
   dataDir: env.DATA_DIR ?? path.resolve(here, '../../data'),
