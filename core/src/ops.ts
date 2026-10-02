@@ -118,8 +118,9 @@ function log(d: OpsData, entity: string, actor: Role | 'SYSTEM', text: string, a
 }
 
 function notify(d: OpsData, n: Omit<Notification, 'id' | 'at' | 'readBy'>) {
-  d.notifications.unshift({ ...n, id: uid('n'), at: opNow(d), readBy: [] })
-  if (d.notifications.length > 200) d.notifications.length = 200
+  const depot = n.depot ?? (n.outletId ? d.outlets.find((o) => o.id === n.outletId)?.depot : n.vehicleId ? d.vehicles.find((v) => v.id === n.vehicleId)?.depot : undefined)
+  d.notifications.unshift({ ...n, depot, id: uid('n'), at: opNow(d), readBy: [] })
+  // Never drop newly generated notifications before the database can persist its atomic outbox.
 }
 
 function raise(d: OpsData, i: Omit<Issue, 'id' | 'createdAt'>) {
@@ -481,16 +482,18 @@ export const commands = {
   // ----- Dispatcher: planning -----
 
   /**
-   * Close the delivery day and open the next operating day. Refused while a trip is still loading or on the road.
+   * Close the delivery day and open the next operating day. Refused while a published trip hasn't finished.
    * - Fuel: what the day's completed trips used is added to each vehicle's fuel used this week, so the weekly quota
    *   builds up day by day; a new ISO week starts every vehicle at 0.
    * - Outlets: days since the last delivery, and "skipped on the previous run", which raises tomorrow's priority.
    * - Orders: deferred orders join the next run's queue; orders that were never planned carry over.
    * Trips of the closed day are cleared, so they no longer count towards a vehicle's trips, time or fuel.
+   * The day is the whole operation's (both depots), so it waits for every depot's trips.
    */
   startNextDay(d: OpsData) {
-    const open = d.trips.filter((t) => ['LOADING', 'LOADED', 'IN_PROGRESS', 'PAUSED'].includes(t.status))
-    if (open.length) return { ok: false as const, message: `${open.length} ${open.length === 1 ? 'trip is' : 'trips are'} still loading or on the road (${open.slice(0, 3).map((t) => t.id).join(', ')})` }
+    // A published trip must be driven (or aborted) first; unpublished drafts are simply discarded.
+    const open = d.trips.filter((t) => ['PLANNED', 'LOADING', 'LOADED', 'IN_PROGRESS', 'PAUSED'].includes(t.status))
+    if (open.length) return { ok: false as const, message: `${open.length} published ${open.length === 1 ? 'trip has' : 'trips have'} not finished (${open.slice(0, 3).map((t) => t.id).join(', ')})` }
     const from = d.deliveryDate
     const to = nextOperatingDay(d.calendar, from)
     const week = (date: string) => { const w = isoWeekOf(date); return `${w.iso_year}-${w.iso_week}` }
@@ -529,6 +532,10 @@ export const commands = {
     d.ordersClosed = false
     d.plan = 'NONE'
     d.analysis = undefined
+    // Plan status per depot belongs to the closed day too.
+    d.planByDepot = undefined
+    d.ordersClosedByDepot = undefined
+    d.analysisByDepot = undefined
     const text = `Closed ${fmtDate(from, { weekday: 'short', day: 'numeric', month: 'short' })}: ${Math.round(litres)} L of fuel recorded${newWeek ? ', new week (fuel quotas reset)' : ''}; ${carried} orders carried to ${fmtDate(to, { weekday: 'short', day: 'numeric', month: 'short' })}`
     log(d, from, 'DISPATCHER', text)
     notify(d, { to: ['DISPATCHER', 'LOADER', 'DRIVER'], severity: 'INFO', title: `Planning ${fmtDate(to, { weekday: 'long', day: 'numeric', month: 'long' })}`, body: text })

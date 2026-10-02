@@ -17,6 +17,9 @@ goes wrong:
 Every action by one role reaches the next through a live stream (server-sent events). Field actions are queued on the
 device when offline and replayed in order on reconnect.
 
+For AWS staging, security prerequisites, notification delivery work and the paths to the cloud blueprint, see
+[the deployment guide](docs/deployment.md). The release template includes ECS notification workers, optional encrypted Redis and production security controls. Live provider checks and account configuration are required before production.
+
 ## For judges
 
 **Deployed site:** TODO (team): add the public URL. Sign in with the four accounts below. Each judge should start
@@ -177,7 +180,7 @@ Accounts without an imported outlet see an assignment message.
 
 The API is always required. Field devices cache authenticated state and queue field actions in IndexedDB for
 reconnection. Commands such as ordering need the API to confirm the save. Supabase access tokens are renewed using the
-refresh token; API requests verify JWT signatures against your project's JWKS.
+HttpOnly refresh cookie in browsers (in-memory bearer credentials on native); API requests verify JWT signatures and current Supabase session/administrator assignments.
 
 To develop in local mode instead, leave `SUPABASE_URL` empty and point `DATABASE_URL` at any PostgreSQL; set
 `DEMO_MODE`, `SEED_DEMO_DAY` and `VITE_DEMO_MODE` for the demo day and tools (see `.env.example`).
@@ -227,8 +230,7 @@ placeholders for anything missing. The competition download has no `fleet_status
 file, every vehicle is available. `traffic_speed.csv` and `road_conditions.csv` are not used.
 
 **Never commit the CSVs.** The competition terms forbid sharing the datasets, and `data/**/*.csv` is in `.gitignore`.
-`docker compose build` copies `data/` into the image, so do not push an image built with the real CSVs to a public
-registry.
+`docker compose` mounts `data/` into the backend read-only at start; the CSVs are never copied into an image.
 
 ## Architecture and data model
 
@@ -414,7 +416,7 @@ same every time. VEH024 is fixed at 93 percent of its quota as the intentional f
 vehicle) at 40 L (`enrichForDemo` in `core/src/demo.ts`).
 The quota builds up through the week: **Close day & plan next** on the planning page (`startNextDay`) adds the fuel
 of the day's completed trips to each vehicle's fuel used this week, and the first operating day of a new ISO week
-starts every vehicle at 0. Closing the day is refused while a trip is still loading or on the road. It also updates
+starts every vehicle at 0. Closing the day is refused while a published trip hasn't finished. It also updates
 each outlet's service history (days since the last delivery, skipped on the previous run, which raises its priority)
 and puts deferred orders in the next run's queue.
 

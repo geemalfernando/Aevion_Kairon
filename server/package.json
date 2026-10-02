@@ -1,7 +1,7 @@
 {
   "name": "@kairon/server",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0-rc.1",
   "type": "module",
   "description": "Kairon API backed by Supabase Auth and atomic PostgreSQL state transactions.",
   "scripts": {
@@ -16,21 +16,40 @@
     "import:data": "tsx scripts/import-data.ts",
     "bundle:vercel": "node scripts/bundle-vercel.mjs",
     "test:ci": "node --import tsx --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=test-results.xml test/*.test.ts",
-    "test:walkthrough": "tsx test/walkthrough.smoke.ts"
+    "test:walkthrough": "tsx test/walkthrough.smoke.ts",
+    "export:seed": "tsx scripts/export-seed.ts",
+    "notifications:publisher": "node --import tsx src/notifications/publisher.ts",
+    "notifications:worker": "node --import tsx src/notifications/worker.ts",
+    "test:notifications:db": "node scripts/test-notification-db.mjs",
+    "test:security": "tsx test/security.smoke.ts",
+    "notifications:verify-phone": "tsx scripts/set-notification-phone.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-sesv2": "^3.1145.0",
+    "@aws-sdk/client-sns": "^3.1145.0",
+    "@aws-sdk/client-sqs": "^3.1145.0",
+    "@fastify/cookie": "^11.1.2",
     "@fastify/cors": "^11.3.0",
+    "@fastify/rate-limit": "^11.2.0",
     "@fastify/static": "^10.1.4",
+    "@opentelemetry/api": "^1.9.1",
     "@supabase/supabase-js": "^2.117.2",
     "fastify": "^5.4.0",
+    "firebase-admin": "^14.5.0",
+    "ioredis": "^6.0.0",
     "jose": "^6.2.12",
     "pg": "^8.23.1",
-    "tsx": "^4.20.3"
+    "tsx": "^4.20.3",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "@types/pg": "^8.23.1",
+    "@types/web-push": "^3.6.4",
     "esbuild": "^0.28.2",
     "typescript": "~5.9.2"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
   }
 }

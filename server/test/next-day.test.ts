@@ -30,11 +30,12 @@ describe('closing the day', () => {
     }
   })
 
-  it('is refused while a trip is still loading or on the road', () => {
+  it('is refused while a published trip has not finished', () => {
     const d = seedDemoOps({ today: '2026-09-27' })
     commands.closeOrders(d)
     commands.generatePlan(d)
     commands.publishPlan(d)
+    assert.equal(commands.startNextDay(d).ok, false, 'published but not yet driven')
     d.trips[0].status = 'IN_PROGRESS'
     const r = commands.startNextDay(d)
     assert.equal(r.ok, false)

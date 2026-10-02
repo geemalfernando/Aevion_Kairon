@@ -9,7 +9,8 @@ import { DEMO_USERS } from '@core/demo'
 import { FRAME, PRESET, PREVIEW, THEME_OVERRIDE } from '../demo/mode'
 import { buildPreset } from '../demo/presets'
 import { detectConflict, type RouteConflict } from './conflict'
-import { API_MODE, ApiError, api, NetworkError } from './remote'
+import i18n from '../i18n'
+import { API_MODE, ApiError, api, COOKIE_SESSION, NetworkError } from './remote'
 
 export { API_MODE, FRAME, PREVIEW }
 export type { RouteConflict }
@@ -43,6 +44,8 @@ const memory = new Map<string, string>()
 
 const idbStorage: StateStorage = {
   async getItem(key) {
+    await Promise.resolve()
+    key = `${key}:${useSession.getState().user?.email ?? TAB}`
     try {
       return (await db.kv.get(key))?.value ?? null
     } catch {
@@ -50,6 +53,7 @@ const idbStorage: StateStorage = {
     }
   },
   async setItem(key, value) {
+    key = `${key}:${useSession.getState().user?.email ?? TAB}`
     try {
       await db.kv.put({ key, value })
       channel?.postMessage({ key, from: TAB })
@@ -58,6 +62,7 @@ const idbStorage: StateStorage = {
     }
   },
   async removeItem(key) {
+    key = `${key}:${useSession.getState().user?.email ?? TAB}`
     await db.kv.delete(key).catch(() => undefined)
   },
 }
@@ -128,7 +133,14 @@ export const useSession = create<SessionStore>()(
         set({ user, token, simulateOffline: false })
         applyTheme(themePrefFor(user.role))
       },
-      signOut: () => { latestVersion = 0; confirmed = null; useOps.getState().reset(); set({ user: null, token: null, refreshToken: null, expiresAt: 0, ready: false, simulateOffline: false }) },
+      signOut: () => {
+        const current = useSession.getState()
+        if (REMOTE && current.token) void api.logout(current.token).catch(() => toast(i18n.t('notificationSettings.logoutFailed'), { tone: 'critical' }))
+        latestVersion = 0; confirmed = null
+        // Clear this account's operation cache; offline outboxes stay scoped to their original account.
+        useOps.getState().reset()
+        set({ user: null, token: null, refreshToken: null, expiresAt: 0, ready: false, simulateOffline: false })
+      },
       setSimulateOffline: (simulateOffline) => {
         set({ simulateOffline })
         if (simulateOffline) useDevice.getState().goOffline()
@@ -137,8 +149,10 @@ export const useSession = create<SessionStore>()(
     }),
     {
       name: 'kairon-supabase-session-v1',
+      version: 2,
+      migrate: (old: unknown) => { const s = old as { user?: User }; return { user: s.user ?? null, token: null, refreshToken: null, expiresAt: 0, ready: false } },
       storage: createJSONStorage(() => (PREVIEW ? memoryStorage : isInstalledApp() ? localStorage : sessionStorage)),
-      partialize: (s) => ({ user: s.user, token: s.token, refreshToken: s.refreshToken, expiresAt: s.expiresAt, ready: s.ready }),
+      partialize: (s) => ({ user: s.user, token: null, refreshToken: null, expiresAt: 0, ready: s.ready }),
     },
   ),
 )
@@ -187,6 +201,8 @@ export async function refresh() {
 /** Authenticate with Supabase through the server, then load the shared operation. */
 export async function signInWith(email: string, password: string): Promise<User> {
   const r = await api.login(email, password)
+  useSession.getState().signIn(r.user, r.token)
+  await useDevice.persist.rehydrate()
   const state = await api.state(r.token)
   latestVersion = 0
   accept(state)
@@ -195,12 +211,14 @@ export async function signInWith(email: string, password: string): Promise<User>
   return r.user
 }
 let renewing: Promise<string> | null = null
-async function accessToken(): Promise<string> {
+let restoring: ReturnType<typeof api.refresh> | null = null
+export async function accessToken(): Promise<string> {
   const s = useSession.getState()
   if (!s.token) throw new ApiError(401, 'Sign in again')
   if (s.expiresAt * 1000 > Date.now() + 60_000) return s.token
-  if (!s.refreshToken) throw new ApiError(401, 'Sign in again')
-  renewing ??= api.refresh(s.refreshToken).then((r) => {
+  if (!s.refreshToken && !COOKIE_SESSION) throw new ApiError(401, 'Sign in again')
+  renewing ??= api.refresh(s.refreshToken, s.user?.email).then((r) => {
+    if (r.user.email !== s.user?.email || useSession.getState().user?.email !== s.user?.email) throw new ApiError(401, 'Sign in again')
     useSession.setState({ token: r.token, refreshToken: r.refreshToken, expiresAt: r.expiresAt, user: r.user })
     return r.token
   }).finally(() => { renewing = null })
@@ -383,7 +401,7 @@ export const useDevice = create<DeviceStore>()(
         clear: () => set({ boxes: {} }),
       }
     },
-    { name: 'kairon-supabase-device-v1', storage: createJSONStorage(storage), partialize: (s) => ({ boxes: s.boxes, flakyUploads: s.flakyUploads }) },
+    { name: 'kairon-supabase-device-v1', storage: createJSONStorage(storage), partialize: (s) => ({ boxes: { [key()]: s.boxes[key()] ?? emptyBox }, flakyUploads: s.flakyUploads }) },
   ),
 )
 
@@ -450,8 +468,8 @@ export function useRuntimeBindings() {
     }
     const onMessage = (e: MessageEvent<{ key: string; from: string }>) => {
       if (e.data.from === TAB) return
-      if (e.data.key === 'kairon-supabase-ops-v1') void useOps.persist.rehydrate()
-      if (e.data.key === 'kairon-supabase-device-v1') void useDevice.persist.rehydrate()
+      if (e.data.key === `kairon-supabase-ops-v1:${useSession.getState().user?.email}`) void useOps.persist.rehydrate()
+      if (e.data.key === `kairon-supabase-device-v1:${useSession.getState().user?.email}`) void useDevice.persist.rehydrate()
     }
     window.addEventListener('online', up)
     window.addEventListener('offline', down)
@@ -464,6 +482,24 @@ export function useRuntimeBindings() {
       channel?.removeEventListener('message', onMessage)
       unsub()
     }
+  }, [])
+
+  useEffect(() => {
+    const current = useSession.getState()
+    if (!REMOTE || current.token || !current.user || !COOKIE_SESSION) return
+    let active = true
+    restoring ??= api.refresh(null, current.user.email).finally(() => { restoring = null })
+    void restoring.then(async (session) => {
+      if (!active || session.user.email !== current.user?.email || useSession.getState().user?.email !== current.user?.email) return
+      useSession.setState({ token: session.token, refreshToken: null, expiresAt: session.expiresAt, user: session.user })
+      await Promise.all([useOps.persist.rehydrate(), useDevice.persist.rehydrate()])
+      await refresh()
+    }).catch((error) => {
+      if (!active) return
+      if (error instanceof NetworkError) return
+      useSession.getState().signOut()
+    })
+    return () => { active = false }
   }, [])
 
   // Remote: live version stream, and a light health probe while the server is unreachable.

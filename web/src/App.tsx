@@ -4,6 +4,7 @@ import { AppShell } from './components/shell/AppShell'
 import { HOME } from './components/shell/nav'
 import { InstallPrompt, PwaUpdater } from './components/Pwa'
 import { Splash } from './components/Splash'
+import { NativeNotifications } from './components/NativeNotifications'
 import { Toaster } from './components/ui'
 import type { Role } from '@core/types'
 import * as Dispatcher from './pages/dispatcher'
@@ -99,6 +100,7 @@ export default function App() {
       {!FRAME && !PREVIEW && <PwaUpdater />}
       {!FRAME && !PREVIEW && <InstallPrompt />}
       {!FRAME && !PREVIEW && <Splash />}
+      {!PREVIEW && <NativeNotifications />}
     </BrowserRouter>
   )
 }
