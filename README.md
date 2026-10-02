@@ -17,6 +17,9 @@ goes wrong:
 Every action by one role reaches the next through a live stream (server-sent events). Field actions are queued on the
 device when offline and replayed in order on reconnect.
 
+For AWS staging, security prerequisites, notification delivery work and the paths to the cloud blueprint, see
+[the deployment guide](docs/deployment.md). The release template includes ECS notification workers, optional encrypted Redis and production security controls. Live provider checks and account configuration are required before production.
+
 ## For judges: run it in one command
 
 Needs only Docker.
@@ -171,7 +174,7 @@ Accounts without an imported outlet see an assignment message.
 
 The API is always required. Field devices cache authenticated state and queue field actions in IndexedDB for
 reconnection. Commands such as ordering need the API to confirm the save. Supabase access tokens are renewed using the
-refresh token; API requests verify JWT signatures against your project's JWKS.
+HttpOnly refresh cookie in browsers (in-memory bearer credentials on native); API requests verify JWT signatures and current Supabase session/administrator assignments.
 
 To develop in local mode instead, leave `SUPABASE_URL` empty and point `DATABASE_URL` at any PostgreSQL; set
 `DEMO_MODE`, `SEED_DEMO_DAY` and `VITE_DEMO_MODE` for the demo day and tools (see `.env.example`).
@@ -200,8 +203,7 @@ In local demo mode, the server loads what is present on the first start (or **De
 placeholders for anything missing. `traffic_speed.csv` and `road_conditions.csv` are not used.
 
 **Never commit the CSVs.** The competition terms forbid sharing the datasets, and `data/**/*.csv` is in `.gitignore`.
-`docker compose build` copies `data/` into the image, so do not push an image built with the real CSVs to a public
-registry.
+`docker compose` mounts `data/` into the backend read-only at start; the CSVs are never copied into an image.
 
 ## Data model
 

@@ -1,0 +1,42 @@
+name: Release candidate
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --prefix server && npm ci --prefix web
+      - run: npm --prefix server run typecheck && npm --prefix server test
+      - run: npm --prefix web run lint && npm --prefix web run build
+      - run: npm audit --prefix server && npm audit --prefix web
+      - run: npm --prefix server run test:notifications:db
+      - run: pip install cfn-lint && cfn-lint infra/aws/release.json infra/aws/network.json
+      - run: docker build --target production --tag kairon:release-check .
+      - run: docker compose up --build --detach --wait
+      - run: npm --prefix server run test:walkthrough && npm --prefix server run test:security
+        env:
+          API_URL: http://localhost:8080
+      - if: always()
+        run: docker compose down --volumes
+      - name: Validate tag and package source
+        run: |
+          test "$GITHUB_REF_NAME" = "v$(cat VERSION)"
+          node scripts/package-release.mjs
+      - name: Publish prerelease assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" artifacts/"$GITHUB_REF_NAME"/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" artifacts/"$GITHUB_REF_NAME"/* --prerelease --title "Kairon $GITHUB_REF_NAME" --notes-file docs/releases/v1.1.0-rc.1.md
+          fi

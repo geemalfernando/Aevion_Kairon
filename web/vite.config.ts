@@ -37,6 +37,7 @@ export default defineConfig({
         ],
       },
       workbox: {
+        importScripts: ['/push-sw.js'],
         // The whole app shell is precached, so every screen opens without a network.
         // Fonts are bundled (no CDN), so even the first offline launch renders Latin, Sinhala and Tamil.
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest,woff2}'],

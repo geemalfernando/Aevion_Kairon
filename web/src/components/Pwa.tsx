@@ -36,6 +36,9 @@ if (typeof window !== 'undefined') {
 
 export const canInstall = () => !!useInstall.getState().evt || (isIos() && !isStandalone())
 
+/** Whether the update / offline-ready card is on screen; the install reminder waits for it (same corner). */
+const usePwaBanner = create<{ showing: boolean }>(() => ({ showing: false }))
+
 /** Service-worker lifecycle: new version available, and first "ready offline" moment. */
 export function PwaUpdater() {
   const {
@@ -54,7 +57,9 @@ export function PwaUpdater() {
     return () => clearTimeout(t)
   }, [offlineReady, setOfflineReady])
 
-  if (!needRefresh && !offlineReady) return null
+  const showing = needRefresh || offlineReady
+  useEffect(() => usePwaBanner.setState({ showing }), [showing])
+  if (!showing) return null
   return (
     <div role="status" className="fixed inset-x-3 bottom-24 z-[70] mx-auto max-w-sm animate-rise rounded-2xl border border-line bg-surface p-4 shadow-pop lg:bottom-6 lg:left-auto lg:right-6">
       <div className="flex items-start gap-3">
@@ -94,6 +99,7 @@ export function InstallPrompt() {
   const { t } = useTranslation()
   const evt = useInstall((s) => s.evt)
   const installed = useInstall((s) => s.installed)
+  const bannerShowing = usePwaBanner((s) => s.showing)
   const prompt = useInstall((s) => s.prompt)
   // Wait for the splash screen and first paint before asking.
   const [ready, setReady] = useState(false)
@@ -108,7 +114,7 @@ export function InstallPrompt() {
       return false
     }
   })
-  if (!ready || installed || hidden || Capacitor.isNativePlatform()) return null
+  if (!ready || bannerShowing || installed || hidden || Capacitor.isNativePlatform()) return null
   const dismiss = () => {
     setHidden(true)
     try {

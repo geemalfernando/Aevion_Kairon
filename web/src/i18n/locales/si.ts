@@ -3,6 +3,7 @@ import type { Messages } from './en'
 // NEEDS NATIVE-SPEAKER REVIEW before submission (team decision 4). Brand names, IDs and times stay in English.
 // Shared vocabulary reuses the team's reference strings; the rest are draft translations.
 const si: Messages = {
+  notificationSettings: {"push": "බ්‍රවුසර දැනුම්දීම්", "email": "විද්‍යුත් තැපෑල", "sms": "SMS (හදිසි යාවත්කාලීන)", "criticalOnly": "ඉහළ හා අතිශය වැදගත් දැනුම්දීම් පමණක්", "loading": "දැනුම්දීම් මනාප පූරණය වෙමින්…", "failed": "දැනුම්දීම් යාවත්කාලීන කළ නොහැක. අවසර හා සම්බන්ධතාව පරීක්ෂා කරන්න.", "unavailable": "වින්‍යාස කර නැත", "refresh": "සැකසුම් නැවත පූරණය කරන්න", "phoneHint": "SMS සඳහා පරිපාලක විසින් තහවුරු කළ දුරකථන අංකයක් අවශ්‍යයි. එකඟතාව මෙහි කළමනාකරණය කරන්න.", "logoutFailed": "සේවාදායක සැසිය අවලංගු කළ නොහැක. නැවත සම්බන්ධ වී ඉවත් වන්න."},
   app: { name: 'Kairon', tagline: 'Waypoint Group සඳහා බෙදාහැරීම් සැලසුම්කරණය' },
   language: { label: 'භාෂාව', en: 'EN', si: 'සිං', ta: 'த', draft: 'කෙටුම්පත් පරිවර්තනය — ස්වදේශීය කථිකයෙකුගේ සමාලෝචනය බලාපොරොත්තුවෙන්' },
   brand: { Fresh: 'Fresh', Style: 'Style', Tech: 'Tech' },

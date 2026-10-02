@@ -7,6 +7,7 @@ const config: CapacitorConfig = {
   appName: 'Kairon',
   webDir: 'dist',
   android: { allowMixedContent: false },
+  experimental: { ios: { spm: { packageOptions: { '@capacitor-firebase/messaging': { symlink: true } } } } },
 }
 
 export default config

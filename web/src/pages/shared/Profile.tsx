@@ -1,18 +1,17 @@
 import { LogOut } from 'lucide-react'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { LanguageSwitch } from '../../components/LanguageSwitch'
 import { ROLE_LABEL } from '../../components/shell/nav'
 import { Button, Card, CardHeader, PageHeader, Segmented } from '../../components/ui'
 import { useSession, useTheme, type ThemePref } from '../../store'
+import { NotificationSettings } from '../../components/NotificationSettings'
 
 export function Profile() {
   const user = useSession((s) => s.user)!
   const signOut = useSession((s) => s.signOut)
   const { pref, setPref } = useTheme()
   const { t, i18n } = useTranslation()
-  const [notify, setNotify] = useState<'all' | 'critical'>('all')
   const navigate = useNavigate()
   return (
     <div className="mx-auto max-w-2xl">
@@ -44,14 +43,7 @@ export function Profile() {
             />
           </Row>
           <Row label={t('profile.notifications')}>
-            <Segmented
-              value={notify}
-              onChange={setNotify}
-              options={[
-                { value: 'all', label: t('profile.all') },
-                { value: 'critical', label: t('profile.critical') },
-              ]}
-            />
+            <NotificationSettings />
           </Row>
           <Row label={t('profile.language')} hint={i18n.language !== 'en' ? t('language.draft') : undefined}>
             <LanguageSwitch />

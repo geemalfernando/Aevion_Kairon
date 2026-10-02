@@ -123,6 +123,8 @@ export interface Receipt {
 }
 
 export interface Order {
+  /** Server-computed ETA, retained when the store's response excludes preceding stops at other outlets. */
+  projectedEta?: { minutes: number; window: [Minutes, Minutes] }
   id: string
   outletId: string
   brand: Brand
@@ -218,6 +220,8 @@ export interface Issue {
 }
 
 export interface Notification {
+  depot?: Depot
+  readByUserIds?: string[]
   id: string
   to: Role[]
   /** Restrict to a single outlet (store) or vehicle (driver). */
@@ -232,6 +236,8 @@ export interface Notification {
 }
 
 export interface AuditEvent {
+  depot?: Depot
+  userId?: string
   id: string
   entity: string
   at: number
@@ -250,6 +256,7 @@ export interface User {
 
 /** A device came back online and replayed what it recorded offline. */
 export interface SyncReport {
+  depot?: Depot
   id: string
   email: string
   name: string
@@ -295,6 +302,9 @@ export interface Predictions {
 
 /** The single operational state every role looks at. */
 export interface OpsData {
+  ordersClosedByDepot?: Partial<Record<Depot, boolean>>
+  planByDepot?: Partial<Record<Depot, 'NONE' | 'DRAFT' | 'PUBLISHED'>>
+  analysisByDepot?: Partial<Record<Depot, PlanAnalysis>>
   catalog: import('./catalog').Catalog
   version: number
   deliveryDate: string
