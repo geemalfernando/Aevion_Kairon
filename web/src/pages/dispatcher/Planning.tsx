@@ -1,7 +1,7 @@
-import { CalendarClock, Check, ChevronDown, GripVertical, LifeBuoy, Lock, Repeat, Scale, Send, Snowflake, Sparkles, Truck, X } from 'lucide-react'
+import { CalendarClock, Check, ChevronDown, GripVertical, LifeBuoy, Lock, LockOpen, Repeat, Scale, Send, Snowflake, Sparkles, Truck, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { BUDGET, DEFERRAL_LABEL, FRESH_END, isReefer, isVan, validate, vehicleDay, vehicleLabel, type Validation } from '@core/rules'
+import { BUDGET, DEFERRAL_LABEL, FRESH_END, isReefer, isTripLocked, isVan, validate, vehicleDay, vehicleLabel, type Validation } from '@core/rules'
 import { fmtMin } from '@core/time'
 import type { Order, PlanAnalysis, Trip, Vehicle } from '@core/types'
 import { Badge, BrandTag, Button, Callout, Card, CheckRow, cn, EmptyState, Meter, Modal, PageHeader, Segmented, TempTag, toast } from '../../components/ui'
@@ -487,6 +487,7 @@ function TripBlock({ t, v, onOpen }: { t: Trip; v: Vehicle; onOpen: (o: Order) =
   const freshLate = t.brand === 'Fresh' && s.stops.some((x) => x.start + x.service > FRESH_END)
   const editable = ['DRAFT', 'PLANNED', 'LOADING', 'LOADED'].includes(t.status)
   const loading = t.status === 'LOADING' || t.status === 'LOADED'
+  const tripLocked = isTripLocked(t, d)
   return (
     <div className="mt-3 rounded-lg bg-surface-2 p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -499,6 +500,20 @@ function TripBlock({ t, v, onOpen }: { t: Trip; v: Vehicle; onOpen: (o: Order) =
             <Badge className="ml-2" tone={t.pendingChange ? 'attention' : 'neutral'}>
               {t.pendingChange ? 'awaiting loader re-check' : t.status.toLowerCase().replace('_', ' ')}
             </Badge>
+          )}
+          {editable && (
+            <button
+              className={cn('ml-2 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-semibold', tripLocked ? 'border-ink/30 text-ink' : 'border-line text-muted hover:text-ink')}
+              aria-pressed={tripLocked}
+              onClick={() => {
+                const r = tripLocked ? ops('unlockTrip', t.id) : ops('lockTrip', t.id)
+                if (r.ok) toast(tripLocked ? `Trip ${t.id} unlocked` : `Trip ${t.id} locked`, { tone: 'neutral', body: tripLocked ? 'Re-planning may change it again.' : 'Re-planning keeps exactly these stops at the same times and adds nothing to it.' })
+                else toast(r.message, { tone: 'critical' })
+              }}
+            >
+              {tripLocked ? <Lock className="size-3" /> : <LockOpen className="size-3" />}
+              {tripLocked ? 'Locked trip' : 'Lock trip'}
+            </button>
           )}
         </span>
       </div>
@@ -513,6 +528,7 @@ function TripBlock({ t, v, onOpen }: { t: Trip; v: Vehicle; onOpen: (o: Order) =
                 {o.outletId}
               </button>
               {o.temp === 'CHILLED' && <Snowflake className="size-3 text-info" aria-label="Chilled" />}
+              {o.lock && <Lock className="size-3 text-muted" aria-label={`Locked to ${o.lock.vehicleId}`} />}
               {editable && (
                 <button
                   aria-label={`Remove ${o.outletId}`}

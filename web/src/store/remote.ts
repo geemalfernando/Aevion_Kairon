@@ -56,6 +56,8 @@ export const api = {
   command: (token: string, name: CommandName, args: unknown[]) => request<StateResponse & { result: unknown }>(`/api/commands/${name}`, { token, body: { args } }),
   events: (token: string, events: QueuedEvent[], sync?: { offlineFrom?: number; routeChanged?: boolean }) =>
     request<StateResponse & { results: EventResult[] }>('/api/events', { token, body: { events, sync }, timeoutMs: 30_000 }),
+  /** Demo mode only: the server puts the seeded delivery day back. */
+  reset: (token: string) => request<{ version: number }>('/api/demo/reset', { token, body: {} }),
   health: () => request<{ ok: boolean }>('/api/health', { timeoutMs: 4000 }),
   /** Live version updates (server-sent events). Returns a close function. */
   stream(token: string, onVersion: (v: number) => void, onStatus: (open: boolean) => void) {

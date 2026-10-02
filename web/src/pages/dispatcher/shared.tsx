@@ -1,4 +1,4 @@
-import { Ban, Clock, Fuel, Scale, Snowflake, Truck, X } from 'lucide-react'
+import { Ban, Clock, Fuel, Lock, LockOpen, Scale, Snowflake, Truck, X } from 'lucide-react'
 import { useState } from 'react'
 import { tripPredictions } from '@core/predict'
 import { customerMessageFor, DEFERRAL_LABEL, suggestVehicles, validate, vehicleLabel, type Validation } from '@core/rules'
@@ -285,6 +285,20 @@ export function OrderDrawer({ order, onClose, onDefer }: { order?: Order; onClos
                 Defer
               </Button>
             ) : null}
+            {trip && (
+              <Button
+                variant="secondary"
+                className="flex-1"
+                icon={o.lock ? <LockOpen className="size-4" /> : <Lock className="size-4" />}
+                onClick={() => {
+                  const r = o.lock ? ops('unlockStop', o.id) : ops('lockStop', o.id)
+                  if (r.ok) toast(o.lock ? `${out.id} unlocked` : `${out.id} locked to ${trip.vehicleId}`, { tone: 'neutral', body: o.lock ? 'Re-planning may move it again.' : 'Re-planning keeps it on this vehicle at the same time.' })
+                  else toast(r.message, { tone: 'critical' })
+                }}
+              >
+                {o.lock ? 'Unlock' : `Lock to ${trip.vehicleId}`}
+              </Button>
+            )}
           </div>
         )}
         {trip && ['IN_PROGRESS', 'PAUSED'].includes(trip.status) && !['DELIVERED', 'RECEIVED', 'PARTIAL', 'FAILED'].includes(o.status) && (

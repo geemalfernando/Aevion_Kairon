@@ -590,8 +590,59 @@ export const commands = {
     o.status = 'CONFIRMED'
     o.deferral = undefined
     o.loaded = undefined
+    o.lock = undefined
     log(d, o.id, 'DISPATCHER', 'Returned to unassigned queue')
     commit(d)
+  },
+
+  /**
+   * Team policy: lock a stop to its current vehicle (or a given one). Re-planning then keeps it on that vehicle at the
+   * same arrival time and only uses the room around it. Manual moves need an unlock first.
+   */
+  lockStop(d: OpsData, orderId: string, vehicleId?: string) {
+    const o = byId(d.orders, orderId)
+    const vid = vehicleId ?? tripOf(d, o?.tripId)?.vehicleId
+    if (!o || !vid || !byId(d.vehicles, vid)) return { ok: false as const, message: 'Put the stop on a vehicle before locking it' }
+    o.lock = { vehicleId: vid, by: 'DISPATCHER', at: opNow(d) }
+    log(d, o.id, 'DISPATCHER', `Stop locked to ${vid}`)
+    commit(d)
+    return { ok: true as const }
+  },
+
+  /**
+   * Team policy: lock a whole trip. Every stop on it is locked to the trip's vehicle as one closed trip: re-planning
+   * keeps exactly these stops at the same times and adds nothing to the trip. The same actions that clear a stop lock
+   * clear it for that stop.
+   */
+  lockTrip(d: OpsData, tripId: string) {
+    const t = tripOf(d, tripId)
+    const stops = t ? t.stops.filter((id) => !isDoneStatus(byId(d.orders, id)?.status)) : []
+    if (!t || !stops.length) return { ok: false as const, message: 'This trip has no stops left to lock' }
+    const at = opNow(d)
+    for (const id of stops) byId(d.orders, id)!.lock = { vehicleId: t.vehicleId, by: 'DISPATCHER', at, wholeTrip: true }
+    log(d, t.vehicleId, 'DISPATCHER', `Trip ${t.id} locked (${stops.length} stops)`)
+    commit(d)
+    return { ok: true as const }
+  },
+
+  unlockTrip(d: OpsData, tripId: string) {
+    const t = tripOf(d, tripId)
+    const locked = t ? t.stops.map((id) => byId(d.orders, id)!).filter((o) => o?.lock) : []
+    if (!t || !locked.length) return { ok: false as const, message: 'This trip has no locked stops' }
+    for (const o of locked) o.lock = undefined
+    log(d, t.vehicleId, 'DISPATCHER', `Trip ${t.id} unlocked`)
+    commit(d)
+    return { ok: true as const }
+  },
+
+  unlockStop(d: OpsData, orderId: string) {
+    const o = byId(d.orders, orderId)
+    if (!o?.lock) return { ok: false as const, message: 'This stop is not locked' }
+    const vid = o.lock.vehicleId
+    o.lock = undefined
+    log(d, o.id, 'DISPATCHER', `Stop unlocked from ${vid}`)
+    commit(d)
+    return { ok: true as const }
   },
 
   defer(d: OpsData, orderId: string, code: DeferralCode, reason: string, customerMessage: string, internalNote?: string) {
@@ -604,6 +655,7 @@ export const commands = {
     o.tripId = undefined
     o.status = 'DEFERRED'
     o.loaded = undefined
+    o.lock = undefined
     o.deferral = deferralFor(d, o, code, reason || DEFERRAL_LABEL[code], undefined, customerMessage, false, internalNote)
     commands.confirmDeferral(d, orderId)
   },
@@ -642,6 +694,7 @@ export const commands = {
     d.trips.push(trip)
     o.tripId = trip.id
     o.status = 'PLANNED'
+    o.lock = undefined
     o.loaded = undefined
     const eta = fmtMin(opt.eta)
     log(d, o.id, 'DISPATCHER', `Moved from ${from.vehicleId} to ${vehicleId} (${reason}) · leaves depot ${fmtMin(opt.departure)}, arrives ~${eta}`)
@@ -689,6 +742,7 @@ export const commands = {
         rescue.stops.push(oid)
         o.tripId = rescue.id
         o.status = 'IN_TRANSIT'
+        o.lock = undefined
         change.removed.push({ orderId: oid, to: v.id, reason: 'Breakdown recovery' })
         log(d, o.id, 'DISPATCHER', `Reassigned ${t.vehicleId} → ${v.id} after breakdown (+${opt.delayMin} min)`)
         notify(d, { to: ['STORE_MANAGER'], outletId: o.outletId, severity: 'WARNING', title: 'Delivery vehicle changed', body: `${o.id} now arrives on ${v.id} (about +${opt.delayMin} min)`, link: `/store/orders/${o.id}` })
@@ -812,6 +866,10 @@ export const COMMAND_ROLES: Record<CommandName, Role[] | 'demo'> = {
   publishPlan: ['DISPATCHER'],
   assign: ['DISPATCHER'],
   unassign: ['DISPATCHER'],
+  lockStop: ['DISPATCHER'],
+  unlockStop: ['DISPATCHER'],
+  lockTrip: ['DISPATCHER'],
+  unlockTrip: ['DISPATCHER'],
   defer: ['DISPATCHER'],
   confirmDeferral: ['DISPATCHER'],
   moveStop: ['DISPATCHER'],

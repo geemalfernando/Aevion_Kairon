@@ -1,8 +1,10 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose'
 import type { User } from '@core/types'
 import { config } from './config'
+import * as local from './auth-local'
 import { authClient } from './supabase'
 
+/** Supabase Auth on the hosted deployment; the local demo accounts (auth-local.ts) with the local backend. */
 export interface Session extends User { exp: number; id: string }
 const roles = ['DISPATCHER', 'LOADER', 'DRIVER', 'STORE_MANAGER'] as const
 export function profile(email: string | undefined, metadata: Record<string, unknown>): User | null {
@@ -12,6 +14,7 @@ export function profile(email: string | undefined, metadata: Record<string, unkn
 }
 let jwks: ReturnType<typeof createRemoteJWKSet> | undefined
 export async function verifyToken(token: string | undefined): Promise<Session | null> {
+  if (config.backend === 'postgres') return local.verifyToken(token)
   if (!token) return null
   try {
     jwks ??= createRemoteJWKSet(new URL(config.supabaseJwksUrl))
@@ -22,12 +25,14 @@ export async function verifyToken(token: string | undefined): Promise<Session | 
   } catch { return null }
 }
 export async function login(email: string, password: string) {
+  if (config.backend === 'postgres') return local.login(email, password)
   const { data, error } = await authClient().auth.signInWithPassword({ email: email.trim(), password })
   if (error || !data.session) return null
   const user = profile(data.user.email, data.user.app_metadata)
   return user ? { user, token: data.session.access_token, refreshToken: data.session.refresh_token, expiresAt: data.session.expires_at } : null
 }
 export async function refreshSession(refreshToken: string) {
+  if (config.backend === 'postgres') return local.refreshSession(refreshToken)
   const { data, error } = await authClient().auth.refreshSession({ refresh_token: refreshToken })
   if (error || !data.session || !data.user) return null
   const user = profile(data.user.email, data.user.app_metadata)

@@ -5,7 +5,9 @@ import { createJSONStorage, persist, type StateStorage } from 'zustand/middlewar
 import { applyEvent, commands, opNow, seedOps, uid, type CommandName } from '@core/ops'
 import type { FieldEvent, OpsData, QueuedEvent, Role, User } from '@core/types'
 import { toast } from '../components/ui'
-import { FRAME, PREVIEW, THEME_OVERRIDE } from '../demo/mode'
+import { DEMO_USERS } from '@core/demo'
+import { FRAME, PRESET, PREVIEW, THEME_OVERRIDE } from '../demo/mode'
+import { buildPreset } from '../demo/presets'
 import { detectConflict, type RouteConflict } from './conflict'
 import { API_MODE, ApiError, api, NetworkError } from './remote'
 
@@ -19,7 +21,9 @@ export type { RouteConflict }
 const isInstalledApp = () => typeof window !== 'undefined' && (matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true)
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 /** In remote mode the server is the source of truth; in local mode (static build) this browser is. */
-const REMOTE = true
+const REMOTE = !PREVIEW
+/** Demo mode only (?demo=<preset>): a sandboxed copy of the operation in one named state. */
+const preset = PREVIEW && PRESET ? buildPreset(PRESET) : null
 
 // ---------------------------------------------------------------------------
 // Storage: IndexedDB (no 5 MB cap — proof photos queue safely offline), kept in step across tabs.
@@ -74,7 +78,7 @@ interface OpsStore {
 export const useOps = create<OpsStore>()(
   persist(
     (set, get) => ({
-      data: seedOps(),
+      data: preset?.data ?? seedOps(),
       run(fn) {
         const draft = structuredClone(get().data)
         const out = fn(draft)
@@ -107,12 +111,17 @@ interface SessionStore {
   setSimulateOffline: (v: boolean) => void
 }
 
+const pathRole = (): Role | null => {
+  const p = typeof location === 'undefined' ? '' : location.pathname
+  return p.startsWith('/driver') ? 'DRIVER' : p.startsWith('/loader') ? 'LOADER' : p.startsWith('/store') ? 'STORE_MANAGER' : p.startsWith('/dispatcher') ? 'DISPATCHER' : null
+}
+
 export const useSession = create<SessionStore>()(
   persist(
     (set) => ({
-      user: null,
-      token: null, refreshToken: null, expiresAt: 0, ready: false,
-      simulateOffline: false,
+      user: preset ? DEMO_USERS[pathRole() ?? preset.preset.role] : null,
+      token: null, refreshToken: null, expiresAt: 0, ready: !!preset,
+      simulateOffline: !!preset?.offline,
       netOnline: typeof navigator === 'undefined' ? true : navigator.onLine,
       serverUp: true,
       signIn: (user, token = null) => {
@@ -211,7 +220,7 @@ const QUIET: CommandName[] = ['heartbeat', 'markRead']
  * result the server will), then the server confirms it and its version replaces ours.
  */
 export const ops = <K extends CommandName>(name: K, ...args: Parameters<(typeof commands)[K]> extends [OpsData, ...infer R] ? R : never) => {
-  if (!useSession.getState().token) throw new ApiError(401, 'Sign in again')
+  if (REMOTE && !useSession.getState().token) throw new ApiError(401, 'Sign in again')
   const before = structuredClone(useOps.getState().data)
   const out = useOps.getState().run((d) => (commands[name] as (d: OpsData, ...a: unknown[]) => unknown)(d, ...args)) as ReturnType<(typeof commands)[K]>
   const { token } = useSession.getState()
@@ -258,7 +267,7 @@ interface DeviceStore {
 
 const emptyBox: Outbox = { queue: [], snapshot: null, offlineFrom: null, lastSync: null, conflict: null }
 const key = () => useSession.getState().user?.email ?? 'anon'
-const presetBox = {}
+const presetBox = preset?.device ? { [DEMO_USERS[preset.preset.role].email]: preset.device } : {}
 
 export const useDevice = create<DeviceStore>()(
   persist(
@@ -495,6 +504,17 @@ export function useRuntimeBindings() {
     const t = setInterval(beat, 30_000)
     return () => clearInterval(t)
   }, [email, role])
+}
+
+/** Demo mode only: put the seeded delivery day back (server) or the preset (sandbox), and clear this device. */
+export async function resetDemo() {
+  if (REMOTE) {
+    await api.reset(await accessToken())
+    latestVersion = 0
+    await refresh()
+  } else useOps.getState().replace(preset?.data ?? seedOps())
+  useDevice.getState().clear()
+  useSession.getState().setSimulateOffline(false)
 }
 
 // ---------------------------------------------------------------------------

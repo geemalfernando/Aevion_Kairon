@@ -11,10 +11,12 @@ import * as Driver from './pages/driver'
 import * as Loader from './pages/loader'
 import { Landing } from './pages/public/Landing'
 import { Login } from './pages/public/Login'
+import { States } from './pages/public/States'
 import { NotFound } from './pages/shared/NotFound'
 import { Profile } from './pages/shared/Profile'
 import { SyncCenter } from './pages/shared/SyncCenter'
 import * as Store from './pages/store'
+import { DEMO } from './demo/mode'
 import { FRAME, PREVIEW, useRuntimeBindings, useSession, useOps } from './store'
 
 function RequireRole({ role }: { role?: Role }) {
@@ -35,6 +37,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
+        {DEMO && <Route path="/states" element={<States />} />}
         <Route element={<RequireRole />}>
           <Route element={<AppShell />}>
             <Route path="/profile" element={<Profile />} />
