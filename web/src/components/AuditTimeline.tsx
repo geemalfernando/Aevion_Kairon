@@ -15,8 +15,7 @@ export function AuditTimeline({ events, empty = 'No recorded events yet.' }: { e
             {showDay && <div className="eyebrow -ml-5 mb-2 bg-surface pl-5 !text-[10px]">{day}</div>}
             <span className="absolute -left-[27px] top-1.5 size-3 rounded-full border-2 border-surface bg-brand" />
             <div className="flex flex-wrap items-baseline gap-x-3">
-              <span className="font-mono text-xs font-semibold tabular-nums text-muted">{fmtClock(e.at)}</span>
-              <span className="text-sm">{e.text}</span>
+lassName="text-sm">{e.text}</span>
             </div>
             <div className="text-[11px] text-faint">{e.actor === 'SYSTEM' ? 'System' : ROLE_LABEL[e.actor]}</div>
           </li>
