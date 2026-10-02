@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { byId, validate } from '@core/rules'
 import { colomboDate, colomboTs, fmtClock, hm } from '@core/time'
 import type { Role } from '@core/types'
-import { DEMO_PASSWORD, DEMO_USERS } from '@core/demo'
+import { DEMO_PASSWORD, DEMO_USERS, STORY } from '@core/demo'
 import { PRESET } from '../../demo/mode'
 import { PRESETS } from '../../demo/presets'
 import { ops, PREVIEW, resetDemo, signInWith, useDevice, useNow, useOps, useSession } from '../../store'
@@ -38,15 +38,26 @@ export function DemoDock() {
     }
   }
 
-  /** The hero scenario's trigger: take a not-yet-delivered stop off VEH002 while its driver may be offline. */
+  /**
+   * The hero scenario's trigger: take a not-yet-delivered stop off the story trip while its driver may be offline.
+   * Moves the stop the driver reported as blocked; without a report, Dilini's Borella stop, as in the story;
+   * otherwise the last stop still to deliver.
+   */
   const moveStop = () => {
     const d = useOps.getState().data
     const trip = byId(d.trips, STORY_TRIP)
-    const stop = trip?.stops.find((id) => !['DELIVERED', 'PARTIAL', 'FAILED', 'RECEIVED', 'ARRIVED'].includes(byId(d.orders, id)?.status ?? ''))
-    const target = stop && [...trip!.stops].reverse().find((id) => !['DELIVERED', 'PARTIAL', 'FAILED', 'RECEIVED', 'ARRIVED'].includes(byId(d.orders, id)?.status ?? ''))
-    if (!trip || trip.status !== 'IN_PROGRESS' || !target) return toast('Start VEH002’s route first', { tone: 'info', body: 'The driver needs to be on the road.' })
-    const r = ops('moveStop', target, 'VEH036', 'Late-window risk — sent from the depot on the reserve van')
-    if (r.ok) toast(`${byId(d.orders, target)?.outletId} moved to VEH036`, { body: 'The driver sees it when their phone reconnects.' })
+    const open = (id?: string) => !!id && !!trip?.stops.includes(id) && !['DELIVERED', 'PARTIAL', 'FAILED', 'RECEIVED', 'ARRIVED'].includes(byId(d.orders, id)?.status ?? '')
+    const reported = trip?.reportedDelay?.orderId
+    const borella = trip?.stops.find((id) => byId(d.orders, id)?.outletId === STORY.store)
+    const target = [reported, borella, ...[...(trip?.stops ?? [])].reverse()].find(open)
+    if (!trip || trip.status !== 'IN_PROGRESS' || !target) return toast(`Start ${STORY.vehicle}’s route first`, { tone: 'info', body: 'The driver needs to be on the road with a stop still to deliver.' })
+    const delay = trip.reportedDelay
+    const outlet = byId(d.outlets, byId(d.orders, target)?.outletId)
+    const why = delay && delay.orderId === target
+      ? `Road to ${outlet?.name ?? outlet?.id} blocked — driver reported ~${delay.minutes} min delay, would miss the window. Sent on the reserve van.`
+      : 'Late-window risk — sent from the depot on the reserve van'
+    const r = ops('moveStop', target, STORY.reserveVan, why)
+    if (r.ok) toast(`${outlet?.id} moved to ${STORY.reserveVan}`, { body: 'The driver sees it when their phone reconnects.' })
     else toast('Could not move the stop', { tone: 'critical', body: r.message })
   }
 

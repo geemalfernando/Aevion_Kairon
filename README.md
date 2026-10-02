@@ -324,14 +324,18 @@ the bottom left of the app; it is presenter-only.
 
 **On the road (phone-sized, driver, offline)**
 
-10. **Driver** (`driver@kairon.demo`, VEH002): open `/driver`, start the route, arrive at and deliver the first stop.
-11. **Go offline** (the hero degradation scenario). In the driver's window use Demo, **Simulate offline**. The app shows
-    "You're offline" with a pending count. The driver reports the road to OUT005 as blocked with a delay, then keeps
-    delivering; each action is saved on the phone and listed at `/driver/sync`. TODO: confirm the exact screens for
-    reporting a road problem. Shortcut: `/driver/route?demo=offline`.
-12. **Dispatcher**: open `/dispatcher/routes/TRP-002-1`. A quiet driver is still assumed on plan; a stop moves only on
-    the driver's own report. The move-stop dialog compares staying with moving, including fuel. Use Demo, **Move a
-    VEH002 stop to the reserve van** (VEH036). Shortcut: `/dispatcher/routes/TRP-002-1?modal=move-stop&demo=move-stop`.
+10. **Driver** (`driver@kairon.demo`, VEH002): set the clock with Demo, **04:40 departure**, open `/driver`, start the
+    route, then arrive at and deliver the first stop (**I've arrived**, **Confirm items**, a proof photo or signature,
+    **Deliver**).
+11. **Road blocked, then signal lost** (the hero degradation scenario). While still online, the driver opens **Issues**,
+    **Report vehicle issue**, chooses **Road blocked**, picks **OUT005** (Fresh Borella) as the stop that will be late,
+    a delay such as 90 min, and taps **Tell the dispatcher**. Then, in the driver's window, Demo, **Simulate offline**.
+    The app shows "You're offline" with a pending count; the driver keeps delivering, and each action is saved on the
+    phone and listed at `/driver/sync`. Shortcut: `/driver/route?demo=offline`.
+12. **Dispatcher**: the road report appears in **Issues** and on `/dispatcher/routes/TRP-002-1`. A quiet driver is
+    still assumed on plan; a stop moves only on the driver's own report. The move-stop dialog compares staying with
+    moving, including fuel. Use Demo, **Move a VEH002 stop to the reserve van**: it moves the reported stop (Borella) to
+    VEH036 as trip TRP-036-M1. Shortcut: `/dispatcher/routes/TRP-002-1?modal=move-stop&demo=move-stop`.
 13. **Reconnect.** Turn Simulate offline off. The queued events replay in order. On `/driver/reconcile` the route
     change cannot be missed: it shows what was kept, what moved and what to do now, and the driver acknowledges it.
     Dispatcher `/dispatcher/live` shows the sync report and that the driver saw the change. Shortcuts:
