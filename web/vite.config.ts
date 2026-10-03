@@ -52,12 +52,11 @@ export default defineConfig({
             urlPattern: ({ url }) => url.host === 'tile.openstreetmap.org',
             handler: 'CacheFirst',
             options: {
-              cacheName: 'osm-tiles',
+              cacheName: 'osm-tiles-v2',
               fetchOptions: { referrerPolicy: 'strict-origin-when-cross-origin' },
               expiration: { maxEntries: 600, maxAgeSeconds: 60 * 60 * 24 * 14 },
               cacheableResponse: { statuses: [0, 200] },
             },
-            options: { cacheName: 'osm-tiles-v2', expiration: { maxEntries: 600, maxAgeSeconds: 60 * 60 * 24 * 14 }, cacheableResponse: { statuses: [0, 200] } },
           },
         ],
       },
