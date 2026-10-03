@@ -126,6 +126,8 @@ function BaseMap({ className, children, fit, maxZoom, interactive = true, extraC
         <TileLayer
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
           maxZoom={19}
+          // The app sends no Referer by default; OpenStreetMap blocks tile requests without one, so tiles send the origin only.
+          referrerPolicy="strict-origin-when-cross-origin"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           eventHandlers={{ tileerror: () => setTilesDown(true), tileload: () => setTilesDown(false) }}
         />
