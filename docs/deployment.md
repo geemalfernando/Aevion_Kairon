@@ -121,7 +121,19 @@ Modify the separate initial-users secret through an authorized administrator wor
 
 Use a separate production stack and hostname/project boundary. Set `DeploymentEnv=production`, require TLS Redis, provision verified providers/alarms, configure retention policies and test an RDS snapshot restore. RDS defaults to deletion protection and snapshot-on-removal; S3 and generated secrets are retained. Cleanup is an explicit process, and retained resources/network NAT gateways continue to incur charges. Do not delete the existing network while either application stack needs it.
 
-## 6. Continuous deployment from GitHub Actions
+## 6. Continuous deployment
+
+### AWS CodeBuild (active)
+
+`infra/aws/codebuild-deploy.json` (stack `kairon-codebuild`) creates a CodeBuild project that releases `main` on every push, using a GitHub connection instead of GitHub Actions minutes. It runs the same steps as the workflow below: schema guard, image build and push tagged `git-<commit>-<build number>`, `deploy-rds.mjs release` through the CloudFormation execution role, then the health and 401 checks.
+
+1. Deploy the stack with `ConnectionReady=false`, `RepositoryName` (from `RepositoryUri`) and `ExecutionRoleArn` (from `kairon-github-deploy`). This creates a pending connection.
+2. Install the **AWS Connector for GitHub** app on the repository (github.com/apps/aws-connector-for-github), then in the console open Developer Tools → Settings → Connections, choose the pending connection, **Update pending connection** and **Connect**. Authorizing the app without installing it is not enough: builds fail with "authorization failed for primary source".
+3. Update the stack with `ConnectionReady=true`. `AutoDeploy=false` creates the project without the push webhook.
+
+Deploy by hand from CodeBuild → Build projects → **Start build**. After a hand-tagged release, the first build must use **Start build with overrides** and set `SCHEMA_CONFIRMED=true`. A build that fails the schema guard leaves the running release untouched; run `migrate` by hand, then start the build again.
+
+### GitHub Actions
 
 After the first `activate`, `.github/workflows/deploy-aws.yml` releases `main` to staging whenever CI passes on a push. It reads the deployed stack's parameters (`scripts/stack-parameters.mjs`), builds and pushes the image tagged `git-<commit>-<attempt>`, runs `deploy-rds.mjs release` and checks `/api/health` and the 401 guard on `ApplicationUrl`. It refuses to deploy a commit that changes `database/` or the migration/import/user scripts since the deployed image; run `migrate` by hand, then re-run the workflow. The first run after a hand-tagged release must be started manually (Actions → Deploy AWS staging → Run workflow).
 
