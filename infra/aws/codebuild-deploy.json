@@ -1,6 +1,6 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
-  "Description": "Kairon continuous deployment inside AWS: a CodeBuild project that releases main to the application stack on every push, through a GitHub connection. Deploy with ConnectionReady=false, approve the pending connection in the console, then update with ConnectionReady=true.",
+  "Description": "Kairon continuous deployment inside AWS: a CodeBuild project that releases main to the application stack on every push, through a GitHub connection. Deploy with ConnectionReady=false, approve the pending connection in the console, then update with ConnectionReady=true. Each build runs scripts/codebuild-release.mjs.",
   "Parameters": {
     "ConnectionReady": {
       "Type": "String",
@@ -40,6 +40,12 @@
         "false"
       ],
       "Description": "Start a build on every push to the branch (needs the AWS Connector for GitHub app installed on the repository)."
+    },
+    "GitHubRepository": {
+      "Type": "String",
+      "Default": "geemalfernando/Kairon",
+      "AllowedPattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+      "Description": "owner/name, for GitHub deployment records."
     }
   },
   "Conditions": {
@@ -195,6 +201,14 @@
                   "Resource": {
                     "Fn::Sub": "${BuildLogs.Arn}"
                   }
+                },
+                {
+                  "Sid": "ReadGitHubToken",
+                  "Effect": "Allow",
+                  "Action": "secretsmanager:GetSecretValue",
+                  "Resource": {
+                    "Ref": "GitHubDeploymentToken"
+                  }
                 }
               ]
             }
@@ -213,7 +227,6 @@
             "Arn"
           ]
         },
-        "ConcurrentBuildLimit": 1,
         "TimeoutInMinutes": 60,
         "Artifacts": {
           "Type": "NO_ARTIFACTS"
@@ -239,6 +252,19 @@
             {
               "Name": "SCHEMA_CONFIRMED",
               "Value": "false"
+            },
+            {
+              "Name": "GITHUB_REPOSITORY",
+              "Value": {
+                "Ref": "GitHubRepository"
+              }
+            },
+            {
+              "Name": "GITHUB_TOKEN",
+              "Type": "SECRETS_MANAGER",
+              "Value": {
+                "Ref": "GitHubDeploymentToken"
+              }
             }
           ]
         },
@@ -265,47 +291,7 @@
               "Ref": "GitHubConnection"
             }
           },
-          "BuildSpec": {
-            "Fn::Join": [
-              "\n",
-              [
-                "version: 0.2",
-                "phases:",
-                "  install:",
-                "    runtime-versions:",
-                "      nodejs: 22",
-                "  pre_build:",
-                "    commands:",
-                "      - docker buildx version",
-                "      - node scripts/stack-parameters.mjs \"$STACK\" > \"$CODEBUILD_SRC_DIR/../parameters.json\"",
-                "      - |",
-                "        set -eu",
-                "        SHA=$CODEBUILD_RESOLVED_SOURCE_VERSION",
-                "        deployed=$(aws cloudformation describe-stacks --stack-name \"$STACK\" --query \"Stacks[0].Parameters[?ParameterKey=='ImageTag'].ParameterValue\" --output text)",
-                "        schema=\"database/ server/scripts/migrate-rds.ts server/scripts/import-rds.ts server/scripts/rds-users.ts\"",
-                "        case \"$deployed\" in",
-                "          git-*)",
-                "            base=$(echo \"$deployed\" | cut -d- -f2)",
-                "            if ! git diff --quiet \"$base\" \"$SHA\" -- $schema; then echo \"Schema files changed since $deployed. Run deploy-rds.mjs migrate by hand, then start this build again.\"; exit 1; fi ;;",
-                "          *)",
-                "            if [ \"$SCHEMA_CONFIRMED\" != true ]; then echo \"Deployed image $deployed was released by hand, so schema changes can't be compared. Start this build once with SCHEMA_CONFIRMED=true.\"; exit 1; fi ;;",
-                "        esac",
-                "  build:",
-                "    commands:",
-                "      - node scripts/deploy-rds.mjs release \"$STACK\" \"$CODEBUILD_SRC_DIR/../parameters.json\" \"git-$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c1-12)-$CODEBUILD_BUILD_NUMBER\"",
-                "  post_build:",
-                "    commands:",
-                "      - |",
-                "        set -eu",
-                "        [ \"$CODEBUILD_BUILD_SUCCEEDING\" = 1 ]",
-                "        url=$(aws cloudformation describe-stacks --stack-name \"$STACK\" --query \"Stacks[0].Outputs[?OutputKey=='ApplicationUrl'].OutputValue\" --output text)",
-                "        for n in $(seq 1 20); do curl -fsS \"$url/api/health\" | grep -q '\"ok\":true' && break; sleep 15; done",
-                "        curl -fsS \"$url/api/health\" | grep -q '\"ok\":true'",
-                "        test \"$(curl -s -o /dev/null -w '%{http_code}' \"$url/api/state\")\" = 401",
-                "        echo \"Released $CODEBUILD_RESOLVED_SOURCE_VERSION to $url\""
-              ]
-            ]
-          }
+          "BuildSpec": "version: 0.2\nphases:\n  install:\n    runtime-versions:\n      nodejs: 22\n  build:\n    commands:\n      - docker buildx version\n      - node scripts/codebuild-release.mjs"
         },
         "Triggers": {
           "Fn::If": [
@@ -333,6 +319,13 @@
           ]
         }
       }
+    },
+    "GitHubDeploymentToken": {
+      "Type": "AWS::SecretsManager::Secret",
+      "Properties": {
+        "Description": "Fine-grained GitHub token with Deployments read/write on the repository. Replace not-set with the token; builds skip GitHub deployment records until then.",
+        "SecretString": "not-set"
+      }
     }
   },
   "Outputs": {
@@ -345,6 +338,11 @@
       "Condition": "Ready",
       "Value": {
         "Ref": "Release"
+      }
+    },
+    "GitHubTokenSecretName": {
+      "Value": {
+        "Ref": "GitHubDeploymentToken"
       }
     }
   }
