@@ -1,7 +1,8 @@
 /** The demo delivery day: the story cast has the roles the walkthrough needs, and a reset rebuilds the same network. */
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { RECOVERY_RESERVE, seedDemoOps, STORY, STORY_OUTLETS, storedReference } from '@core/demo'
+import { RECOVERY_RESERVE, seedDemoOps, STORY, STORY_OUTLETS, storedReference, storeDemoUsers } from '@core/demo'
+import { projectState } from '@core/access'
 import { applyEvent, commands, opNow } from '@core/ops'
 import { byId } from '@core/rules'
 import { colomboDate, colomboTs, hm } from '@core/time'
@@ -9,6 +10,22 @@ import type { FieldEvent, OpsData } from '@core/types'
 
 describe('demo delivery day', () => {
   const d = seedDemoOps({ today: '2026-09-27' })
+  it('provides a store account for every brand with access only to its assigned outlet', () => {
+    const users = storeDemoUsers(d.outlets)
+    assert.equal(users.length, 3)
+    assert.equal(new Set(users.map(u => u.email)).size, 3)
+    assert.deepEqual(users.map(u => d.outlets.find(o => o.id === u.assignedOutlet)?.brand), ['Fresh', 'Style', 'Tech'])
+    for (const user of users) {
+      const view = projectState(d, user)
+      assert.deepEqual(view.outlets.map(o => o.id), [user.assignedOutlet])
+      assert.ok(view.orders.every(o => o.outletId === user.assignedOutlet))
+    }
+    const imported = d.outlets.map(o => ({ ...o, id: `imported-${o.id}`, depot: 'Kandy' as const }))
+    for (const user of storeDemoUsers(imported)) {
+      assert.equal(user.depot, 'Kandy')
+      assert.ok(user.assignedOutlet?.startsWith('imported-'))
+    }
+  })
   it('casts the story on vehicles and outlets with the roles the walkthrough needs', () => {
     const v = byId(d.vehicles, STORY.vehicle)!
     assert.deepEqual([v.kind, v.temp, v.depot, v.status], ['truck', 'reefer', 'Peliyagoda', 'AVAILABLE'])

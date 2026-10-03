@@ -20,6 +20,18 @@ CloudFront-to-ALB and ALB-to-task connections use HTTP inside the private networ
 
 ## 1. Prepare and upload the current files
 
+### Store-type staging accounts
+
+Local Docker includes `fresh@kairon.demo`, `style@kairon.demo`, and `tech@kairon.demo` with password `kairon2026`. Hosted RDS accounts must be provisioned separately. After importing the operation, run the following from a maintenance environment inside the VPC with the migration/administrator DB credentials (ordinary CloudShell cannot reach private RDS):
+
+```sh
+read -r -s -p 'Store staging password (at least 10 characters): ' KAIRON_STORE_PASSWORD
+printf '%s' "$KAIRON_STORE_PASSWORD" | BACKEND=rds DEPLOYMENT_ENV=staging npm --prefix server run rds:store-users
+unset KAIRON_STORE_PASSWORD
+```
+
+This creates one store manager for each brand using the loaded outlet IDs and depots. Existing accounts and passwords are preserved; email verification is not assumed. Use `kairon2026` for the requested demo password. This helper refuses production. Provision real production identities through `rds:users` instead.
+
 Use the updated checkout, not the old Supabase release tag. Generate the source archive with `node scripts/package-cloudshell.mjs`. It excludes `.env`, private data exports, local parameters and initial-user credentials. It includes uncommitted source changes, so review those before deploying. The older `kairon-cloudshell.tar.gz` bundle does not implement RDS.
 
 Prepared local files in `artifacts/cloudshell/`:

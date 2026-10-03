@@ -1,11 +1,20 @@
 /**
- * Sign-in without Supabase (the local backend, `docker compose up`): the four seeded demo accounts, one per role,
+ * Sign-in without Supabase (the local backend, `docker compose up`): seeded role and store-type demo accounts,
  * with HMAC-signed session tokens. Same response shapes as the Supabase sign-in so the web app can't tell them apart.
  */
 import crypto from 'node:crypto'
-import { DEMO_PASSWORD, DEMO_USERS } from '@core/demo'
+import { DEMO_PASSWORD, DEMO_USERS, STORE_DEMO_EMAILS, storeDemoUsers } from '@core/demo'
 import type { User } from '@core/types'
 import { config } from './config'
+import { loadOps } from './db-postgres'
+
+async function findUser(email: string) {
+  const existing = Object.values(DEMO_USERS).find(u => u.email === email)
+  if (existing) return existing
+  if (!Object.values(STORE_DEMO_EMAILS).includes(email as typeof STORE_DEMO_EMAILS[keyof typeof STORE_DEMO_EMAILS])) return undefined
+  const data = await loadOps()
+  return data ? storeDemoUsers(data.outlets).find(u => u.email === email) : undefined
+}
 
 type Kind = 'access' | 'refresh'
 interface Claims { sub: string; typ: Kind; exp: number }
@@ -32,12 +41,12 @@ function issue(email: string, typ: Kind, ttlSeconds: number) {
   return { token: `${body}.${sign(body)}`, exp }
 }
 
-function read(token: string | undefined, typ: Kind): { user: User; exp: number } | null {
+async function read(token: string | undefined, typ: Kind): Promise<{ user: User; exp: number } | null> {
   const [body, sig, extra] = (token ?? '').split('.')
   if (!body || !sig || extra !== undefined || !same(sig, sign(body))) return null
   try {
     const c = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as Claims
-    const user = Object.values(DEMO_USERS).find((u) => u.email === c.sub)
+    const user = await findUser(c.sub)
     return user && c.typ === typ && c.exp * 1000 > Date.now() ? { user, exp: c.exp } : null
   } catch {
     return null
@@ -50,17 +59,17 @@ function session(user: User) {
 }
 
 export async function login(email: string, password: string) {
-  const user = Object.values(DEMO_USERS).find((u) => u.email === email.trim().toLowerCase())
+  const user = await findUser(email.trim().toLowerCase())
   const ok = same(crypto.createHash('sha256').update(password).digest('hex'), crypto.createHash('sha256').update(DEMO_PASSWORD).digest('hex'))
   return user && ok ? session(user) : null
 }
 
 export async function refreshSession(refreshToken: string) {
-  const r = read(refreshToken, 'refresh')
+  const r = await read(refreshToken, 'refresh')
   return r ? session(r.user) : null
 }
 
 export async function verifyToken(token: string | undefined) {
-  const r = read(token, 'access')
+  const r = await read(token, 'access')
   return r ? { ...r.user, id: r.user.email, exp: r.exp * 1000 } : null
 }

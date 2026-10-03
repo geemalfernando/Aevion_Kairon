@@ -49,6 +49,8 @@ Every local demo account uses the password **`kairon2026`**. Hosted accounts hav
 | Driver | `driver@kairon.demo` | Nimal, drives reefer truck VEH002 |
 | Store manager | `store@kairon.demo` | Dilini, Fresh Borella (OUT005) |
 
+Store-type demo logins are also available: **`fresh@kairon.demo`**, **`style@kairon.demo`**, and **`tech@kairon.demo`**, all with **`kairon2026`**. Fresh uses the walkthrough outlet when available; Style and Tech use the first outlet of their brand in the loaded dataset. Each manager sees only their assigned outlet. The local sign-in page includes buttons for these accounts. Run `docker compose up` to rebuild and enable them.
+
 The stack has three containers: **frontend** (nginx serving the web app on port 8080 and forwarding `/api`), **backend** (the API) and **database** (PostgreSQL 16). The first start creates the
 schema, and every API startup seeds one realistic delivery day: the network, fleet and calendar from the competition CSVs when they are in
 `data/`, otherwise placeholders, and about 150 orders. The clock starts at 15:20 on the ordering day, 40 minutes before

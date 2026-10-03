@@ -25,6 +25,7 @@
     "notifications:verify-phone": "tsx scripts/set-notification-phone.ts",
     "rds:migrate": "node --import tsx scripts/migrate-rds.ts",
     "rds:users": "node --import tsx scripts/rds-users.ts",
+    "rds:store-users": "node --import tsx scripts/rds-store-users.ts",
     "migration:export-supabase": "node --import tsx scripts/export-supabase.ts",
     "test:rds": "node scripts/test-rds.mjs"
   },
