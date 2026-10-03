@@ -1,18 +1,36 @@
-/** Explicit import of genuine reference data; preserves orders and other operational history. */
+/**
+ * Explicit import of genuine reference data; preserves orders and other operational history.
+ *
+ *   Files from DATA_DIR, or from MEDIA_BUCKET under DATA_S3_PREFIX=migration/… (AWS one-off task; read-only filesystem).
+ *   IMPORT_KEEP_CATALOG=true keeps the operation's current product catalogue instead of reading catalog.json.
+ *   --dry-run validates and reports without saving; DRY_RUN_STATE=state.json reads the operation from a file.
+ */
 import fs from 'node:fs'
 import path from 'node:path'
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { buildReference } from '@core/reference'
 import { districtsFrom, outletsFrom, vehiclesFrom } from '@core/adapter'
 import { measure, type Catalog } from '@core/catalog'
 import { seedOps } from '@core/ops'
 import type { CsvName } from '@core/csv'
-import { loadOps, persistState, transaction } from '../src/db'
+import type { OpsData } from '@core/types'
 import { config } from '../src/config'
 
+const dryRun = process.argv.includes('--dry-run')
+const prefix = process.env.DATA_S3_PREFIX
+if (prefix && !prefix.startsWith('migration/')) throw new Error('DATA_S3_PREFIX must be under migration/')
+const read = async (file: string) => prefix
+  ? (await (await new S3Client({}).send(new GetObjectCommand({ Bucket: config.mediaBucket, Key: `${prefix.replace(/\/?$/, '/')}${file}` }))).Body!.transformToString())
+  : fs.readFileSync(path.join(config.dataDir, file), 'utf8')
+
 const names: CsvName[] = ['outlets', 'vehicles', 'calendar', 'district_travel', 'service_allowance', 'fleet_status']
-const csv = Object.fromEntries(names.map((name) => [name, fs.readFileSync(path.join(config.dataDir, `${name}.csv`), 'utf8')]))
+const csv = Object.fromEntries(await Promise.all(names.map(async (name) => [name, await read(`${name}.csv`)] as const)))
 const ref = buildReference(csv)
-const catalog = JSON.parse(fs.readFileSync(path.join(config.dataDir, 'catalog.json'), 'utf8')) as Catalog
+const db = dryRun && process.env.DRY_RUN_STATE ? undefined : await import('../src/db')
+const before = (db ? await db.loadOps() : JSON.parse(fs.readFileSync(process.env.DRY_RUN_STATE!, 'utf8'))) as OpsData | null
+const keepCatalog = process.env.IMPORT_KEEP_CATALOG === 'true'
+if (keepCatalog && !before?.catalog) throw new Error('IMPORT_KEEP_CATALOG needs an existing operation with a catalogue')
+const catalog = (keepCatalog ? before!.catalog : JSON.parse(await read('catalog.json'))) as Catalog
 for (const [brand, groups] of Object.entries(catalog)) {
   if (!['Fresh', 'Style', 'Tech'].includes(brand) || !groups || !Array.isArray(groups.ambient) || !Array.isArray(groups.chilled)) throw new Error('Invalid catalogue brand or groups')
   const names = new Set<string>()
@@ -22,7 +40,6 @@ for (const [brand, groups] of Object.entries(catalog)) {
     measure(brand as keyof Catalog, [{ name: p[0], unit: p[1], qty: 1 }], catalog)
   }
 }
-const before = await loadOps()
 const next = structuredClone(before ?? seedOps())
 const districts = districtsFrom(ref)
 const outlets = outletsFrom(ref, districts)
@@ -39,6 +56,12 @@ for (const v of vehicles) {
   const existing = next.vehicles.find((x) => x.id === v.id)
   if (existing) Object.assign(v, { fuelUsedL: existing.fuelUsedL, driver: existing.driver })
 }
-Object.assign(next, { districts, outlets, vehicles, calendar: ref.calendar, allowances: ref.allowances, catalog })
-await persistState(before, next, transaction())
-console.log(`Imported ${outlets.length} outlets and ${vehicles.length} vehicles; preserved ${next.orders.length} orders.`)
+// demoSource is what /api/health reports and what a staging demo reset rebuilds from, so it must name the imported data.
+const demoSource = { outlets: ref.outlets, vehicles: ref.vehicles, districts: ref.districts, fleet: ref.fleet, sources: ref.sources }
+Object.assign(next, { districts, outlets, vehicles, calendar: ref.calendar, allowances: ref.allowances, catalog, demoSource })
+const lastDate = ref.calendar.at(-1)?.date
+console.log(`Importing ${outlets.length} outlets, ${vehicles.length} vehicles (${vehicles.filter((v) => v.status === 'IN_WORKSHOP').length} in workshop), ${districts.length} districts, ${ref.calendar.length} calendar days to ${lastDate}${keepCatalog ? ', current catalogue kept' : ''}; preserving ${next.orders.length} orders.`)
+if (dryRun) { console.log('Dry run: nothing saved.'); process.exit(0) }
+await db!.persistState(before, next, db!.transaction())
+console.log(`Saved operation version ${next.version}.`)
+process.exit(0)
