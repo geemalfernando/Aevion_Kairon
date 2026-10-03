@@ -367,7 +367,7 @@ export const DEMO_USERS: Record<Role, User> = {
   DRIVER: { name: 'Nimal', email: 'driver@kairon.demo', role: 'DRIVER', depot: 'Peliyagoda', assignedVehicle: STORY.vehicle },
   STORE_MANAGER: { name: 'Dilini', email: 'store@kairon.demo', role: 'STORE_MANAGER', depot: 'Peliyagoda', assignedOutlet: STORY.store },
 }
-export const DEMO_PASSWORD = 'kairon-demo'
+export const DEMO_PASSWORD = 'kairon2026'
 
 // ---------------------------------------------------------------------------
 // Demo enrichment and the delivery day

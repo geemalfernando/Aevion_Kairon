@@ -55,6 +55,8 @@ export const config = {
   demoMode: env.DEMO_MODE === 'true',
   /** Seed one realistic delivery day (demo network or DATA_DIR CSVs) when the store is empty or reset. */
   seedDemoDay: env.SEED_DEMO_DAY === 'true',
+  /** Replace the local demo operation on each API startup, even with an existing database volume. */
+  seedDemoEveryStart: env.SEED_DEMO_EVERY_START === 'true',
   webOrigins: (env.WEB_ORIGIN ?? 'http://localhost:5173').split(',').map((s) => s.trim()),
   publicApiUrl: (env.PUBLIC_API_URL ?? '').replace(/\/$/, ''),
   dataDir: env.DATA_DIR ?? path.resolve(here, '../../data'),
@@ -67,6 +69,7 @@ export const config = {
 /** Fail closed before a hosted service can expose the local demo authenticator. */
 export function validateDeployment(c = config) {
   if (!Number.isInteger(c.trustProxy) || c.trustProxy < 0) throw new Error('TRUST_PROXY_HOPS must be a non-negative integer')
+  if (c.seedDemoEveryStart && (c.deploymentEnv !== 'development' || c.backend !== 'postgres' || !c.demoMode || !c.seedDemoDay)) throw new Error('SEED_DEMO_EVERY_START requires the local PostgreSQL demo with DEMO_MODE and SEED_DEMO_DAY enabled')
   if (!['staging', 'production'].includes(c.deploymentEnv)) return
   if (c.demoMode || c.seedDemoDay) throw new Error('Hosted deployments must disable DEMO_MODE and SEED_DEMO_DAY')
   if (!['supabase','rds'].includes(c.backend)) throw new Error('Hosted deployments require managed identities; PostgreSQL-only authentication is demo-only')

@@ -41,7 +41,9 @@ export async function buildApp() {
   }
 
   app.addHook('onRequest', async (req, reply) => {
-    reply.header('x-content-type-options', 'nosniff').header('referrer-policy', 'no-referrer').header('x-frame-options', 'DENY')
+    // OSM browser tiles require a Referer. Pages send only their origin cross-site;
+    // API responses continue to suppress referrers entirely.
+    reply.header('x-content-type-options', 'nosniff').header('referrer-policy', req.url.startsWith('/api/') ? 'no-referrer' : 'strict-origin-when-cross-origin').header('x-frame-options', 'DENY')
     reply.header('permissions-policy', 'camera=(self), microphone=(), geolocation=(self)')
     reply.header('content-security-policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org; font-src 'self'; connect-src 'self' https://tile.openstreetmap.org; worker-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'")
     if (['staging', 'production'].includes(config.deploymentEnv)) reply.header('strict-transport-security', 'max-age=31536000')

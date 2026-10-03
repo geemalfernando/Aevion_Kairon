@@ -139,6 +139,25 @@ Deploy by hand from CodeBuild → Build projects → **Start build**. After a ha
 
 ### GitHub Actions
 
+The separate **Publish container packages** workflow publishes the production image and the two local demo
+images to GitHub Container Registry (see [README](../README.md#github-container-packages)). AWS deployment
+continues to use ECR. GitHub packages do not change an already-running ECS service.
+
+### OpenStreetMap on AWS
+
+The web page and service worker use `strict-origin-when-cross-origin` so OpenStreetMap receives the app's
+origin as its referrer. API responses retain `no-referrer`. CSP permits `https://tile.openstreetmap.org`
+for tile images and service-worker fetches. This follows the [OpenStreetMap tile usage policy](https://operations.osmfoundation.org/policies/tiles/).
+
+Release the updated production image with the existing AWS workflow. In an open browser, accept the
+**Reload to update** prompt to activate the new service worker. Check the browser Network panel for
+`tile.openstreetmap.org`: requests should carry `Referer: https://YOUR_DISTRIBUTION.cloudfront.net/`
+and return 200. A 403 may indicate provider blocking; a CSP error means deployed headers differ from this
+source. Report the request status and browser console message if tiles still fail. Tiles are fetched by
+the browser, so these requests do not pass through the application's NAT gateways.
+
+### AWS release automation
+
 After the first `activate`, `.github/workflows/deploy-aws.yml` releases `main` to staging whenever CI passes on a push. It reads the deployed stack's parameters (`scripts/stack-parameters.mjs`), builds and pushes the image tagged `git-<commit>-<attempt>`, runs `deploy-rds.mjs release` and checks `/api/health` and the 401 guard on `ApplicationUrl`. It refuses to deploy a commit that changes `database/` or the migration/import/user scripts since the deployed image; run `migrate` by hand, then re-run the workflow. The first run after a hand-tagged release must be started manually (Actions → Deploy AWS staging → Run workflow).
 
 The account's organization policy blocks GitHub OIDC providers, so CI uses an IAM user's access key. Deploy `infra/aws/github-deploy.json` once (stack `kairon-github-deploy`, `RepositoryName` = the part of `RepositoryUri` after the slash). The user can push only that ECR repository and change only the application stack, through an execution role that only CloudFormation can assume. Create its access key and store it in the GitHub `staging` environment without displaying it:
