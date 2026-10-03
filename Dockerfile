@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Images for `docker compose up --build` (see docker-compose.yml):
+# Images for `docker compose up` (see docker-compose.yml):
 #   --target frontend   nginx serving the built web app, forwarding /api to the backend
 #   --target backend    the Kairon API (Fastify on Node.js)
 # Competition data is never copied into an image; compose mounts ./data at runtime.

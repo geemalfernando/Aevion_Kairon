@@ -14,7 +14,7 @@ async function call(path: string, token?: string, body?: unknown, method = body 
   const r = await fetch(API + path, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: body ? JSON.stringify(body) : undefined })
   return { status: r.status, json: (await r.json().catch(() => ({}))) as Json }
 }
-const login = async (email: string) => (await call('/api/auth/login', undefined, { email, password: 'kairon-demo' })).json.token as string
+const login = async (email: string) => (await call('/api/auth/login', undefined, { email, password: 'kairon2026' })).json.token as string
 const cmd = (token: string, name: string, ...args: unknown[]) => call(`/api/commands/${name}`, token, { args })
 let n = 0
 const ev = (event: Json, at = Date.now()) => ({ id: `smoke-${Date.now()}-${n++}`, at, actor: 'X', event, status: 'pending' })

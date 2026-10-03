@@ -1,0 +1,83 @@
+name: Publish container packages
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+concurrency:
+  group: packages-${{ github.event.workflow_run.head_sha || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: kairon
+            target: production
+            demo: 'false'
+          - package: kairon-demo-api
+            target: backend
+            demo: 'true'
+          - package: kairon-demo-web
+            target: frontend
+            demo: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+      - uses: docker/setup-buildx-action@v3
+      - name: Record checked-out revision
+        id: revision
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Lowercase registry namespace
+        id: registry
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: echo "owner=${OWNER,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/${{ steps.registry.outputs.owner }}/${{ matrix.package }}
+          tags: |
+            type=raw,value=sha-${{ steps.revision.outputs.sha }}
+            type=raw,value=latest,enable=${{ github.event_name == 'workflow_run' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') }}
+            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
+          flavor: latest=false
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+      - uses: docker/build-push-action@v6
+        id: build
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          push: true
+          build-args: VITE_DEMO_MODE=${{ matrix.demo }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.package }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.package }}
+      - name: Record image digest
+        env:
+          IMAGE: ghcr.io/${{ steps.registry.outputs.owner }}/${{ matrix.package }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: echo "$IMAGE@$DIGEST" >> "$GITHUB_STEP_SUMMARY"

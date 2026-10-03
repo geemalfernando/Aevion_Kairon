@@ -1,14 +1,14 @@
 # The whole product on one machine, no external services:
-#   docker compose up --build        then open http://localhost:8080
+#   docker compose up               then open http://localhost:8080
 #
 #   frontend  web app (nginx) on port 8080; forwards /api to the backend
 #   backend   Kairon API with the four demo accounts and one seeded delivery day
-#             dispatcher@ / loader@ / driver@ / store@kairon.demo, password kairon-demo
+#             dispatcher@ / loader@ / driver@ / store@kairon.demo, password kairon2026
 #   database  PostgreSQL 16, the operation's storage (kept in the db-data volume)
 #
 # Competition CSVs and catalog.json in ./data are read at start (mounted read-only); otherwise placeholders.
-# Start over with a clean database: docker compose down -v && docker compose up --build
-# The hosted deployment (Vercel + Supabase) is configured separately; see README.
+# Start over with a clean database: docker compose down -v && docker compose up
+# AWS deployment is configured separately; see docs/deployment.md.
 name: kairon
 
 services:
@@ -28,6 +28,8 @@ services:
     restart: unless-stopped
 
   backend:
+    # Recheck source changes on every `up`; unchanged layers still use the build cache.
+    pull_policy: build
     build:
       context: .
       target: backend
@@ -36,11 +38,16 @@ services:
         condition: service_healthy
     environment:
       PORT: 8080
+      BACKEND: postgres
+      DEPLOYMENT_ENV: development
+      ENV_FILE: .env.docker-unused
+      TRUST_PROXY_HOPS: 1
       DATABASE_URL: postgres://kairon:kairon@database:5432/kairon
       # Signs local session tokens. Set your own if anyone else can reach this stack.
       AUTH_SECRET: ${AUTH_SECRET:-kairon-local-demo-secret-change-me}
       DEMO_MODE: "true"
       SEED_DEMO_DAY: "true"
+      SEED_DEMO_EVERY_START: "true"
       DATA_DIR: /app/data
       WEB_ORIGIN: http://localhost:${APP_PORT:-8080}
       LOG_LEVEL: info
@@ -49,6 +56,7 @@ services:
     restart: unless-stopped
 
   frontend:
+    pull_policy: build
     build:
       context: .
       target: frontend

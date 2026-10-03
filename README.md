@@ -31,11 +31,16 @@ share one operation, so a reset also resets what other judges see.
 Needs only Docker.
 
 ```sh
-docker compose up --build
+docker compose up
 ```
 
 Open <http://localhost:8080> and sign in with one of the four accounts (the sign-in page also has one-tap buttons).
-The same four accounts work on the deployed site and locally. Every account uses the password **`kairon-demo`**.
+Each `up` builds the current web app and API from your checkout, using cached layers when unchanged.
+No `.env`, Supabase project or AWS credentials are needed. For background operation, use `docker compose up -d`;
+stop with `docker compose down`. Each API startup reseeds the demo day, replacing previous demo progress
+even when the PostgreSQL volume already exists. To keep progress instead, set `SEED_DEMO_EVERY_START: "false"`
+in `docker-compose.yml`. To reseed an already-running stack, use `docker compose restart backend`.
+Every local demo account uses the password **`kairon2026`**. Hosted accounts have separately managed passwords.
 
 | Role | Email | Who |
 |---|---|---|
@@ -45,13 +50,13 @@ The same four accounts work on the deployed site and locally. Every account uses
 | Store manager | `store@kairon.demo` | Dilini, Fresh Borella (OUT005) |
 
 The stack has three containers: **frontend** (nginx serving the web app on port 8080 and forwarding `/api`), **backend** (the API) and **database** (PostgreSQL 16). The first start creates the
-schema and seeds one realistic delivery day: the network, fleet and calendar from the competition CSVs when they are in
+schema, and every API startup seeds one realistic delivery day: the network, fleet and calendar from the competition CSVs when they are in
 `data/`, otherwise placeholders, and about 150 orders. The clock starts at 15:20 on the ordering day, 40 minutes before
 the cutoff. Then follow the [judge walkthrough](#judge-walkthrough). The **Demo** pill at the bottom left (presenter
 only) moves the clock, simulates offline and resets the day.
 
 `GET http://localhost:8080/api/health` reports which data files were loaded (`dataSources`). To start again from a
-clean database: `docker compose down -v && docker compose up --build`. To check the whole story automatically:
+clean database: `docker compose down -v && docker compose up`. To check the whole story automatically:
 `npm --prefix server ci && npm --prefix server run test:walkthrough`.
 
 > Dataset note: the competition datasets are confidential and are **not** in this repository. Without them the demo
@@ -59,6 +64,36 @@ clean database: `docker compose down -v && docker compose up --build`. To check 
 > booklet.
 
 ## Tech stack
+
+### GitHub container packages
+
+The **Publish container packages** workflow publishes Docker images to GitHub Packages after successful
+CI on `main`, when a release is published, or when started manually in Actions:
+
+| Image | Purpose |
+|---|---|
+| `ghcr.io/geemalfernando/kairon` | Production API and web app; requires hosted database and security configuration |
+| `ghcr.io/geemalfernando/kairon-demo-api` | Local demo API |
+| `ghcr.io/geemalfernando/kairon-demo-web` | Local demo web app |
+
+Images have `sha-<full commit>` tags; verified main builds also have `latest`, and releases get their version tag.
+The workflow uses GitHub's built-in token with `packages: write`; no extra publishing secret is needed.
+Packages are private initially. For private downloads, sign in with a classic personal access token with
+`read:packages` using `docker login ghcr.io -u YOUR_GITHUB_USERNAME` and enter the token at the password prompt.
+Public access can be enabled in each package's settings if desired.
+
+Once the packages are published, run the demo without building locally:
+
+```sh
+docker compose -f docker-compose.packages.yml up
+```
+
+Open <http://localhost:8080>. It uses the same demo accounts and startup reseeding as the source-built stack.
+Choose a specific published revision by setting `KAIRON_IMAGE_TAG=sha-<full commit>` before the command.
+Both Compose files use the same local project and database volume; stop the running stack before switching.
+AWS continues to pull production images from ECR through its existing deployment workflow.
+
+### Application technologies
 
 | Layer | Technology |
 |---|---|

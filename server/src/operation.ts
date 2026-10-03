@@ -67,6 +67,10 @@ export class Operation {
     if (existing) {
       this.state = existing
       this.sources = existing.demoSource?.sources ?? null
+      if (config.seedDemoEveryStart) {
+        await this.resetDemo()
+        return
+      }
       this.log.info(`Loaded operation for ${existing.deliveryDate} (version ${existing.version})`)
       return
     }

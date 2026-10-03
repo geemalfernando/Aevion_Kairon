@@ -3,6 +3,14 @@ import { test } from 'node:test'
 import { config, validateDeployment } from '../src/config'
 import { buildApp } from '../src/app'
 
+test('startup reseeding is restricted to the local PostgreSQL demo', () => {
+  const local = { ...config, deploymentEnv: 'development', backend: 'postgres' as const, demoMode: true, seedDemoDay: true, seedDemoEveryStart: true }
+  assert.doesNotThrow(() => validateDeployment(local))
+  for (const overrides of [{ deploymentEnv: 'production' }, { backend: 'rds' as const }, { backend: 'supabase' as const }, { demoMode: false }, { seedDemoDay: false }]) {
+    assert.throws(() => validateDeployment({ ...local, ...overrides }), /local PostgreSQL demo/)
+  }
+})
+
 test('hosted deployments reject demo authentication, demo controls and insecure origins', () => {
   const hosted = { ...config, deploymentEnv: 'production', backend: 'supabase' as const, demoMode: false, seedDemoDay: false, supabaseUrl: 'https://example.supabase.co', supabaseJwksUrl: 'https://example.supabase.co/auth/v1/.well-known/jwks.json', supabasePublishableKey: 'test-public', supabaseSecretKey: 'test-secret', webOrigins: ['https://kairon.example'], publicApiUrl: 'https://kairon.example', trustProxy: 1, mediaSigningKey: 'test-signing-key-that-is-long-enough', redisUrl: 'rediss://example.test:6379', webPushEnabled: false, emailEnabled: false, smsEnabled: false }
   assert.doesNotThrow(() => validateDeployment(hosted))
@@ -21,6 +29,9 @@ test('hosted deployments reject demo authentication, demo controls and insecure 
 test('API requires header authentication and prevents sensitive response caching', async () => {
   const { app } = await buildApp()
   try {
+    const page = await app.inject({ url: '/login' })
+    assert.equal(page.headers['referrer-policy'], 'strict-origin-when-cross-origin')
+    assert.match(String(page.headers['content-security-policy']), /img-src[^;]+https:\/\/tile\.openstreetmap\.org/)
     for (const url of ['/api/state', '/api/stream?token=forged']) {
       const response = await app.inject({ url })
       assert.equal(response.statusCode, 401)
