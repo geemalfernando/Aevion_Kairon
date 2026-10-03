@@ -15,7 +15,8 @@ RUN npm ci --prefix web
 COPY web ./web
 # true adds the judges' demo tools: one-tap demo sign-in, the Demo pill and /states.
 ARG VITE_DEMO_MODE=false
-RUN cd web && VITE_DEMO_MODE=$VITE_DEMO_MODE npm run build
+ARG VITE_HOSTED_DEMO=false
+RUN cd web && VITE_DEMO_MODE=$VITE_DEMO_MODE VITE_HOSTED_DEMO=$VITE_HOSTED_DEMO npm run build
 
 # ---------- Frontend ----------
 FROM nginx:1.29-alpine AS frontend

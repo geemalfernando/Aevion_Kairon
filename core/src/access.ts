@@ -45,6 +45,7 @@ export function projectState(d: OpsData, u: User & { id?: string }): OpsData {
   const orderIds = new Set(orders.map((o) => o.id))
   const tripIds = new Set(trips.map((t) => t.id))
   const entities = new Set(u.role === 'STORE_MANAGER' ? [...orderIds, ...outlets.map((o) => o.id)] : [...orderIds, ...tripIds, ...vehicleIds, ...outlets.map((o) => o.id)])
+  if (u.role === 'DISPATCHER') entities.add('notifications')
   if (u.role === 'STORE_MANAGER') orders = orders.map((o) => ({ ...o, notes: undefined, priorityWhy: undefined, lock: undefined, deferral: o.deferral ? { ...o.deferral, internalNote: undefined } : undefined }))
   const notifications = d.notifications.filter((n) => notificationVisible(d, n, u)).map((n) => ({ ...n, readBy: n.readByUserIds ? (n.readByUserIds.includes(u.id ?? u.email) ? [u.role] : []) : n.readBy, readByUserIds: undefined }))
   return structuredClone({ ...d, vehicles: u.role === 'STORE_MANAGER' ? vehicles.filter((v) => trips.some((t) => t.vehicleId === v.id)).map((v) => ({ ...v, driver: '', fuelUsedL: 0, fuelQuotaL: 0 })) : vehicles,

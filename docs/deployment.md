@@ -139,6 +139,35 @@ Deploy by hand from CodeBuild → Build projects → **Start build**. After a ha
 
 ### GitHub Actions
 
+### Existing demo controls on staging
+
+Local Docker retains the existing **Demo** dock, including clock, fleet scenarios, offline/photo simulation,
+role switching and reset. RDS staging can reuse that dock with `DemoControlsEnabled=true`. The release
+helper builds the web app with `VITE_DEMO_MODE=true` and `VITE_HOSTED_DEMO=true`, and the task enables
+`DEMO_MODE`, `SEED_DEMO_DAY` and `STAGING_DEMO_CONTROLS`. Existing stack data is kept until a dispatcher
+uses **Reset demo data**; startup seeds a demo day only if the database is empty. Automatic reseeding
+remains local-only. Shared operation controls and reset require a dispatcher on hosted staging. Device
+offline/photo toggles remain available to other signed-in roles.
+
+Hosted staging uses normal RDS accounts and passwords: the local demo password buttons and role-switching
+section are omitted there. Sign out and sign into another hosted account to demonstrate another role.
+Production requires `DemoControlsEnabled=false` and rejects the staging override. This parameter changes
+only presenter behavior, never identity validation or provider consent.
+
+For an existing stack, add `"DemoControlsEnabled": "true"` to its parameter file and release a new image
+with `scripts/deploy-rds.mjs`; the client build and task setting must change together. The helper enables
+controls for a staging stack that has no saved value for the new parameter. Explicit saved values are
+preserved. CodeBuild's existing release helper uses the same deployment path.
+
+### Dispatcher messages
+
+Open the dispatcher **Notifications** drawer and choose **Notify users**. Select all loaders/drivers/stores,
+a role, one vehicle's driver, or one store in the dispatcher's depot; enter title, message and priority,
+then send. The API validates role, depot, resource ownership and message lengths. Messages appear in the
+normal inbox and are audited; RDS commits their existing notification outbox atomically with state.
+Push/email/SMS delivery uses the existing workers and recipients' opt-in preferences when those providers
+are enabled. Local Docker provides the in-app inbox; it does not send external provider messages.
+
 The separate **Publish container packages** workflow publishes the production image and the two local demo
 images to GitHub Container Registry (see [README](../README.md#github-container-packages)). AWS deployment
 continues to use ECR. GitHub packages do not change an already-running ECS service.

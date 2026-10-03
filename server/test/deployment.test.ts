@@ -52,4 +52,9 @@ test('hosted RDS rejects demo auth, plaintext DB connections and connection-stri
   assert.throws(() => validateDeployment({ ...hosted, databaseUrl: 'postgres://override/?sslmode=no-verify' }), /cannot override/)
   assert.throws(() => validateDeployment({ ...hosted, authSecret: '' }), /AUTH_SECRET/)
   assert.throws(() => validateDeployment({ ...hosted, mediaBucket: '' }), /MEDIA_BUCKET/)
+  const stagingDemo = { ...hosted, deploymentEnv: 'staging', demoMode: true, seedDemoDay: true, stagingDemoControls: true }
+  assert.doesNotThrow(() => validateDeployment(stagingDemo))
+  assert.throws(() => validateDeployment({ ...stagingDemo, deploymentEnv: 'production' }), /only allowed on RDS staging/)
+  assert.throws(() => validateDeployment({ ...stagingDemo, stagingDemoControls: false }), /disable/)
+  assert.throws(() => validateDeployment({ ...stagingDemo, seedDemoEveryStart: true }), /local PostgreSQL demo/)
 })

@@ -7,7 +7,7 @@ import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { isStandalone } from '../../components/Pwa'
 import { HOME, ROLE_LABEL } from '../../components/shell/nav'
 import { Button, Callout, Field, Input, Logo, PasswordInput } from '../../components/ui'
-import { DEMO } from '../../demo/mode'
+import { LOCAL_DEMO_AUTH } from '../../demo/mode'
 import { signInWith, useSession } from '../../store'
 
 export function Login() {
@@ -79,7 +79,7 @@ export function Login() {
             </Button>
           </form>
 
-          {DEMO && (
+          {LOCAL_DEMO_AUTH && (
             <>
               <div className="my-8 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.14em] text-faint">
                 <span className="h-px flex-1 bg-line" /> Demo accounts <span className="h-px flex-1 bg-line" />

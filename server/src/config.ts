@@ -53,6 +53,7 @@ export const config = {
   tokenTtlHours: Number(env.TOKEN_TTL_HOURS ?? 12),
   /** Demo controls for judges: operation clock, fleet simulation and demo reset. Off unless DEMO_MODE=true. */
   demoMode: env.DEMO_MODE === 'true',
+  stagingDemoControls: env.STAGING_DEMO_CONTROLS === 'true',
   /** Seed one realistic delivery day (demo network or DATA_DIR CSVs) when the store is empty or reset. */
   seedDemoDay: env.SEED_DEMO_DAY === 'true',
   /** Replace the local demo operation on each API startup, even with an existing database volume. */
@@ -71,7 +72,9 @@ export function validateDeployment(c = config) {
   if (!Number.isInteger(c.trustProxy) || c.trustProxy < 0) throw new Error('TRUST_PROXY_HOPS must be a non-negative integer')
   if (c.seedDemoEveryStart && (c.deploymentEnv !== 'development' || c.backend !== 'postgres' || !c.demoMode || !c.seedDemoDay)) throw new Error('SEED_DEMO_EVERY_START requires the local PostgreSQL demo with DEMO_MODE and SEED_DEMO_DAY enabled')
   if (!['staging', 'production'].includes(c.deploymentEnv)) return
-  if (c.demoMode || c.seedDemoDay) throw new Error('Hosted deployments must disable DEMO_MODE and SEED_DEMO_DAY')
+  const stagingDemo = c.deploymentEnv === 'staging' && c.backend === 'rds' && c.stagingDemoControls
+  if (c.stagingDemoControls && !stagingDemo) throw new Error('STAGING_DEMO_CONTROLS is only allowed on RDS staging')
+  if (!stagingDemo && (c.demoMode || c.seedDemoDay)) throw new Error('Hosted deployments must disable DEMO_MODE and SEED_DEMO_DAY')
   if (!['supabase','rds'].includes(c.backend)) throw new Error('Hosted deployments require managed identities; PostgreSQL-only authentication is demo-only')
   if (c.backend === 'supabase' && (!c.supabasePublishableKey || !c.supabaseSecretKey)) throw new Error('Hosted deployments require Supabase keys')
   if (c.mediaSigningKey.length < 32) throw new Error('Hosted deployments require MEDIA_SIGNING_KEY of at least 32 characters')

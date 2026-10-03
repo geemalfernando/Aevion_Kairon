@@ -154,6 +154,7 @@ export class Operation {
     const cmd = name as CommandName
     const allowed = COMMAND_ROLES[cmd]
     if (allowed === 'demo' ? !config.demoMode : !allowed.includes(user.role)) throw new HttpError(403, `${user.role} may not run ${name}`)
+    if (allowed === 'demo' && config.stagingDemoControls && user.role !== 'DISPATCHER') throw new HttpError(403, 'Only the dispatcher can change the staging demo operation')
     const a = [...args]
     // Scope store managers to their own outlet; identity-bearing commands use the session, not the body.
     const ownOrder = (orderId: unknown) => {
@@ -164,6 +165,12 @@ export class Operation {
     if (cmd === 'confirmReceipt' || cmd === 'storeIssue' || cmd === 'acknowledgeDeferral') ownOrder(a[0])
     if (cmd === 'heartbeat') a[0] = user.email
     if (cmd === 'recordSync') a[0] = { ...(a[0] as object), email: user.email, name: user.name, role: user.role, vehicleId: user.assignedVehicle }
+    if (cmd === 'notifyUsers') {
+      const m = a[0] as import('@core/types').DispatcherNotice | undefined
+      if (!m || typeof m.title !== 'string' || typeof m.body !== 'string' || !m.title.trim() || m.title.trim().length > 120 || !m.body.trim() || m.body.trim().length > 2000 || !['ALL', 'LOADER', 'DRIVER', 'STORE_MANAGER'].includes(m.audience) || !['INFO', 'WARNING', 'HIGH', 'CRITICAL'].includes(m.severity) || m.targetId !== undefined && typeof m.targetId !== 'string') throw new HttpError(400, 'Invalid notification')
+      if (m.targetId && !['DRIVER', 'STORE_MANAGER'].includes(m.audience)) throw new HttpError(400, 'Select a driver or store for an individual recipient')
+      a[0] = { audience: m.audience, targetId: m.targetId, depot: user.depot, severity: m.severity, title: m.title.trim(), body: m.body.trim() }
+    }
     return this.mutate((d) => {
       d.presence[user.email] = Date.now()
       if (user.role === 'DRIVER' && user.assignedVehicle) d.presence[`vehicle:${user.assignedVehicle}`] = Date.now()
@@ -188,6 +195,10 @@ export class Operation {
       const working = projectState(d, user)
       const before = structuredClone(working)
       const own = (list: { id: string }[], id: unknown) => { if (typeof id !== 'string' || !list.some((x) => x.id === id)) throw new HttpError(403, 'Resource belongs to another depot or does not exist') }
+      if (cmd === 'notifyUsers') {
+        const m = a[0] as import('@core/types').DispatcherNotice
+        if (m.targetId) own(m.audience === 'DRIVER' ? working.vehicles : working.outlets, m.targetId)
+      }
       if (['assign', 'unassign', 'lockStop', 'unlockStop', 'defer', 'confirmDeferral', 'moveStop'].includes(cmd)) own(working.orders, a[0])
       if (['assign', 'moveStop'].includes(cmd) || cmd === 'lockStop' && a[1] !== undefined) own(working.vehicles, a[1])
       if (['lockTrip', 'unlockTrip'].includes(cmd)) own(working.trips, a[0])

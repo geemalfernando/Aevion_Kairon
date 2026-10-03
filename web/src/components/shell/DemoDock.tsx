@@ -5,7 +5,7 @@ import { byId, validate } from '@core/rules'
 import { colomboDate, colomboTs, fmtClock, hm } from '@core/time'
 import type { Role } from '@core/types'
 import { DEMO_PASSWORD, DEMO_USERS, STORY } from '@core/demo'
-import { PRESET } from '../../demo/mode'
+import { LOCAL_DEMO_AUTH, PRESET } from '../../demo/mode'
 import { PRESETS } from '../../demo/presets'
 import { ops, PREVIEW, resetDemo, signInWith, useDevice, useNow, useOps, useSession } from '../../store'
 import { Badge, Button, cn, IconButton, toast } from '../ui'
@@ -27,6 +27,7 @@ export function DemoDock() {
   const now = useNow(15_000)
 
   if (PREVIEW) return <PreviewPill />
+  const canOperate = LOCAL_DEMO_AUTH || user?.role === 'DISPATCHER'
 
   const switchRole = async (r: Role) => {
     try {
@@ -109,7 +110,7 @@ export function DemoDock() {
             </IconButton>
           </div>
 
-          <Section title="Operation">
+          {canOperate && <><Section title="Operation">
             <div className="mb-2 flex flex-wrap gap-1.5">
               <Badge tone={closed ? 'brand' : 'neutral'}>{closed ? 'Orders closed' : 'Orders open'}</Badge>
               <Badge tone={plan === 'PUBLISHED' ? 'success' : plan === 'DRAFT' ? 'attention' : 'neutral'}>Plan: {plan.toLowerCase()}</Badge>
@@ -180,12 +181,13 @@ export function DemoDock() {
             </div>
           </Section>
 
+          </>}
           <Section title="This device">
             <Toggle on={simOff} onChange={setOff} icon={simOff ? <WifiOff className="size-4" /> : <Wifi className="size-4" />} label="Simulate offline" hint="Only this tab loses connection" />
             <Toggle on={flaky} onChange={setFlaky} label="Unstable photo uploads" hint="Proof photos fail during sync" />
           </Section>
 
-          <Section title="Sign in as">
+          {LOCAL_DEMO_AUTH && <Section title="Sign in as">
             <div className="grid grid-cols-2 gap-1.5">
               {(['DISPATCHER', 'LOADER', 'DRIVER', 'STORE_MANAGER'] as Role[]).map((r) => (
                 <button key={r} onClick={() => void switchRole(r)} className={cn('rounded-lg border px-2 py-1.5 text-xs font-medium', user?.role === r ? 'border-brand bg-brand-soft text-brand-ink' : 'border-line hover:bg-surface-2')}>
@@ -194,12 +196,12 @@ export function DemoDock() {
               ))}
             </div>
             <p className="mt-2 text-[11px] text-muted">Tip: open another tab and sign in as a different role — both see one shared operation.</p>
-          </Section>
+          </Section>}
 
           <Link to="/states" className="mb-2 flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm font-medium hover:bg-surface-2">
             <LayoutGrid className="size-4 text-muted" /> Screen states for Figma & judges
           </Link>
-          <Button
+          {canOperate && <Button
             size="sm"
             variant="ghost"
             block
@@ -212,7 +214,7 @@ export function DemoDock() {
             }}
           >
             Reset demo data
-          </Button>
+          </Button>}
         </div>
       )}
     </>

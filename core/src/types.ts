@@ -219,6 +219,15 @@ export interface Issue {
   resolved?: { at: number; by: Role; decision: string }
 }
 
+export interface DispatcherNotice {
+  audience: 'ALL' | 'LOADER' | 'DRIVER' | 'STORE_MANAGER'
+  targetId?: string
+  depot: Depot
+  severity: Severity
+  title: string
+  body: string
+}
+
 export interface Notification {
   depot?: Depot
   readByUserIds?: string[]
