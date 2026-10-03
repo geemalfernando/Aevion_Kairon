@@ -174,6 +174,15 @@
       "MinValue": 1,
       "MaxValue": 35,
       "Description": "Automated RDS backup retention in days; free-plan accounts allow fewer than seven"
+    },
+    "DemoControlsEnabled": {
+      "Type": "String",
+      "Default": "false",
+      "AllowedValues": [
+        "true",
+        "false"
+      ],
+      "Description": "Enable the existing authenticated presenter controls on staging only; resetting replaces staging demo progress."
     }
   },
   "Resources": {
@@ -811,11 +820,23 @@
               },
               {
                 "Name": "DEMO_MODE",
-                "Value": "false"
+                "Value": {
+                  "Fn::If": [
+                    "StagingDemo",
+                    "true",
+                    "false"
+                  ]
+                }
               },
               {
                 "Name": "SEED_DEMO_DAY",
-                "Value": "false"
+                "Value": {
+                  "Fn::If": [
+                    "StagingDemo",
+                    "true",
+                    "false"
+                  ]
+                }
               },
               {
                 "Name": "PORT",
@@ -947,6 +968,16 @@
                 "Value": {
                   "Ref": "AWS::Region"
                 }
+              },
+              {
+                "Name": "STAGING_DEMO_CONTROLS",
+                "Value": {
+                  "Fn::If": [
+                    "StagingDemo",
+                    "true",
+                    "false"
+                  ]
+                }
               }
             ],
             "Secrets": [
@@ -1077,6 +1108,16 @@
             }
           }
         ]
+      },
+      "Metadata": {
+        "com.aws.cloudformation.Context": {
+          "why": "Reuse presenter tools in an authenticated staging API; normal RDS identities remain authoritative.",
+          "must": [
+            "Presenter controls require staging and explicit enablement.",
+            "Production must disable demo controls.",
+            "Hosted demo operation changes require dispatcher authorization."
+          ]
+        }
       }
     },
     "Service": {
@@ -3191,6 +3232,26 @@
           ]
         }
       ]
+    },
+    "StagingDemo": {
+      "Fn::And": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "DeploymentEnv"
+            },
+            "staging"
+          ]
+        },
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "DemoControlsEnabled"
+            },
+            "true"
+          ]
+        }
+      ]
     }
   },
   "Rules": {
@@ -3355,6 +3416,42 @@
             ]
           },
           "AssertDescription": "Push requires a secret containing VAPID or FCM provider settings."
+        }
+      ]
+    },
+    "DemoOnlyInStaging": {
+      "RuleCondition": {
+        "Fn::Equals": [
+          {
+            "Ref": "DemoControlsEnabled"
+          },
+          "true"
+        ]
+      },
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Equals": [
+              {
+                "Ref": "DeploymentEnv"
+              },
+              "staging"
+            ]
+          },
+          "AssertDescription": "Demo controls are only allowed in staging; production must set DemoControlsEnabled=false."
+        }
+      ]
+    }
+  },
+  "Metadata": {
+    "AWSToolsMetrics": {
+      "AWSAgentToolkit": "aws-cloudformation@3"
+    },
+    "com.aws.cloudformation.Context": {
+      "ref": [
+        {
+          "at": "docs/deployment.md",
+          "has": "Staging demo controls and normal RDS authentication"
         }
       ]
     }

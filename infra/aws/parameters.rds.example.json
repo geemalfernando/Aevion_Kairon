@@ -13,5 +13,6 @@
   "SmsEnabled": "false",
   "UseCloudFront": "true",
   "RdsMultiAZ": "true",
-  "RdsInstanceClass": "db.t4g.micro"
+  "RdsInstanceClass": "db.t4g.micro",
+  "DemoControlsEnabled": "true"
 }

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { seedOps as emptyOps, opNow } from '@core/ops'
+import { projectState } from '@core/access'
 import { buildReference } from '@core/reference'
 import { demandForecast, tripPredictions } from '@core/predict'
 import type { OpsData, FieldEvent, QueuedEvent, User } from '@core/types'
@@ -30,6 +31,44 @@ function memoryRepository(initial: OpsData | null) {
   }
 }
 const log = { info: () => {}, warn: () => {} }
+
+test('dispatcher notices persist and reach only the selected depot and assignment', async () => {
+  const initial = seedOps()
+  const op = new Operation(log, memoryRepository(initial))
+  await op.init()
+  const vehicle = initial.vehicles.find(v => v.depot === 'Peliyagoda')!
+  await op.command(user('DISPATCHER'), 'notifyUsers', [{ audience: 'DRIVER', targetId: vehicle.id, depot: 'Kandy', severity: 'HIGH', title: 'Route update', body: 'Wait at the depot.' }])
+  const driver = user('DRIVER', { assignedVehicle: vehicle.id })
+  assert.equal(projectState(op.data, driver).notifications.filter(n => n.title === 'Route update').length, 1)
+  assert.equal(projectState(op.data, { ...driver, depot: 'Kandy' }).notifications.filter(n => n.title === 'Route update').length, 0)
+  assert.equal(projectState(op.data, { ...driver, assignedVehicle: 'different' }).notifications.filter(n => n.title === 'Route update').length, 0)
+  assert.equal(projectState(op.data, user('DISPATCHER')).audit.filter(a => a.entity === 'notifications').length, 1)
+  await op.reload()
+  assert.equal(op.data.notifications[0].body, 'Wait at the depot.')
+})
+
+test('notification sending rejects non-dispatchers, malformed messages and cross-depot targets', async () => {
+  const initial = seedOps()
+  const op = new Operation(log, memoryRepository(initial))
+  await op.init()
+  const message = { audience: 'ALL', severity: 'INFO', title: 'Update', body: 'Ready.' }
+  for (const role of ['LOADER', 'DRIVER', 'STORE_MANAGER'] as const) await assert.rejects(op.command(user(role), 'notifyUsers', [message]), /may not run/)
+  await assert.rejects(op.command(user('DISPATCHER'), 'notifyUsers', [{ ...message, title: ' ' }]), /Invalid notification/)
+  await assert.rejects(op.command(user('DISPATCHER'), 'notifyUsers', [{ ...message, audience: 'DRIVER', targetId: initial.vehicles.find(v => v.depot === 'Kandy')!.id }]), /another depot/)
+  await assert.rejects(op.command(user('DISPATCHER'), 'notifyUsers', [{ ...message, audience: 'ALL', targetId: 'anything' }]), /individual recipient/)
+  assert.deepEqual(op.data, initial)
+})
+
+test('all-user notices fan out into resource-scoped driver and store inboxes', async () => {
+  const op = new Operation(log, memoryRepository(seedOps()))
+  await op.init()
+  await op.command(user('DISPATCHER'), 'notifyUsers', [{ audience: 'ALL', severity: 'INFO', title: 'Depot update', body: 'Loading begins shortly.' }])
+  const messages = op.data.notifications.filter(n => n.title === 'Depot update')
+  assert.ok(messages.some(n => n.to.includes('LOADER')))
+  assert.ok(messages.filter(n => n.to.includes('DRIVER')).every(n => n.vehicleId))
+  assert.ok(messages.filter(n => n.to.includes('STORE_MANAGER')).every(n => n.outletId))
+  assert.ok(messages.every(n => n.depot === 'Peliyagoda'))
+})
 
 test('production initialization has no sample records, clock offsets or forecasts', async () => {
   const d = emptyOps()

@@ -12,6 +12,7 @@ import { DEMO } from '../../demo/mode'
 import { DemoDock } from './DemoDock'
 import { HOME, NAV, ROLE_LABEL, type NavItem } from './nav'
 import { SearchDialog } from './SearchDialog'
+import { DispatcherNotify } from './DispatcherNotify'
 
 export function visibleNotifications(list: Notification[], user: User) {
   return list.filter((n) => n.to.includes(user.role) && (!n.outletId || n.outletId === user.assignedOutlet) && (!n.vehicleId || n.vehicleId === user.assignedVehicle))
@@ -450,6 +451,7 @@ function NotificationsDrawer({ open, onClose, user }: { open: boolean; onClose: 
           </IconButton>
         </div>
         <div className="scroll-thin flex-1 overflow-y-auto">
+          {user.role === 'DISPATCHER' && <DispatcherNotify user={user} />}
           {list.length === 0 && <p className="p-8 text-center text-sm text-muted">{t('shell.all_caught_up')}</p>}
           {list.map((n) => (
             <button

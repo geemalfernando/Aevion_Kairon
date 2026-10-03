@@ -25,6 +25,10 @@ if(mode!=='bootstrap'&&check.status!==0)throw new Error('Bootstrap this RDS stac
 const existing=check.status===0?JSON.parse(check.stdout).Stacks[0]:undefined
 const outputs=Object.fromEntries((existing?.Outputs??[]).map(o=>[o.OutputKey,o.OutputValue]))
 const saved=Object.fromEntries((existing?.Parameters??[]).map(p=>[p.ParameterKey,p.ParameterValue]))
+const deploymentEnv=parameters.DeploymentEnv??saved.DeploymentEnv??'staging'
+parameters.DemoControlsEnabled??=saved.DemoControlsEnabled??(deploymentEnv==='staging'?'true':'false')
+if(parameters.DemoControlsEnabled==='true'&&deploymentEnv!=='staging')throw new Error('Demo controls are only available in staging')
+const demo=deploymentEnv==='staging'&&parameters.DemoControlsEnabled==='true'
 for(const k of ['RdsEngineVersion','RdsParameterFamily'])if(!parameters[k]&&saved[k])parameters[k]=saved[k]
 if(!parameters.RdsEngineVersion||!parameters.RdsParameterFamily){const engine=json(['rds','describe-db-engine-versions','--engine','postgres','--default-only']).DBEngineVersions[0];if(!engine)throw new Error('No default PostgreSQL engine found');parameters.RdsEngineVersion??=engine.EngineVersion;parameters.RdsParameterFamily??=engine.DBParameterGroupFamily}
 if(parameters.UseCloudFront==='true'&&!parameters.CloudFrontPrefixListId){parameters.CloudFrontPrefixListId=json(['ec2','describe-managed-prefix-lists','--filters','Name=prefix-list-name,Values=com.amazonaws.global.cloudfront.origin-facing']).PrefixLists[0]?.PrefixListId;if(!parameters.CloudFrontPrefixListId)throw new Error('CloudFront managed prefix list unavailable')}
@@ -37,7 +41,7 @@ if(['image','release'].includes(mode)){
  const repository=outputs.RepositoryUri;if(!repository)throw new Error('ECR output missing')
  const password=aws(['ecr','get-login-password'],{capture:true})
  run('docker',['login','--username','AWS','--password-stdin',repository.split('/')[0]],{input:password+'\n',stdio:['pipe','inherit','inherit']})
- run('docker',['buildx','build','--platform','linux/amd64','--target','production','--build-arg','VITE_DEMO_MODE=false','--tag',`${repository}:${tag}`,'--push','.'])
+ run('docker',['buildx','build','--platform','linux/amd64','--target','production','--build-arg',`VITE_DEMO_MODE=${demo}`,'--build-arg',`VITE_HOSTED_DEMO=${demo}`,'--tag',`${repository}:${tag}`,'--push','.'])
 }
 if(mode==='migrate'){
  if(['DesiredCount','PublisherCount','WorkerCount'].some(k=>Number(saved[k])>0))throw new Error('Stop application and notification tasks before initial data migration')

@@ -832,6 +832,29 @@ export const commands = {
     for (const n of d.notifications) if (n.to.includes(role) && !n.readBy.includes(role)) n.readBy.push(role)
   },
 
+  /** Dispatcher messages use the same inbox/outbox as operational notifications. */
+  notifyUsers(d: OpsData, message: import('./types').DispatcherNotice) {
+    const { audience, targetId, depot, severity } = message
+    const title = message.title.trim(), body = message.body.trim()
+    if (!title || title.length > 120 || !body || body.length > 2000 || !['ALL', 'LOADER', 'DRIVER', 'STORE_MANAGER'].includes(audience) || !['INFO', 'WARNING', 'HIGH', 'CRITICAL'].includes(severity)) throw new Error('Invalid notification')
+    if (targetId && !['DRIVER', 'STORE_MANAGER'].includes(audience)) throw new Error('This audience cannot have an individual target')
+    const vehicles = d.vehicles.filter(v => v.depot === depot && (!targetId || v.id === targetId))
+    const outlets = d.outlets.filter(o => o.depot === depot && (!targetId || o.id === targetId))
+    if (targetId && (audience === 'DRIVER' ? !vehicles.length : !outlets.length)) throw new Error('Recipient belongs to another depot or does not exist')
+    let count = 0
+    const send = (to: Role, scope: { vehicleId?: string; outletId?: string } = {}) => {
+      notify(d, { to: [to], depot, severity, title, body, ...scope })
+      count++
+    }
+    if (audience === 'ALL' || audience === 'LOADER') send('LOADER')
+    if (audience === 'ALL' || audience === 'DRIVER') for (const v of vehicles) send('DRIVER', { vehicleId: v.id })
+    if (audience === 'ALL' || audience === 'STORE_MANAGER') for (const o of outlets) send('STORE_MANAGER', { outletId: o.id })
+    if (!count) throw new Error('No matching recipients')
+    log(d, 'notifications', 'DISPATCHER', `Sent ${severity.toLowerCase()} message to ${audience.toLowerCase()}${targetId ? ` (${targetId})` : ''}: ${title}`)
+    commit(d)
+    return { count }
+  },
+
   // ----- Sync & presence -----
 
   heartbeat(d: OpsData, email: string) {
@@ -991,6 +1014,7 @@ export const COMMAND_ROLES: Record<CommandName, Role[] | 'demo'> = {
   resolveIssue: ['DISPATCHER'],
   applyRecovery: ['DISPATCHER'],
   markRead: ['DISPATCHER', 'LOADER', 'DRIVER', 'STORE_MANAGER'],
+  notifyUsers: ['DISPATCHER'],
   heartbeat: ['DISPATCHER', 'LOADER', 'DRIVER', 'STORE_MANAGER'],
   recordSync: ['LOADER', 'DRIVER'],
   loadPredictions: ['DISPATCHER'],

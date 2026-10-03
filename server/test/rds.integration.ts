@@ -11,10 +11,34 @@ import {importSnapshot,type Snapshot} from '../scripts/import-rds'
 import {provisionUsers} from '../scripts/rds-users'
 import {buildApp} from '../src/app'
 import {seedOps} from '@core/ops'
+import {seedDemoOps} from '@core/demo'
 const admin=new pg.Pool({connectionString:process.env.KAIRON_TEST_ADMIN_URL})
 after(async()=>{await closeRds();await admin.end()})
 const metadata={name:'Test driver',role:'DRIVER',depot:'Peliyagoda',assignedVehicle:'vehicle-a'}
 async function user(){const id=crypto.randomUUID(),email=id+'@example.test';await admin.query('insert into kairon_users(id,email,password_hash,app_metadata) values ($1,$2,$3,$4)',[id,email,await hashPassword('test-long-password-123'),JSON.stringify(metadata)]);return {id,email}}
+
+test('dispatcher HTTP messages commit to the RDS outbox and appear in the assigned driver inbox',async()=>{
+ const state=seedDemoOps(),before=await loadOps()
+ await persistState(before,state,{events:[],media:[]})
+ const vehicle=state.vehicles.find(v=>v.depot==='Peliyagoda')!
+ const sender=await user(),recipient=await user()
+ await admin.query('update kairon_users set app_metadata=$1 where id=$2',[JSON.stringify({...metadata,role:'DISPATCHER'}),sender.id])
+ await admin.query('update kairon_users set app_metadata=$1 where id=$2',[JSON.stringify({...metadata,assignedVehicle:vehicle.id}),recipient.id])
+ const dispatcherSession=(await login(sender.email,'test-long-password-123'))!,driverSession=(await login(recipient.email,'test-long-password-123'))!
+ const {app,op}=await buildApp()
+ try{
+  await op.init()
+  const request={method:'POST' as const,url:'/api/commands/notifyUsers',payload:{args:[{audience:'DRIVER',targetId:vehicle.id,depot:'Kandy',severity:'HIGH',title:'Integration notice',body:'Wait for loading.'}]}}
+  assert.equal((await app.inject({...request,headers:{authorization:`Bearer ${driverSession.token}`}})).statusCode,403)
+  assert.equal((await app.inject({...request,headers:{authorization:`Bearer ${dispatcherSession.token}`}})).statusCode,200)
+  const inbox=await app.inject({url:'/api/state',headers:{authorization:`Bearer ${driverSession.token}`}})
+  assert.equal(inbox.json().data.notifications.filter((n:{title:string})=>n.title==='Integration notice').length,1)
+  const queued=(await admin.query("select id from kairon_notification_outbox where payload->>'title'='Integration notice'")).rows[0]
+  assert.ok(queued)
+  assert.ok((await claimOutbox('dispatcher-message-test')).some(n=>n.id===queued.id))
+ }finally{await app.close()}
+ await admin.query('truncate kairon_state,kairon_notification_outbox,kairon_operational_audit cascade')
+})
 
 test('RDS authentication rotates refresh tokens; replay revokes the entire session',async()=>{
  const u=await user();assert.equal(await login(u.email,'wrong'),null)

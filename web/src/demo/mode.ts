@@ -7,6 +7,8 @@
  *   ?theme=dark|light, ?lang=en|si|ta, ?modal=<name>, ?stop=<outlet>, ?day=<yyyy-mm-dd>
  */
 export const DEMO = import.meta.env.VITE_DEMO_MODE === 'true'
+/** Hosted staging keeps normal account authentication instead of local demo passwords. */
+export const LOCAL_DEMO_AUTH = DEMO && import.meta.env.VITE_HOSTED_DEMO !== 'true'
 const params = !DEMO || typeof location === 'undefined' ? new URLSearchParams() : new URLSearchParams(location.search)
 
 export const PRESET = params.get('demo')
