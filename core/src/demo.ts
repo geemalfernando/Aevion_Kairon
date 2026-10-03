@@ -369,6 +369,17 @@ export const DEMO_USERS: Record<Role, User> = {
 }
 export const DEMO_PASSWORD = 'kairon2026'
 
+export const STORE_DEMO_EMAILS = { Fresh: 'fresh@kairon.demo', Style: 'style@kairon.demo', Tech: 'tech@kairon.demo' } as const
+
+/** Resolve store accounts against the loaded dataset so imports retain correct outlet/depot isolation. */
+export function storeDemoUsers(outlets: OpsData['outlets']): User[] {
+  return Object.entries(STORE_DEMO_EMAILS).flatMap(([brand, email]) => {
+    const candidates = outlets.filter(o => o.brand === brand).sort((a, b) => a.id.localeCompare(b.id))
+    const outlet = candidates.find(o => o.id === STORY.store) ?? candidates[0]
+    return outlet ? [{ name: outlet.manager || `${brand} store manager`, email, role: 'STORE_MANAGER' as const, depot: outlet.depot, assignedOutlet: outlet.id }] : []
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Demo enrichment and the delivery day
 // ---------------------------------------------------------------------------

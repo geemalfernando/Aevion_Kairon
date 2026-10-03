@@ -2,8 +2,9 @@
 #   docker compose up               then open http://localhost:8080
 #
 #   frontend  web app (nginx) on port 8080; forwards /api to the backend
-#   backend   Kairon API with the four demo accounts and one seeded delivery day
+#   backend   Kairon API with role/store-type demo accounts and one seeded delivery day
 #             dispatcher@ / loader@ / driver@ / store@kairon.demo, password kairon2026
+#             fresh@ / style@ / tech@kairon.demo use the same password
 #   database  PostgreSQL 16, the operation's storage (kept in the db-data volume)
 #
 # Competition CSVs and catalog.json in ./data are read at start (mounted read-only); otherwise placeholders.

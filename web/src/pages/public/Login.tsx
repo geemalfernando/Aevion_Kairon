@@ -1,6 +1,6 @@
 import { Copyright } from '../../components/Copyright'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
-import { DEMO_PASSWORD, DEMO_USERS } from '@core/demo'
+import { DEMO_PASSWORD, DEMO_USERS, STORE_DEMO_EMAILS } from '@core/demo'
 import type { Role } from '@core/types'
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
@@ -92,6 +92,14 @@ export function Login() {
                       <span className="block truncate text-xs text-muted">{DEMO_USERS[r].email}</span>
                     </span>
                     <ArrowRight className="size-4 text-faint group-hover:text-brand-ink" />
+                  </button>
+                ))}
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                {Object.entries(STORE_DEMO_EMAILS).map(([brand, email]) => (
+                  <button key={brand} disabled={busy} onClick={() => void signIn(email, DEMO_PASSWORD)} className="min-w-0 rounded-xl border border-line p-3 text-left hover:border-brand hover:bg-brand-soft">
+                    <span className="block text-sm font-semibold">{brand} store</span>
+                    <span className="block break-all text-xs text-muted">{email}</span>
                   </button>
                 ))}
               </div>
