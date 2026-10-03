@@ -1,8 +1,8 @@
-import { CalendarClock, Check, ChevronDown, GripVertical, LifeBuoy, Lock, LockOpen, Repeat, Scale, Send, Snowflake, Sparkles, Truck, X } from 'lucide-react'
+import { CalendarClock, CalendarPlus, Check, ChevronDown, ShieldAlert, ShieldCheck, GripVertical, LifeBuoy, Lock, LockOpen, Repeat, Scale, Send, Snowflake, Sparkles, Truck, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { BUDGET, DEFERRAL_LABEL, FRESH_END, isReefer, isTripLocked, isVan, validate, vehicleDay, vehicleLabel, type Validation } from '@core/rules'
-import { fmtMin } from '@core/time'
+import { BUDGET, checkAllocations, DEFERRAL_LABEL, FRESH_END, isReefer, isTripLocked, isVan, validate, vehicleDay, vehicleLabel, type Validation } from '@core/rules'
+import { fmtDate, fmtMin } from '@core/time'
 import type { Order, PlanAnalysis, Trip, Vehicle } from '@core/types'
 import { Badge, BrandTag, Button, Callout, Card, CheckRow, cn, EmptyState, Meter, Modal, PageHeader, Segmented, TempTag, toast } from '../../components/ui'
 import { outletOf, scheduleOf } from '../../lib/select'
@@ -85,6 +85,19 @@ export function Planning() {
                 Published
               </Badge>
             )}
+            {d.plan === 'PUBLISHED' && d.trips.length > 0 && d.trips.every((t) => ['COMPLETED', 'ABORTED'].includes(t.status)) && (
+              <Button
+                variant="secondary"
+                icon={<CalendarPlus className="size-4" />}
+                onClick={() => {
+                  const r = ops('startNextDay')
+                  if (r.ok) toast(`Planning ${fmtDate(r.to, { weekday: 'long', day: 'numeric', month: 'long' })}`, { body: `${r.litres} L recorded against weekly fuel quotas${r.newWeek ? ' (new week: quotas reset)' : ''} · ${r.carried} orders carried over` })
+                  else toast('The day is not finished', { tone: 'attention', body: r.message })
+                }}
+              >
+                Close day & plan next
+              </Button>
+            )}
           </>
         }
       />
@@ -130,6 +143,7 @@ export function Planning() {
         ))}
       </div>
 
+      {d.plan !== 'NONE' && <RuleCheck />}
       {d.analysis && d.plan !== 'NONE' && <ConstraintPanel a={d.analysis} />}
 
       {moving && selected && (
@@ -258,6 +272,33 @@ const POLICY = [
   ['4', 'Tech', 'High-value, customer-promised items; fewer, heavier orders.'],
   ['5', 'Style', 'Weekly replenishment that can move a day with the least harm (except seasonal peaks).'],
 ]
+
+/** Independent re-check of the plan as it stands, the dispatcher's own changes included. */
+function RuleCheck() {
+  const d = useOps((s) => s.data)
+  const { checked, problems } = useMemo(() => checkAllocations(d), [d])
+  if (!checked) return null
+  if (!problems.length)
+    return (
+      <div className="mb-4 flex items-start gap-3 rounded-xl border border-success/30 bg-success-soft p-3 text-sm text-success-ink">
+        <ShieldCheck className="mt-0.5 size-5 shrink-0" />
+        <div>
+          <b>All {checked} allocations pass every operating rule.</b> Re-checked independently of the planner, including your own changes: capacity, temperature, outlet access, delivery windows, fuel quota, time budgets and the two-trip limit.
+        </div>
+      </div>
+    )
+  return (
+    <div className="mb-4 flex items-start gap-3 rounded-xl border border-critical/30 bg-critical-soft p-3 text-sm text-critical-ink">
+      <ShieldAlert className="mt-0.5 size-5 shrink-0" />
+      <div>
+        <b>
+          {problems.length} of {checked} allocations break a rule.
+        </b>{' '}
+        {problems.slice(0, 3).map((p) => `${p.orderId} on ${p.vehicleId} (${p.failed[0]})`).join(' · ')}
+      </div>
+    </div>
+  )
+}
 
 /** What limited today's plan, what it cost, and the trade-off the dispatcher controls. */
 function ConstraintPanel({ a }: { a: PlanAnalysis }) {

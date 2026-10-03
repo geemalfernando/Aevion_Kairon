@@ -126,7 +126,7 @@ export function RouteDetail() {
             {t.rescue && <Badge tone="info">Rescue from {t.rescue.from}</Badge>}
           </span>
         }
-        subtitle={`${vehicleLabel(v.type)} · ${v.driver} · departs ${fmtMin(t.departure)} · expected finish ${fmtMin(s.finish)}${onRoad && t.vehicleId === 'VEH014' && lastSeen ? ` · driver last heard from ${timeAgo(lastSeen, Date.now())}` : ''}`}
+        subtitle={`${vehicleLabel(v.type)} · ${v.driver} · departs ${fmtMin(t.departure)} · expected finish ${fmtMin(s.finish)}${onRoad && t.vehicleId === 'VEH002' && lastSeen ? ` · driver last heard from ${timeAgo(lastSeen, Date.now())}` : ''}`}
       />
       <div className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
         <div className="space-y-6">

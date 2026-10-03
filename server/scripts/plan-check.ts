@@ -20,7 +20,7 @@ console.log('analysis', JSON.stringify(d.analysis, null, 1))
 console.log('deferred', count(d.orders.filter((o) => o.status === 'DEFERRED'), (o) => `${o.brand} ${o.temp} ${byId(d.outlets, o.outletId)!.district}${byId(d.outlets, o.outletId)!.vanOnly ? ' van-only' : ''} · ${o.deferral!.reason}`))
 console.log('trips/vehicle', count(Object.values(count(d.trips, (t) => t.vehicleId)), (n) => `${n}`))
 console.log('two fresh trips', Object.values(count(d.trips.filter((t) => t.brand === 'Fresh'), (t) => t.vehicleId)).filter((n) => n > 1).length)
-for (const t of d.trips.filter((t) => t.vehicleId === 'VEH014' || t.vehicleId === 'VEH001' || t.vehicleId === 'VEH003')) {
+for (const t of d.trips.filter((t) => t.vehicleId === 'VEH002' || t.vehicleId === 'VEH001' || t.vehicleId === 'VEH003')) {
   const s = scheduleOfTrip(d, t)
   console.log(t.id, t.number, t.brand, t.district, 'dep', t.departure, 'min', s.minutes, 'finish', s.finish, 'stops', t.stops.map((id) => byId(d.orders, id)!.outletId).join(','), 'late', s.stops.filter((x) => x.late).length)
 }

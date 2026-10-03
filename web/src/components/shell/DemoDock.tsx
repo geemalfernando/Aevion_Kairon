@@ -4,14 +4,14 @@ import { Link, useNavigate } from 'react-router-dom'
 import { byId, validate } from '@core/rules'
 import { colomboDate, colomboTs, fmtClock, hm } from '@core/time'
 import type { Role } from '@core/types'
-import { DEMO_PASSWORD, DEMO_USERS } from '@core/demo'
+import { DEMO_PASSWORD, DEMO_USERS, STORY } from '@core/demo'
 import { PRESET } from '../../demo/mode'
 import { PRESETS } from '../../demo/presets'
 import { ops, PREVIEW, resetDemo, signInWith, useDevice, useNow, useOps, useSession } from '../../store'
 import { Badge, Button, cn, IconButton, toast } from '../ui'
 import { HOME, ROLE_LABEL } from './nav'
 
-const STORY_TRIP = 'TRP-014-1'
+const STORY_TRIP = 'TRP-002-1'
 
 /** Demo-only tools for presenters and judges. Clearly separated from the product UI. */
 export function DemoDock() {
@@ -38,30 +38,48 @@ export function DemoDock() {
     }
   }
 
-  /** The hero scenario's trigger: take a not-yet-delivered stop off VEH014 while its driver may be offline. */
+  /**
+   * The hero scenario's trigger: take a not-yet-delivered stop off the story trip while its driver may be offline.
+   * Moves the stop the driver reported as blocked; without a report, Dilini's Borella stop, as in the story;
+   * otherwise the last stop still to deliver.
+   */
   const moveStop = () => {
     const d = useOps.getState().data
     const trip = byId(d.trips, STORY_TRIP)
-    const stop = trip?.stops.find((id) => !['DELIVERED', 'PARTIAL', 'FAILED', 'RECEIVED', 'ARRIVED'].includes(byId(d.orders, id)?.status ?? ''))
-    const target = stop && [...trip!.stops].reverse().find((id) => !['DELIVERED', 'PARTIAL', 'FAILED', 'RECEIVED', 'ARRIVED'].includes(byId(d.orders, id)?.status ?? ''))
-    if (!trip || trip.status !== 'IN_PROGRESS' || !target) return toast('Start VEH014’s route first', { tone: 'info', body: 'The driver needs to be on the road.' })
-    const r = ops('moveStop', target, 'VEH031', 'Late-window risk — sent from the depot on the reserve van')
-    if (r.ok) toast(`${byId(d.orders, target)?.outletId} moved to VEH031`, { body: 'The driver sees it when their phone reconnects.' })
+    const open = (id?: string) => !!id && !!trip?.stops.includes(id) && !['DELIVERED', 'PARTIAL', 'FAILED', 'RECEIVED', 'ARRIVED'].includes(byId(d.orders, id)?.status ?? '')
+    const reported = trip?.reportedDelay?.orderId
+    const borella = trip?.stops.find((id) => byId(d.orders, id)?.outletId === STORY.store)
+    const target = [reported, borella, ...[...(trip?.stops ?? [])].reverse()].find(open)
+    if (!trip || trip.status !== 'IN_PROGRESS' || !target) return toast(`Start ${STORY.vehicle}’s route first`, { tone: 'info', body: 'The driver needs to be on the road with a stop still to deliver.' })
+    const delay = trip.reportedDelay
+    const outlet = byId(d.outlets, byId(d.orders, target)?.outletId)
+    const why = delay && delay.orderId === target
+      ? `Road to ${outlet?.name ?? outlet?.id} blocked — driver reported ~${delay.minutes} min delay, would miss the window. Sent on the reserve van.`
+      : 'Late-window risk — sent from the depot on the reserve van'
+    const r = ops('moveStop', target, STORY.reserveVan, why)
+    if (r.ok) toast(`${outlet?.id} moved to ${STORY.reserveVan}`, { body: 'The driver sees it when their phone reconnects.' })
     else toast('Could not move the stop', { tone: 'critical', body: r.message })
   }
 
-  /** Second degradation: change VEH014 after loading has started. */
+  /** The reserve van has no demo driver: deliver its stops so the store can confirm receipt. */
+  const reserveRun = () => {
+    const r = ops('simulateRun', STORY.reserveVan)
+    if (!r.ok) return toast(`Nothing for ${STORY.reserveVan} to deliver`, { tone: 'info', body: 'Move a stop to the reserve van first.' })
+    toast(`${STORY.reserveVan} delivered ${r.delivered} ${r.delivered === 1 ? 'stop' : 'stops'}`, { body: 'The store can now confirm receipt.' })
+  }
+
+  /** Second degradation: change VEH002 after loading has started. */
   const changeDuringLoading = () => {
     const d = useOps.getState().data
     const trip = byId(d.trips, STORY_TRIP)
-    if (!trip || !['LOADING', 'LOADED'].includes(trip.status)) return toast('Start loading VEH014 first', { tone: 'info', body: 'The loader needs to have begun loading.' })
+    if (!trip || !['LOADING', 'LOADED'].includes(trip.status)) return toast('Start loading VEH002 first', { tone: 'info', body: 'The loader needs to have begun loading.' })
     const last = trip.stops.at(-1)!
     ops('unassign', last)
     const veh = byId(d.vehicles, trip.vehicleId)!
     const fresh = useOps.getState().data
     const add = fresh.orders.filter((o) => o.status === 'DEFERRED' && o.temp === 'CHILLED' && byId(fresh.outlets, o.outletId)?.district === trip.district).find((o) => validate(o, veh, fresh).ok)
     if (add) ops('assign', add.id, veh.id)
-    toast('VEH014 changed during loading', { tone: 'attention', body: 'The loader must confirm the new load before departure.' })
+    toast('VEH002 changed during loading', { tone: 'attention', body: 'The loader must confirm the new load before departure.' })
   }
 
   const clock = (min: number, label: string) => {
@@ -119,12 +137,25 @@ export function DemoDock() {
               {plan === 'PUBLISHED' && (
                 <>
                   <Button size="sm" variant="secondary" onClick={changeDuringLoading}>
-                    Change VEH014’s plan during loading
+                    Change VEH002’s plan during loading
                   </Button>
                   <Button size="sm" variant="secondary" onClick={moveStop}>
-                    Move a VEH014 stop to the reserve van
+                    Move a VEH002 stop to the reserve van
                   </Button>
-                  <Button size="sm" variant="secondary" onClick={() => (ops('simulateFleet', 'VEH014'), toast('Fleet dispatched', { body: 'Other vehicles are now on the road' }))}>
+                  <Button size="sm" variant="secondary" onClick={reserveRun}>
+                    {STORY.reserveVan} delivers the moved stop
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      const r = ops('simulateDayEnd')
+                      toast('Every vehicle finished its trips', { body: `${r.trips} trips, ${r.delivered} deliveries. Close the day on the planning page.` })
+                    }}
+                  >
+                    Finish every trip
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={() => (ops('simulateFleet', 'VEH002'), toast('Fleet dispatched', { body: 'Other vehicles are now on the road' }))}>
                     Send the rest of the fleet out
                   </Button>
                 </>

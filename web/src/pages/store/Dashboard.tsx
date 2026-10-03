@@ -19,17 +19,23 @@ export function Dashboard() {
   const now = useNow()
   const [reporting, setReporting] = useState(MODAL === 'report-issue')
   // Focus on the order that needs attention most, soonest delivery first.
+  const tripOf = (o: (typeof orders)[number]) => d.trips.find((t) => t.id === o.tripId)
   const byDate = [...orders].sort((a, b) => a.deliveryDate.localeCompare(b.deliveryDate) || b.createdAt - a.createdAt)
   const focus =
     byDate.find((o) => ['DELIVERED', 'PARTIAL'].includes(o.status)) ??
     byDate.find((o) => o.status === 'DEFERRED' && o.deferral?.confirmed && !o.deferral.acknowledged) ??
     byDate.find((o) => o.shortfall && !['DELIVERED', 'PARTIAL', 'RECEIVED'].includes(o.status)) ??
+    // Something changed on the way: moved to another vehicle, or the driver reported a delay to this stop.
+    byDate.find((o) => !['DELIVERED', 'PARTIAL', 'RECEIVED', 'DEFERRED'].includes(o.status) && (!!tripOf(o)?.rescue?.from || tripOf(o)?.reportedDelay?.orderId === o.id)) ??
     byDate.find((o) => ['ARRIVED', 'IN_TRANSIT', 'LOADED', 'FAILED'].includes(o.status)) ??
     byDate.find((o) => !['RECEIVED', 'DEFERRED'].includes(o.status)) ??
     orders[0]
   // The dispatcher moved this order to another vehicle mid-route.
   const trip = focus && d.trips.find((t) => t.id === focus.tripId)
   const moved = trip?.rescue?.from && focus && !['DELIVERED', 'PARTIAL', 'RECEIVED'].includes(focus.status) ? { to: trip.vehicleId, from: d.trips.find((t) => t.id === trip.rescue!.from)?.vehicleId, reason: trip.rescue.reason } : undefined
+
+  // The driver reported a blocked road to this stop and the dispatcher hasn't moved it yet.
+  const delay = trip?.reportedDelay?.orderId === focus?.id && focus && !['DELIVERED', 'PARTIAL', 'RECEIVED'].includes(focus.status) ? trip!.reportedDelay : undefined
 
   return (
     <>
@@ -64,6 +70,11 @@ export function Dashboard() {
                     {focus.shortfall && (
                       <Callout tone="attention" icon={<TriangleAlert className="size-5" />} title={`${focus.shortfall.missing} × ${focus.shortfall.item} unavailable at loading`}>
                         {focus.shortfall.decision ? `Dispatcher decision: ${focus.shortfall.decision}.` : 'The dispatcher is deciding how to proceed.'}
+                      </Callout>
+                    )}
+                    {!moved && delay && (
+                      <Callout tone="attention" icon={<Clock className="size-5" />} title={`Driver reported about ${delay.minutes} min delay on the way to you`}>
+                        {delay.note ? `${delay.note}. ` : ''}The dispatcher has been told and may send this delivery on another vehicle.
                       </Callout>
                     )}
                     {moved && (

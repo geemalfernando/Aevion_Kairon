@@ -144,7 +144,7 @@ export function Load() {
   const net = useNetwork()
   const { t } = useTranslation()
   const trip = d.trips.find((x) => x.id === tripId)
-  // ?stop=OUT032 opens that stop (stable link for previews).
+  // ?stop=OUT005 opens that stop (stable link for previews).
   const [open, setOpen] = useState<string | null>(() => (STOP && trip ? (trip.stops.find((id) => orderOf(d, id)?.outletId === STOP) ?? null) : null))
   const [short, setShort] = useState<{ o: Order; item: string; available: number } | null>(() => {
     if (MODAL !== 'shortfall' || !trip) return null

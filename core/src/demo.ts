@@ -7,8 +7,12 @@
  *   with the brief's proportions (120 outlets, 60 vehicles, 12 districts). Figures the booklet quotes are exact;
  *   everything else is a placeholder.
  * - Demo enrichment the CSVs don't carry: outlet names, managers, service history, driver names, fuel already used,
- *   and the recovery reserve (team policy: VEH008 and VEH031).
- * - One realistic delivery day of orders, with the hero story's five Colombo stops locked to VEH014 as a whole trip.
+ *   and the recovery reserve (team policy: two reefers, see STORY).
+ * - One realistic delivery day of orders, with the hero story's five Colombo stops locked to the story reefer as a
+ *   whole trip.
+ *
+ * The story uses vehicles and outlets that have the same roles in the competition CSVs, so the walkthrough reads the
+ * same on placeholder data and on the real data.
  */
 import { calRow, catalogFor, measure, splitByTemp, type Catalog } from './catalog'
 import { parseCsv, type BrandName, type CalendarRow, type CsvName, type DepotName, type DistrictTravelRow, type DockType, type FleetStatusRow, type OutletRow, type ParkingConstraint, type ServiceAllowanceRow, type VehicleRow } from './csv'
@@ -69,14 +73,36 @@ export const PLACEHOLDER_ALLOWANCES: ServiceAllowanceRow[] = [
 
 // ---------------------------------------------------------------------------
 // Vehicles: 12 reefer trucks, 40 dry-box trucks, 8 vans (4 reefer). Kandy hub runs VEH049–VEH060.
+// Peliyagoda's reefers are VEH001–VEH007 (trucks) and VEH035–VEH036 (vans), as in vehicles.csv.
 // ---------------------------------------------------------------------------
 
-const REEFER_TRUCKS = [1, 3, 5, 8, 11, 14, 17, 20, 23, 49, 50, 51]
-const REEFER_VANS = [31, 34, 37, 52]
-const VANS = [40, 43, 46, 53]
+const REEFER_TRUCKS = [1, 2, 3, 4, 5, 6, 7, 49, 50, 51, 52, 53]
+const REEFER_VANS = [35, 36, 57, 58]
+const VANS = [37, 38, 59, 60]
 export const IN_WORKSHOP = ['VEH005', 'VEH020', 'VEH022', 'VEH038', 'VEH043']
+
+/**
+ * The demo story's cast. Each id has the same role in the competition CSVs: VEH002 and VEH007 are Peliyagoda reefer
+ * trucks, VEH036 a Peliyagoda reefer van, VEH024 a dry truck; the five story stops are Fresh outlets in Colombo with
+ * normal parking; OUT043 is a Fresh outlet in Kalutara.
+ */
+export const STORY = {
+  /** Nimal's reefer truck: the hero trip. */
+  vehicle: 'VEH002',
+  trip: 'TRP-002-1',
+  /** Dilini's outlet (Fresh Borella): the shortfall, the flooded road and the moved stop. */
+  store: 'OUT005',
+  /** The stop the dispatcher drops when the story trip changes during loading. */
+  dropped: 'OUT012',
+  /** Skipped on the previous run, so it goes first today. */
+  skipped: 'OUT043',
+  /** The reserve van a stop moves to mid-route. */
+  reserveVan: 'VEH036',
+  /** Close to its weekly fuel quota. */
+  fuelCase: 'VEH024',
+} as const
 /** Team policy: two reefers stay in reserve for breakdown recovery. */
-export const RECOVERY_RESERVE = ['VEH008', 'VEH031']
+export const RECOVERY_RESERVE: string[] = ['VEH007', STORY.reserveVan]
 
 export function placeholderVehicles(): VehicleRow[] {
   return Array.from({ length: 60 }, (_, i) => {
@@ -103,16 +129,16 @@ const OUTLET_PLAN: [BrandName, string, number][] = [
   ['Tech', 'Colombo', 5], ['Tech', 'Gampaha', 3], ['Tech', 'Kalutara', 1], ['Tech', 'Galle', 1], ['Tech', 'Kegalle', 1], ['Tech', 'Puttalam', 1], ['Tech', 'Kandy', 2], ['Tech', 'Kurunegala', 1],
 ]
 
-/** The demo story: a Fresh cluster in Colombo on VEH014's route, plus an outlet skipped yesterday. */
+/** The demo story: a Fresh cluster in Colombo on the story reefer's route, plus an outlet skipped yesterday. */
 export const STORY_OUTLETS: Record<string, { town: string; window: [string, string] }> = {
-  OUT004: { town: 'Kollupitiya', window: ['05:00', '07:30'] },
-  OUT018: { town: 'Bambalapitiya', window: ['05:00', '07:30'] },
-  OUT032: { town: 'Borella', window: ['05:00', '07:30'] },
-  OUT047: { town: 'Narahenpita', window: ['05:00', '07:00'] },
-  OUT056: { town: 'Kirulapone', window: ['05:00', '08:00'] },
-  OUT043: { town: 'Dehiwala', window: ['05:00', '07:30'] },
+  OUT005: { town: 'Borella', window: ['04:00', '07:45'] },
+  OUT008: { town: 'Narahenpita', window: ['05:00', '07:30'] },
+  OUT010: { town: 'Kollupitiya', window: ['05:00', '07:30'] },
+  OUT012: { town: 'Kirulapone', window: ['05:30', '08:00'] },
+  OUT013: { town: 'Bambalapitiya', window: ['05:00', '07:30'] },
+  OUT043: { town: 'Kalutara', window: ['05:00', '07:30'] },
 }
-export const STORY_VEHICLE = 'VEH014'
+export const STORY_VEHICLE: string = STORY.vehicle
 
 const FRESH_WINDOWS: [string, string][] = [
   ['04:30', '07:30'],
@@ -139,11 +165,12 @@ export function placeholderOutlets(): OutletRow[] {
     const j = Math.floor(r() * (i + 1))
     ;[slots[i], slots[j]] = [slots[j], slots[i]]
   }
-  // Pin the story outlets to Fresh · Colombo.
+  // Pin the story outlets to Fresh · Colombo and the skipped outlet to Fresh · Kalutara, as in outlets.csv.
   for (const id of Object.keys(STORY_OUTLETS)) {
     const idx = Number(id.slice(3)) - 1
-    if (slots[idx][0] === 'Fresh' && slots[idx][1] === 'Colombo') continue
-    const swap = slots.findIndex((s, k) => s[0] === 'Fresh' && s[1] === 'Colombo' && !Object.keys(STORY_OUTLETS).includes(`OUT${pad(k + 1)}`))
+    const district = id === STORY.skipped ? 'Kalutara' : 'Colombo'
+    if (slots[idx][0] === 'Fresh' && slots[idx][1] === district) continue
+    const swap = slots.findIndex((s, k) => s[0] === 'Fresh' && s[1] === district && !Object.keys(STORY_OUTLETS).includes(`OUT${pad(k + 1)}`))
     ;[slots[idx], slots[swap]] = [slots[swap], slots[idx]]
   }
 
@@ -284,8 +311,9 @@ export function buildDemoReference(csv: Partial<Record<CsvName, string>> = {}): 
     // With real vehicles but no fleet file, everything is available.
     sv === 'csv' ? vehicles.map((v) => ({ vehicle_id: v.vehicle_id, status: 'available' as const })) : placeholderFleet(),
   )
+  const fleetSource = sf === 'placeholder' && sv === 'csv' ? 'missing' : sf
   for (const o of outlets) o.mall_window = String(o.mall_window ?? '')
-  return { outlets, vehicles, calendar, districts, allowances, fleet, sources: { outlets: so, vehicles: sv, calendar: sc, district_travel: sd, service_allowance: sa, fleet_status: sf } }
+  return { outlets, vehicles, calendar, districts, allowances, fleet, sources: { outlets: so, vehicles: sv, calendar: sc, district_travel: sd, service_allowance: sa, fleet_status: fleetSource } }
 }
 
 // ---------------------------------------------------------------------------
@@ -336,8 +364,8 @@ export const DEMO_CATALOG: Catalog = {
 export const DEMO_USERS: Record<Role, User> = {
   DISPATCHER: { name: 'Geemal', email: 'dispatcher@kairon.demo', role: 'DISPATCHER', depot: 'Peliyagoda' },
   LOADER: { name: 'Kamal', email: 'loader@kairon.demo', role: 'LOADER', depot: 'Peliyagoda' },
-  DRIVER: { name: 'Nimal', email: 'driver@kairon.demo', role: 'DRIVER', depot: 'Peliyagoda', assignedVehicle: 'VEH014' },
-  STORE_MANAGER: { name: 'Dilini', email: 'store@kairon.demo', role: 'STORE_MANAGER', depot: 'Peliyagoda', assignedOutlet: 'OUT032' },
+  DRIVER: { name: 'Nimal', email: 'driver@kairon.demo', role: 'DRIVER', depot: 'Peliyagoda', assignedVehicle: STORY.vehicle },
+  STORE_MANAGER: { name: 'Dilini', email: 'store@kairon.demo', role: 'STORE_MANAGER', depot: 'Peliyagoda', assignedOutlet: STORY.store },
 }
 export const DEMO_PASSWORD = 'kairon-demo'
 
@@ -364,11 +392,11 @@ export function enrichForDemo(d: OpsData) {
     // Service history: most Fresh outlets were served yesterday.
     o.lastServedDaysAgo = o.brand === 'Fresh' ? (r() < 0.8 ? 1 : 2) : 2 + Math.floor(r() * 5)
   }
-  // A handful of outlets were skipped on the previous run; OUT043 is part of the demo story.
-  const skipped = new Set(['OUT043', ...d.outlets.filter((o) => o.brand === 'Fresh' && !STORY_OUTLETS[o.id] && r() < 0.07).map((o) => o.id)])
+  // A handful of outlets were skipped on the previous run; STORY.skipped is part of the demo story.
+  const skipped = new Set([STORY.skipped, ...d.outlets.filter((o) => o.brand === 'Fresh' && !STORY_OUTLETS[o.id] && r() < 0.07).map((o) => o.id)])
   for (const o of d.outlets) if (skipped.has(o.id)) Object.assign(o, { deferredYesterday: true, deferralsThisWeek: 1, lastServedDaysAgo: 2 })
-  const out032 = d.outlets.find((o) => o.id === 'OUT032')
-  if (out032) out032.manager = 'Dilini'
+  const store = d.outlets.find((o) => o.id === STORY.store)
+  if (store) store.manager = 'Dilini'
   // Maps need coordinates and no CSV carries them: place each outlet near its district centre (approximate, demo only).
   const g = rng(31)
   for (const o of d.outlets) {
@@ -382,8 +410,8 @@ export function enrichForDemo(d: OpsData) {
   const f = rng(29)
   d.vehicles.forEach((v, i) => {
     const used = Math.round(v.fuelQuotaL * (0.25 + f() * 0.35))
-    v.fuelUsedL = v.id === 'VEH024' ? Math.round(v.fuelQuotaL * 0.93) : v.id === STORY_VEHICLE ? 40 : used
-    // DRIVERS[0] (Nimal) drives VEH014 in the story; everyone else gets one of the others.
+    v.fuelUsedL = v.id === STORY.fuelCase ? Math.round(v.fuelQuotaL * 0.93) : v.id === STORY_VEHICLE ? 40 : used
+    // DRIVERS[0] (Nimal) drives the story reefer; everyone else gets one of the others.
     if (!v.driver) v.driver = v.id === STORY_VEHICLE ? DRIVERS[0] : DRIVERS[1 + ((i + 5) % (DRIVERS.length - 1))]
     // Team policy: two reefers stay in reserve for breakdown recovery.
     if (RECOVERY_RESERVE.includes(v.id) && v.status === 'AVAILABLE') v.reserve = true
@@ -395,14 +423,23 @@ export interface DemoSeedOptions {
   today?: string
   /** CSV texts from DATA_DIR; anything missing falls back to placeholders. */
   csv?: Partial<Record<CsvName, string>>
+  /** Reference rows to use instead of `csv`, e.g. those a previous demo day stored (`storedReference`). */
+  reference?: Reference
   catalog?: Catalog
+}
+
+/** The reference a demo day was built from, or null for an operation that wasn't seeded as a demo day. */
+export function storedReference(d: OpsData): Reference | null {
+  return d.demoSource ? { ...d.demoSource, calendar: d.calendar, allowances: d.allowances } : null
 }
 
 /** The demo operation: reference data, enrichment, one delivery day of orders, clock at 15:20 on the ordering day. */
 export function seedDemoOps(opts: DemoSeedOptions = {}): OpsData {
   const today = opts.today ?? colomboDate(Date.now())
-  const d = seedOps({ today, reference: buildDemoReference(opts.csv) })
-  d.catalog = opts.catalog ?? DEMO_CATALOG
+  const reference = opts.reference ?? buildDemoReference(opts.csv)
+  const d = seedOps({ today, reference })
+  d.catalog = opts.catalog && Object.keys(opts.catalog).length ? opts.catalog : DEMO_CATALOG
+  d.demoSource = { outlets: reference.outlets, vehicles: reference.vehicles, districts: reference.districts, fleet: reference.fleet, sources: reference.sources }
   enrichForDemo(d)
   // The demo opens 40 minutes before the 16:00 order cutoff on the ordering day.
   d.clock = { sim: colomboTs(today, hm(15, 20)), real: Date.now() }
@@ -444,9 +481,9 @@ function buildDemoOrders(outlets: OpsData['outlets'], cal: OpsData['calendar'], 
         priorityWhy: pr.why,
         runsDeferred: runsDeferred || undefined,
         createdAt: colomboTs(orderDay, hm(8) + Math.floor(r() * 470)),
-        // The hero story's five Colombo stops start locked to VEH014 as one whole trip, as a dispatcher would lock
+        // The hero story's five Colombo stops start locked to the story reefer as one whole trip, as a dispatcher would lock
         // them, so the hero trip stays exactly the five designed stops.
-        lock: STORY_OUTLETS[outlet.id] && outlet.id !== 'OUT043' && part.temp === 'CHILLED' ? { vehicleId: STORY_VEHICLE, by: 'SYSTEM', at: colomboTs(orderDay, hm(16)), wholeTrip: true } : undefined,
+        lock: STORY_OUTLETS[outlet.id] && outlet.id !== STORY.skipped && part.temp === 'CHILLED' ? { vehicleId: STORY_VEHICLE, by: 'SYSTEM', at: colomboTs(orderDay, hm(16)), wholeTrip: true } : undefined,
       })
     }
   }
@@ -455,7 +492,7 @@ function buildDemoOrders(outlets: OpsData['outlets'], cal: OpsData['calendar'], 
     const cat = catalogFor(o.brand, catalog)
     const story = !!STORY_OUTLETS[o.id]
     if (o.brand === 'Fresh') {
-      if (o.id === 'OUT032') {
+      if (o.id === STORY.store) {
         push(o, [
           { name: 'Dairy', unit: 'crates', qty: 12 },
           { name: 'Frozen goods', unit: 'cartons', qty: 4 },
