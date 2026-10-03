@@ -161,7 +161,7 @@ export function Dashboard() {
                 routes={liveRoutes.map((t, i) => ({
                   id: t.id,
                   depot: d.vehicles.find((v) => v.id === t.vehicleId)!.depot,
-                  color: t.vehicleId === 'VEH014' ? 'var(--attention)' : i % 2 ? 'var(--brand)' : 'var(--steel)',
+                  color: t.vehicleId === 'VEH002' ? 'var(--attention)' : i % 2 ? 'var(--brand)' : 'var(--steel)',
                   stops: t.stops.map((id) => {
                     const o = d.orders.find((x) => x.id === id)!
                     return { outlet: outletOf(d, o.outletId)!, state: isDone(o) ? 'done' : 'todo' }

@@ -36,13 +36,13 @@ export interface Preset {
   build: () => PresetState
 }
 
-const STORY = 'TRP-014-1'
+const STORY = 'TRP-002-1'
 /** Fresh seed, on the pinned ordering day when ?day= is set. */
 const seed = () => seedDemoOps(DAY ? { today: DAY } : {})
 const at = (d: OpsData, min: number) => setClock(d, colomboTs(d.deliveryDate, min))
 const ev = (d: OpsData, actor: Role, event: FieldEvent) => applyEvent(d, { actor, event, at: opNow(d) })
 const orderAt = (d: OpsData, outletId: string, temp: 'CHILLED' | 'AMBIENT' = 'CHILLED') => d.orders.find((o) => o.outletId === outletId && o.temp === temp)!
-const storeOrder = (d: OpsData) => orderAt(d, 'OUT032')
+const storeOrder = (d: OpsData) => orderAt(d, 'OUT005')
 
 function planned() {
   const d = seed()
@@ -64,12 +64,12 @@ function loading(countAll = false) {
   const trip = byId(d.trips, STORY)!
   for (const id of trip.stops) {
     const o = byId(d.orders, id)!
-    if (!countAll && o.outletId === 'OUT032') continue
+    if (!countAll && o.outletId === 'OUT005') continue
     for (const i of o.items) ev(d, 'LOADER', { type: 'LOAD_COUNT', orderId: id, item: i.name, count: i.qty })
   }
   return d
 }
-/** 03:52 — Kamal counts OUT032 and finds 3 dairy crates damaged in the cold room; he flags it before departure. */
+/** 03:52 — Kamal counts OUT005 and finds 3 dairy crates damaged in the cold room; he flags it before departure. */
 function shortfallReported() {
   const d = loading()
   at(d, hm(3, 52))
@@ -93,7 +93,7 @@ function loaded() {
   at(d, hm(4, 25))
   return d
 }
-/** Dispatcher takes OUT056 off VEH014 and adds another Colombo chilled order after loading began. */
+/** Dispatcher takes OUT012 off VEH002 and adds another Colombo chilled order after loading began. */
 function planChanged() {
   const d = loading(true)
   at(d, hm(4, 5))
@@ -101,7 +101,7 @@ function planChanged() {
   const veh = byId(d.vehicles, trip.vehicleId)!
   // Locks stop re-planning from moving the story stops; the dispatcher changing the trip by hand unlocks them first.
   commands.unlockTrip(d, trip.id)
-  const drop = orderAt(d, 'OUT056')
+  const drop = orderAt(d, 'OUT012')
   commands.unassign(d, drop.id)
   const colomboChilled = (o: Order) => o.temp === 'CHILLED' && byId(d.outlets, o.outletId)?.district === 'Colombo' && byId(d.outlets, o.outletId)?.depot === veh.depot
   const fitsWithout = (o: Order) => validate(o, veh, { ...d, trips: d.trips.map((t) => (t.id === o.tripId ? { ...t, stops: t.stops.filter((s) => s !== o.id) } : t)) }).ok
@@ -124,14 +124,14 @@ function enRoute() {
   ev(d, 'DRIVER', { type: 'DELIVER', orderId: first, tripId: STORY, record: { outcome: 'DELIVERED', receiver: 'Store staff', completedAt: opNow(d) } })
   return d
 }
-/** 05:22 — before losing signal Nimal reports that the road to OUT032 is flooded: about 90 minutes' detour. */
+/** 05:22 — before losing signal Nimal reports that the road to OUT005 is flooded: about 90 minutes' detour. */
 function reportBlocked(d: OpsData) {
   at(d, hm(5, 22))
-  ev(d, 'DRIVER', { type: 'VEHICLE_ISSUE', vehicleId: 'VEH014', tripId: STORY, kind: 'Road blocked', delayOrderId: storeOrder(d).id, delayMin: 90, note: 'Baseline Road flooded near Borella — police diversion' })
+  ev(d, 'DRIVER', { type: 'VEHICLE_ISSUE', vehicleId: 'VEH002', tripId: STORY, kind: 'Road blocked', delayOrderId: storeOrder(d).id, delayMin: 90, note: 'Baseline Road flooded near Borella — police diversion' })
 }
 /**
  * Driver reports the blocked road, loses signal at 05:24 and keeps recording on the phone.
- * With collided, the road reopened, so he went straight to OUT032 and delivered it before the dispatcher's change reached him.
+ * With collided, the road reopened, so he went straight to OUT005 and delivered it before the dispatcher's change reached him.
  */
 function offline(until = hm(6, 18), collided = false): PresetState {
   const d = enRoute()
@@ -155,8 +155,8 @@ function offline(until = hm(6, 18), collided = false): PresetState {
   return { data: d, device: { queue, snapshot, offlineFrom, conflict: null, lastSync: offlineFrom }, offline: true }
 }
 /**
- * 05:40 — the dispatcher moves OUT032 to the reserve van VEH031 (re-picked, leaves 06:05); the phone reconnects.
- * Normally at 06:20 after two more deliveries. With collided, at 06:00 with OUT032 already delivered: the
+ * 05:40 — the dispatcher moves OUT005 to the reserve van VEH036 (re-picked, leaves 06:05); the phone reconnects.
+ * Normally at 06:20 after two more deliveries. With collided, at 06:00 with OUT005 already delivered: the
  * driver's record wins and the van's re-pick is cancelled before it leaves.
  */
 function conflict(collided = false): PresetState {
@@ -164,7 +164,7 @@ function conflict(collided = false): PresetState {
   const s = offline(syncAt, collided)
   const d = s.data
   at(d, hm(5, 40))
-  commands.moveStop(d, storeOrder(d).id, 'VEH031', 'Road to Borella flooded — Nimal reported ~90 min detour, would miss the 07:30 window. Sent on the reserve van.')
+  commands.moveStop(d, storeOrder(d).id, 'VEH036', 'Road to Borella flooded — Nimal reported ~90 min detour, would miss the 07:45 window. Sent on the reserve van.')
   at(d, syncAt)
   const delivered: string[] = []
   const clashes: string[] = []
@@ -173,8 +173,8 @@ function conflict(collided = false): PresetState {
     if (q.event.type === 'DELIVER' && r.status === 'applied') delivered.push(q.event.orderId)
     if (r.conflict && 'orderId' in q.event && !clashes.includes(q.event.orderId)) clashes.push(q.event.orderId)
   }
-  commands.recordSync(d, { email: 'driver@kairon.demo', name: 'Nimal', role: 'DRIVER', vehicleId: 'VEH014', offlineFrom: s.device!.offlineFrom!, events: s.device!.queue.length, deliveries: delivered.length, conflicts: clashes, routeChanged: true })
-  const c = detectConflict(s.device!.snapshot!, d, 'VEH014', s.device!.offlineFrom!, delivered, clashes, opNow(d))
+  commands.recordSync(d, { email: 'driver@kairon.demo', name: 'Nimal', role: 'DRIVER', vehicleId: 'VEH002', offlineFrom: s.device!.offlineFrom!, events: s.device!.queue.length, deliveries: delivered.length, conflicts: clashes, routeChanged: true })
+  const c = detectConflict(s.device!.snapshot!, d, 'VEH002', s.device!.offlineFrom!, delivered, clashes, opNow(d))
   return { data: d, device: { queue: [], snapshot: null, offlineFrom: null, conflict: c, lastSync: opNow(d) } }
 }
 /** Driver has just arrived at stop 2 and is recording the delivery. */
@@ -188,7 +188,7 @@ function atStop() {
 function breakdown() {
   const d = enRoute()
   at(d, hm(5, 34))
-  ev(d, 'DRIVER', { type: 'VEHICLE_ISSUE', vehicleId: 'VEH014', tripId: STORY, kind: 'Breakdown', note: 'Engine overheating on Galle Road' })
+  ev(d, 'DRIVER', { type: 'VEHICLE_ISSUE', vehicleId: 'VEH002', tripId: STORY, kind: 'Breakdown', note: 'Engine overheating on Galle Road' })
   return d
 }
 function recovered() {
@@ -202,7 +202,7 @@ function live() {
   // 06:21 — Nimal taps “I’ve seen the changes”.
   at(d, hm(6, 21))
   ev(d, 'DRIVER', { type: 'ROUTE_ACK', tripId: STORY, changeIds: (byId(d.trips, STORY)!.changes ?? []).map((c) => c.id) })
-  commands.simulateFleet(d, 'VEH014')
+  commands.simulateFleet(d, 'VEH002')
   return d
 }
 function storeDelivered() {
@@ -240,7 +240,7 @@ export const PRESETS: Preset[] = [
 
   { id: 'loading', title: 'Loading in stop order', role: 'LOADER', group: 'Loader', path: `/loader/load/${STORY}`, note: 'Last stop in first; one stop left to count.', build: one(() => loading()) },
   { id: 'shortfall', title: 'Shortfall before departure', role: 'LOADER', group: 'Loader', path: `/loader/load/${STORY}?modal=shortfall`, note: 'Loader flags missing dairy before the vehicle leaves.', build: one(() => loading()) },
-  { id: 'shortfall-decided', title: 'Shortfall decision received', role: 'LOADER', group: 'Loader', path: `/loader/load/${STORY}?stop=OUT032`, note: 'The dispatcher’s decision appears on the stop the loader flagged.', build: one(shortfallDecided) },
+  { id: 'shortfall-decided', title: 'Shortfall decision received', role: 'LOADER', group: 'Loader', path: `/loader/load/${STORY}?stop=OUT005`, note: 'The dispatcher’s decision appears on the stop the loader flagged.', build: one(shortfallDecided) },
   { id: 'plan-changed', title: 'Plan changed after loading started', role: 'LOADER', group: 'Loader', path: `/loader/load/${STORY}`, note: 'Second degradation screen: unload one stop, add one, confirm before departure.', degradation: true, build: one(planChanged) },
 
   { id: 'ready', title: 'Loaded, ready to leave', role: 'DRIVER', group: 'Driver', path: '/driver', note: '04:25, night theme.', build: one(loaded) },

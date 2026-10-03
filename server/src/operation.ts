@@ -5,11 +5,7 @@
  */
 import crypto from 'node:crypto'
 import { notificationVisible, projectState, mergeDepot } from '@core/access'
-import fs from 'node:fs'
-import path from 'node:path'
-import type { Catalog } from '@core/catalog'
-import type { CsvName } from '@core/csv'
-import { buildDemoReference, seedDemoOps } from '@core/demo'
+import { buildDemoReference, seedDemoOps, storedReference } from '@core/demo'
 import { applyEvent, COMMAND_ROLES, commands, EVENT_ROLES, seedOps, type ApplyResult, type CommandName } from '@core/ops'
 import type { Reference } from '@core/reference'
 import { byId } from '@core/rules'
@@ -17,6 +13,7 @@ import type { FieldEvent, OpsData, QueuedEvent } from '@core/types'
 import type { Session } from './auth'
 import { config } from './config'
 import { loadOps, persistState, transaction, seenEvents, loadMedia, type Tx } from './db'
+import { readCatalog, readCsvs } from './demo-data'
 
 export class HttpError extends Error {
   constructor(
@@ -39,23 +36,6 @@ class Mutex {
 type Logger = { info: (m: string | object, msg?: string) => void; warn: (m: string | object, msg?: string) => void }
 
 const repository = { loadOps, persistState, transaction, seenEvents, loadMedia }
-const CSV_NAMES: CsvName[] = ['outlets', 'vehicles', 'calendar', 'district_travel', 'service_allowance', 'fleet_status']
-
-/** Find the competition CSVs anywhere under DATA_DIR (the datasets ship in sub-folders such as "General Data/"). */
-export function readCsvs(dir: string): Partial<Record<CsvName, string>> {
-  const found: Partial<Record<CsvName, string>> = {}
-  const walk = (d: string, depth = 0) => {
-    if (depth > 3 || !fs.existsSync(d)) return
-    for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
-      const p = path.join(d, entry.name)
-      if (entry.isDirectory()) walk(p, depth + 1)
-      const name = CSV_NAMES.find((n) => `${n}.csv` === entry.name.toLowerCase())
-      if (name && !found[name]) found[name] = fs.readFileSync(p, 'utf8')
-    }
-  }
-  walk(dir)
-  return found
-}
 export interface EventResult extends ApplyResult {
   id: string
 }
@@ -86,7 +66,7 @@ export class Operation {
     const existing = await this.db.loadOps()
     if (existing) {
       this.state = existing
-      if (config.seedDemoDay) this.sources = buildDemoReference(readCsvs(config.dataDir)).sources
+      this.sources = existing.demoSource?.sources ?? null
       this.log.info(`Loaded operation for ${existing.deliveryDate} (version ${existing.version})`)
       return
     }
@@ -95,15 +75,23 @@ export class Operation {
 
   /**
    * The starting operation. Normally empty (reference data comes from `npm run import:data`). With SEED_DEMO_DAY=true:
-   * one realistic delivery day, built from the competition CSVs in DATA_DIR when present, otherwise placeholders.
+   * one realistic delivery day.
    */
   private seed(): OpsData {
-    if (!config.seedDemoDay) return seedOps()
+    return config.seedDemoDay ? this.demoDay(null) : seedOps()
+  }
+
+  /**
+   * A fresh demo delivery day for today, from the competition CSVs in DATA_DIR when present; otherwise from the
+   * reference rows the previous demo day stored (a hosted server has no CSVs); otherwise from placeholders.
+   */
+  private demoDay(previous: OpsData | null): OpsData {
     const csv = readCsvs(config.dataDir)
-    const catalogFile = path.join(config.dataDir, 'catalog.json')
-    const catalog = fs.existsSync(catalogFile) ? (JSON.parse(fs.readFileSync(catalogFile, 'utf8')) as Catalog) : undefined
-    this.sources = buildDemoReference(csv).sources
-    return seedDemoOps({ csv, catalog })
+    const stored = previous && storedReference(previous)
+    const catalog = readCatalog(config.dataDir) ?? previous?.catalog
+    const next = Object.keys(csv).length || !stored ? seedDemoOps({ csv, catalog }) : seedDemoOps({ reference: stored, catalog })
+    this.sources = next.demoSource?.sources ?? buildDemoReference(csv).sources
+    return next
   }
 
   private async reset() {
@@ -115,10 +103,10 @@ export class Operation {
 
   /** Demo mode only: start the demo delivery day again, replacing the current operation for every device. */
   async resetDemo() {
-    if (!config.demoMode || !config.seedDemoDay) throw new HttpError(403, 'Demo reset is only available in demo mode')
+    if (!config.demoMode) throw new HttpError(403, 'Demo reset is only available in demo mode')
     return this.lock.run(async () => {
       const before = (await this.db.loadOps()) ?? this.state
-      const next = this.seed()
+      const next = this.demoDay(before)
       await this.db.persistState(before, next, this.db.transaction())
       this.state = next
       this.emit()
@@ -191,7 +179,8 @@ export class Operation {
         try { return (commands[cmd] as (d: OpsData, ...rest: unknown[]) => unknown)(d, ...a) }
         finally { d.ordersClosed = closed }
       }
-      if (user.role !== 'DISPATCHER' || allowed === 'demo') return (commands[cmd] as (d: OpsData, ...rest: unknown[]) => unknown)(d, ...a)
+      // Closing the day changes the whole operation (both depots' delivery date and fuel), so it runs on the full state.
+      if (user.role !== 'DISPATCHER' || allowed === 'demo' || cmd === 'startNextDay') return (commands[cmd] as (d: OpsData, ...rest: unknown[]) => unknown)(d, ...a)
       const working = projectState(d, user)
       const before = structuredClone(working)
       const own = (list: { id: string }[], id: unknown) => { if (typeof id !== 'string' || !list.some((x) => x.id === id)) throw new HttpError(403, 'Resource belongs to another depot or does not exist') }

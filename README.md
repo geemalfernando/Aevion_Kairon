@@ -20,7 +20,13 @@ device when offline and replayed in order on reconnect.
 For AWS staging, security prerequisites, notification delivery work and the paths to the cloud blueprint, see
 [the deployment guide](docs/deployment.md). The RDS template includes private PostgreSQL identities/state, private S3 proof storage, ECS notification workers, Redis and production security controls. The current Vercel/Supabase site remains available until AWS cutover is verified. Live provider checks and account configuration are required before production.
 
-## For judges: run it in one command
+## For judges
+
+**Deployed site:** TODO (team): add the public URL. Sign in with the four accounts below. Each judge should start
+with **Demo → Reset demo data** as the dispatcher, so the walkthrough starts from the seeded delivery day. All judges
+share one operation, so a reset also resets what other judges see.
+
+### Run it in one command
 
 Needs only Docker.
 
@@ -29,14 +35,14 @@ docker compose up --build
 ```
 
 Open <http://localhost:8080> and sign in with one of the four accounts (the sign-in page also has one-tap buttons).
-Every account uses the password **`kairon-demo`**.
+The same four accounts work on the deployed site and locally. Every account uses the password **`kairon-demo`**.
 
 | Role | Email | Who |
 |---|---|---|
 | Dispatcher | `dispatcher@kairon.demo` | Geemal, Peliyagoda |
 | Loader | `loader@kairon.demo` | Kamal, Peliyagoda |
-| Driver | `driver@kairon.demo` | Nimal, drives VEH014 |
-| Store manager | `store@kairon.demo` | Dilini, outlet OUT032 |
+| Driver | `driver@kairon.demo` | Nimal, drives reefer truck VEH002 |
+| Store manager | `store@kairon.demo` | Dilini, Fresh Borella (OUT005) |
 
 The stack has three containers: **frontend** (nginx serving the web app on port 8080 and forwarding `/api`), **backend** (the API) and **database** (PostgreSQL 16). The first start creates the
 schema and seeds one realistic delivery day: the network, fleet and calendar from the competition CSVs when they are in
@@ -101,7 +107,7 @@ server/       Fastify API
 supabase/     SQL migrations for the hosted database
 web/          React app: pages per role in src/pages/, demo states in src/demo/; android/ and ios/ (Capacitor)
 data/         Put the competition CSVs and catalog.json here (git-ignored)
-docs/         Project documentation (AI disclosure)
+docs/         Architecture, data model (with diagrams) and AI disclosure
 Dockerfile, docker-compose.yml, .env.example, .github/workflows/ci.yml
 ```
 
@@ -183,6 +189,26 @@ HttpOnly refresh cookie in browsers (in-memory bearer credentials on native); AP
 To develop in local mode instead, leave `SUPABASE_URL` empty and point `DATABASE_URL` at any PostgreSQL; set
 `DEMO_MODE`, `SEED_DEMO_DAY` and `VITE_DEMO_MODE` for the demo day and tools (see `.env.example`).
 
+### Seed the judges' demo day
+
+The deployed site serves the judges' walkthrough, so it runs with the demo day:
+
+1. Create the four accounts with `seed:users`, using the emails and password in the table at the top
+   (`SEED_*_EMAIL=dispatcher@kairon.demo` and so on, every `SEED_*_PASSWORD=kairon-demo`), with
+   `SEED_DRIVER_VEHICLE=VEH002` and `SEED_STORE_OUTLET=OUT005`.
+2. In Vercel, set `DEMO_MODE=true` (API) and `VITE_DEMO_MODE=true` (web build), then redeploy.
+3. On a machine that has the competition CSVs in `data/` and the Supabase keys in `.env`, run once:
+
+   ```sh
+   npm --prefix server run seed:demo -- --replace
+   ```
+
+   It builds the demo day from the CSVs and saves it to Supabase. The CSVs stay on that machine; only the resulting
+   operation (outlets, vehicles, calendar, orders) is stored, in the private database.
+
+Afterwards **Demo → Reset demo data** rebuilds the day for the current date from the rows stored in the database, so
+Vercel never needs the CSVs. Without `DEMO_MODE` the reset endpoint and demo tools are off.
+
 ### Deploy
 
 For a separately hosted frontend such as Vercel, set `VITE_API_URL` at build time to your public API origin. On the
@@ -204,38 +230,26 @@ sub-folders such as `General Data/`):
 | `fleet_status.csv` | `vehicle_id,status` (`available` or `in_workshop`) |
 
 In local demo mode, the server loads what is present on the first start (or **Demo, Reset**) and falls back to
-placeholders for anything missing. `traffic_speed.csv` and `road_conditions.csv` are not used.
+placeholders for anything missing. The competition download has no `fleet_status.csv`; with real vehicles and no fleet
+file, every vehicle is available. `traffic_speed.csv` and `road_conditions.csv` are not used.
 
 **Never commit the CSVs.** The competition terms forbid sharing the datasets, and `data/**/*.csv` is in `.gitignore`.
 `docker compose` mounts `data/` into the backend read-only at start; the CSVs are never copied into an image.
 
-## Data model
+## Architecture and data model
 
-**Domain model** (`core/src/types.ts`). One `OpsData` per operation: reference data (`outlets`, `vehicles`,
-`districts`, `allowances`, `calendar`, `catalog`), the day's `orders` (one per outlet, brand and temperature; whole
-orders only), `trips` (vehicle, trip number 1 or 2, ordered stops), the `plan` status, `issues` (shortfalls,
-breakdowns, store reports), `notifications`, `syncLog` (offline sync reports), an `audit` log, `predictions` loaded from the Datathon
-models, the operation `clock`, and a `version`. An order points at its trip (`tripId`) and may carry a `lock` to a vehicle.
+- [`docs/architecture.md`](docs/architecture.md): components, the two deployments, how one delivery moves through the
+  system (including an offline driver), how every write is committed, the planner pipeline, and security.
+- [`docs/data-model.md`](docs/data-model.md): the domain model (outlets, vehicles, orders, trips and what happens to
+  them), how each competition CSV maps onto it, the storage tables, and why the operation is stored as one versioned
+  snapshot.
 
-**Storage** (`supabase/migrations/202610010001_kairon.sql`, the same schema locally):
+The diagrams are Mermaid, so GitHub draws them in place; PNG copies are in [`docs/diagrams/`](docs/diagrams/).
 
-| Table | Holds |
-|---|---|
-| `kairon_state` | One row: the whole `OpsData` as JSONB, plus its `version` |
-| `kairon_events` | One receipt per field event a device sent, keyed by the device-generated id |
-| `kairon_media` | Proof-of-delivery photos and signatures (base64), referenced by URL from the state |
-
-Every write goes through `kairon_commit`: it checks the version the server read, then writes the new state, the event
-receipts and the media in one transaction.
-
-**Why a snapshot and not one table per entity.** A plan is only valid as a whole: moving one stop changes the arrival
-times of every later stop on that trip, and the rules (trip time, two-trip limit, fuel quota) are checked across all of
-a vehicle's trips. The shared core validates and changes the whole operation in memory, so the server stores the result
-of each command as one versioned document. This keeps every commit consistent, makes concurrent writes from several
-devices or serverless instances safe (a stale version is refused with 409 and the client reloads), and lets an offline
-outbox be replayed exactly once (`kairon_events`). The cost: the database can't be queried per order with SQL, and the
-document grows with the day's history. That is acceptable for one regional operation of about 150 orders a day; a
-multi-day archive or reporting would need per-entity tables.
+In short: the whole operation for the day is one versioned JSON document in `kairon_state`. Every command or field
+event is checked by the shared rules in `core/` and committed with `kairon_commit` in one transaction, together with
+the ids of replayed offline events (`kairon_events`, so an outbox is applied once) and proof photos (`kairon_media`).
+A write against an old version is refused, so devices and serverless instances never overwrite each other.
 
 ## Checks and tests
 
@@ -274,43 +288,49 @@ the bottom left of the app; it is presenter-only.
 
 **Ordering day**
 
-1. **Store manager** (`store@kairon.demo`): open `/store/orders/new` and place an order for OUT032 before the 16:00
+1. **Store manager** (`store@kairon.demo`): open `/store/orders/new` and place an order for OUT005 before the 16:00
    cutoff. Chilled and dry goods are split into two deliveries. The order enters planning at the cutoff.
 2. **Dispatcher** (`dispatcher@kairon.demo`): open `/dispatcher/orders` and use Demo, **Close orders & generate plan**.
    Confirmed orders enter one queue, ordered by priority, then earliest window close. On the planning page
-   (`/dispatcher/planning`) read the draft plan: served and deferred counts, the binding resource (with the placeholder
-   data, reefer capacity), and the recovery-reserve trade-off (VEH008 and VEH031 held back).
+   (`/dispatcher/planning`) read the draft plan: served and deferred counts, the binding resource (on the demo day,
+   usually reefer capacity), and the recovery-reserve trade-off (VEH007 and VEH036 held back). A green line above it
+   confirms that every allocation passes every operating rule, re-checked independently of the planner and including
+   any change you make by hand.
 3. **A rule blocks an allocation.** Drag a chilled order onto a dry truck. Every rule is checked, there is no override,
    and vehicles that fit are suggested. Shortcut: `/dispatcher/planning?modal=blocked&demo=blocked`.
 4. **A deferral.** Open `/dispatcher/deferred` to review each deferral with its constraint, calculation and next run.
    Then defer one order by hand from its drawer (choose a reason; `dispatcher_choice` needs a note) and check the store
-   manager's `/store` shows the notice with the reason and the new date. TODO: confirm which of OUT032's orders to
-   defer without breaking the VEH014 story below (its chilled order is on TRP-014-1). Shortcut showing the store's
+   manager's `/store` shows the notice with the reason and the new date. TODO: confirm which of OUT005's orders to
+   defer without breaking the VEH002 story below (its chilled order is on TRP-002-1). Shortcut showing the store's
    view: `/store?demo=store-deferred`.
 5. **Dispatcher**: Demo, **Publish plan to loaders & drivers**. Loader, driver and store are notified.
 
 **Loading (phone-sized, loader)**
 
-6. **Loader** (`loader@kairon.demo`): open `/loader/trips`, then `/loader/load/TRP-014-1`. Load in reverse stop order
+6. **Loader** (`loader@kairon.demo`): open `/loader/trips`, then `/loader/load/TRP-002-1`. Load in reverse stop order
    (last stop goes in first) and count each item.
-7. **Shortfall before departure.** Flag missing dairy on OUT032 (for example 3 crates damaged). The dispatcher decides
+7. **Shortfall before departure.** Flag missing dairy on OUT005 (for example 3 crates damaged). The dispatcher decides
    at `/dispatcher/issues`; the decision appears on the loader's stop and on the store's dashboard. Shortcuts:
-   `/loader/load/TRP-014-1?modal=shortfall&demo=shortfall`, `/dispatcher/issues/shortfall?demo=shortfall-reported`.
-8. **Plan changed after loading started** (second degradation scenario). Dispatcher: Demo, **Change VEH014's plan
+   `/loader/load/TRP-002-1?modal=shortfall&demo=shortfall`, `/dispatcher/issues/shortfall?demo=shortfall-reported`.
+8. **Plan changed after loading started** (second degradation scenario). Dispatcher: Demo, **Change VEH002's plan
    during loading**. The loader gets a checklist for the change, and the driver cannot depart until the loader confirms
    the new load. Shortcuts: `?demo=plan-changed`, `?demo=change-pending`.
-9. **Loader**: complete loading of TRP-014-1.
+9. **Loader**: complete loading of TRP-002-1.
 
 **On the road (phone-sized, driver, offline)**
 
-10. **Driver** (`driver@kairon.demo`, VEH014): open `/driver`, start the route, arrive at and deliver the first stop.
-11. **Go offline** (the hero degradation scenario). In the driver's window use Demo, **Simulate offline**. The app shows
-    "You're offline" with a pending count. The driver reports the road to OUT032 as blocked with a delay, then keeps
-    delivering; each action is saved on the phone and listed at `/driver/sync`. TODO: confirm the exact screens for
-    reporting a road problem. Shortcut: `/driver/route?demo=offline`.
-12. **Dispatcher**: open `/dispatcher/routes/TRP-014-1`. A quiet driver is still assumed on plan; a stop moves only on
-    the driver's own report. The move-stop dialog compares staying with moving, including fuel. Use Demo, **Move a
-    VEH014 stop to the reserve van** (VEH031). Shortcut: `/dispatcher/routes/TRP-014-1?modal=move-stop&demo=move-stop`.
+10. **Driver** (`driver@kairon.demo`, VEH002): set the clock with Demo, **04:40 departure**, open `/driver`, start the
+    route, then arrive at and deliver the first stop (**I've arrived**, **Confirm items**, a proof photo or signature,
+    **Deliver**).
+11. **Road blocked, then signal lost** (the hero degradation scenario). While still online, the driver opens **Issues**,
+    **Report vehicle issue**, chooses **Road blocked**, picks **OUT005** (Fresh Borella) as the stop that will be late,
+    a delay such as 90 min, and taps **Tell the dispatcher**. Then, in the driver's window, Demo, **Simulate offline**.
+    The app shows "You're offline" with a pending count; the driver keeps delivering, and each action is saved on the
+    phone and listed at `/driver/sync`. Shortcut: `/driver/route?demo=offline`.
+12. **Dispatcher**: the road report appears in **Issues** and on `/dispatcher/routes/TRP-002-1`. A quiet driver is
+    still assumed on plan; a stop moves only on the driver's own report. The move-stop dialog compares staying with
+    moving, including fuel. Use Demo, **Move a VEH002 stop to the reserve van**: it moves the reported stop (Borella) to
+    VEH036 as trip TRP-036-M1. Shortcut: `/dispatcher/routes/TRP-002-1?modal=move-stop&demo=move-stop`.
 13. **Reconnect.** Turn Simulate offline off. The queued events replay in order. On `/driver/reconcile` the route
     change cannot be missed: it shows what was kept, what moved and what to do now, and the driver acknowledges it.
     Dispatcher `/dispatcher/live` shows the sync report and that the driver saw the change. Shortcuts:
@@ -322,18 +342,31 @@ the bottom left of the app; it is presenter-only.
 
 **Delivery and receipt**
 
-16. **Store manager**: at `/store` see the ETA, then confirm what arrived or report an issue (missing, damaged or wrong
-    goods, with a photo) which reaches the dispatcher. Shortcuts: `/store?demo=store-delivered`,
-    `/store?modal=report-issue&demo=store-issue`.
+16. **Store manager** (`store@kairon.demo`): `/store` puts the delivery with something happening first. After step 12
+    it shows Borella's chilled order on **VEH036**, with "Delivery vehicle changed: now VEH036 instead of VEH002", the
+    reason, and the van's arrival time. (Between the road report and the move, it shows the driver's reported delay.)
+17. **The reserve van delivers.** The van has no demo driver account, so the dispatcher uses Demo, **VEH036 delivers
+    the moved stop**. It drives the van's trip with the same field events a phone sends, and moves the clock to the
+    delivery time.
+18. **Receipt.** On `/store` the card now shows **Delivery arrived**: enter the units received, the condition and the
+    receiver, then **Confirm receipt**; the order becomes Received. Or use **Something wrong? Report an issue**
+    (missing, damaged or wrong goods, with a photo), which reaches the dispatcher's **Issues**. Shortcuts:
+    `/store?demo=store-delivered`, `/store?modal=report-issue&demo=store-issue`.
+19. **The record.** Dispatcher, **History & audit**: search the order to see its whole day, from the order to the
+    move and the confirmed receipt.
+20. **The next day** (optional). When every trip is completed, the planning page shows **Close day & plan next**. It
+    records the day's fuel against each vehicle's weekly quota (see `/dispatcher/vehicles`), carries deferred orders
+    to the next run with a higher priority, and opens the next operating day for ordering. To finish trips quickly
+    in the demo, use Demo, **Send the rest of the fleet out**.
 
 The `?demo=<id>` links open a sandboxed copy of the operation in a named state; nothing is saved or synced. The full
 list of states is in `web/src/demo/presets.ts`. Other URL switches: `frame=1` hides presenter chrome, `theme=dark|light`,
-`lang=en|si|ta`, `day=YYYY-MM-DD` pins the ordering day. TODO: confirm whether a preset link needs the matching role to
-be signed in first.
+`lang=en|si|ta`, `day=YYYY-MM-DD` pins the ordering day. A preset link signs in the role that matches its path, so no
+sign-in is needed first.
 
 Other useful screens: `/dispatcher/capacity` (demand forecast), `/dispatcher/simulator`, `/states` (index of screen
-states). The `?demo=` links, `/states` and the Demo pill exist only in the demo build (`VITE_DEMO_MODE=true`, which
-`docker compose` uses); the hosted site has none of them.
+states). The `?demo=` links, `/states` and the Demo pill exist only in a demo build (`VITE_DEMO_MODE=true`, used by
+`docker compose` and the judges' deployed site); a production build has none of them.
 
 ## Booklet rules enforced
 
@@ -383,8 +416,13 @@ The constants live in `core/src/rules.ts` unless noted.
 `trip_km = 2 x depot_to_district_km + inter_stop_km x (stops - 1)` and `litres = trip_km / km_per_l`. An allocation is
 blocked when the fuel already used this week plus today's litres exceed `weekly_fuel_quota_l`. Fuel already used is
 seeded deterministically on the demo day (fixed seed 29, 25 to 60 percent of the quota) so a fresh install behaves the
-same every time. VEH024 is fixed at 93 percent of its quota as the intentional fuel demo case, and VEH014 (the story
+same every time. VEH024 is fixed at 93 percent of its quota as the intentional fuel demo case, and VEH002 (the story
 vehicle) at 40 L (`enrichForDemo` in `core/src/demo.ts`).
+The quota builds up through the week: **Close day & plan next** on the planning page (`startNextDay`) adds the fuel
+of the day's completed trips to each vehicle's fuel used this week, and the first operating day of a new ISO week
+starts every vehicle at 0. Closing the day is refused while a published trip hasn't finished. It also updates
+each outlet's service history (days since the last delivery, skipped on the previous run, which raises its priority)
+and puts deferred orders in the next run's queue.
 
 **Priority score** (`priorityOf`). Fresh chilled +60, Fresh dry +50, Tech +40, Style +30; skipped on the previous run
 +35; +20 for each run already deferred; +4 per day since the last delivery (up to 4 days); capped at 99. The queue is
@@ -404,19 +442,18 @@ keeps it on that vehicle at the same arrival time, and other orders may only use
 time where they don't change a locked stop's arrival (the `locked` check in `validate`). A dispatcher can also lock a
 whole trip (`lockTrip` / `unlockTrip`): its stops are locked as one closed trip, and no other order may join it.
 Moving a locked stop by hand needs an unlock first; unassigning, deferring, moving it mid-route or a breakdown recovery
-clears the lock. The demo story trip on VEH014 is seeded as a locked trip, which replaces the old rule that reserved
-VEH014 for the story.
+clears the lock. The demo story trip on VEH002 is seeded as a locked trip, which replaces the old rule that reserved
+the story vehicle for the story.
 
 **Vehicle choice** (`fitScore`, lower is better). Joining an existing trip scores 0; a new trip scores 10 if the vehicle
 already has one, otherwise 20; a reefer used for ambient goods +30; a van used where a truck could go +25; a reserve
 vehicle +100; fuller vehicles are slightly preferred. This saves scarce reefers and vans for the orders that need them.
 
-**Recovery reserve.** Two reefers, **VEH008 and VEH031**, are held back from planning unless the dispatcher releases
+**Recovery reserve.** Two reefers, **VEH007 and VEH036**, are held back from planning unless the dispatcher releases
 them (`RECOVERY_RESERVE` in `core/src/demo.ts`; the planner honours any vehicle with `reserve` set), so a breakdown before 08:00 can be rescued. Holding them costs
 served orders. Deferrals it causes are labelled as a dispatcher and policy choice, never as unavoidable capacity
-shortage. On the placeholder data the figure depends on the calendar day; for the 28 September demo day it is 6 extra
-orders (11 before the multi-start planner, because the better plan already serves some of them).
-TODO: the Designathon trade-off page quotes about 11 orders on the demo day; reconcile the two figures on the real data.
+shortage. The figure depends on the day; on the real CSVs for the 28 September demo day it is 7 orders (see
+departures below). The planning page computes it live for the day being planned.
 For the Datathon, a deferral caused by the reserve is a chosen deferral and must be justified in the written policy.
 
 **Operational times.**
@@ -464,27 +501,45 @@ the plan four ways and keeps the best by the team's objective (no rule violation
 deferred, then the most orders served, then the fewest trips, then the fewest km); see "Planner objective and
 multi-start" above. Every candidate is re-checked by an independent audit, and if the best one failed, the original
 greedy plan would be used. Priority bands are unchanged, so an outlet skipped yesterday still goes first. Measured on
-the 28 September demo day (placeholder data):
+the 28 September demo day: the network and fleet from the competition CSVs, the orders from the demo seed.
 
 | Metric | Day 5 design (greedy) | Now (multi-start) |
 |---|---|---|
-| Orders served / deferred | 132 / 20 | 139 / 13 |
-| Total priority deferred | 1180 | 760 |
-| Chilled orders served | 39 / 57 | 46 / 57 |
-| Trips (vehicles used) | 67 (37) | 57 (33) |
-| Distance / fuel | 6,669 km / 1,099 L | 5,523 km / 938 L |
-| Planner runtime | about 650 ms | about 200 ms |
+| Orders served / deferred | 139 / 14 | 141 / 12 |
+| Total priority deferred | 800 | 680 |
+| Chilled orders served | 45 / 55 | 47 / 55 |
+| Trips (vehicles used) | 66 (38) | 54 (34) |
+| Distance | 7,237 km | 6,553 km |
+| Planner runtime | about 100 ms | about 270 ms |
 
 The deferral wording also changed: a chilled order blocked by windows or the Fresh time budget now says it is short of
 reefer *time* ("No reefer can reach OUT019 before 07:30 …"), not reefer space, because on the demo day reefers are
-only about 18 percent full by volume. The reason codes are unchanged.
+far from full by volume. The reason codes are unchanged.
 
-### Recovery reserve trade-off: 11 orders becomes 6
+### Recovery reserve trade-off: about 11 orders becomes 7
 
-The Day 5 core trade-off page says holding VEH008 and VEH031 in reserve costs about 11 orders on the demo day. With
-the better planner the cost is 6 orders: the plan without the reserve already serves several of the orders that
-releasing it used to add. The trade-off itself is unchanged; only the figure moved. The planning page computes it live
-for the day being planned.
+The Day 5 core trade-off page says holding the two reserve reefers costs about 11 orders on the demo day. On the real
+CSVs with the multi-start planner the cost is 7 orders. The trade-off itself is unchanged; only the figure moved. The
+planning page computes it live for the day being planned.
+
+### Story vehicles and outlets renumbered to match the real data
+
+The Day 5 screens tell the story with reefer VEH014, Dilini's outlet OUT032 (Borella), and reserve vehicles VEH008
+and VEH031. Those ids came from our placeholder data. In the competition CSVs they are a dry truck, a Gampaha outlet
+and two dry trucks, so the story could not run on the real data. The story now uses ids that have the same roles in
+the CSVs:
+
+| Role in the story | Day 5 design | Now |
+|---|---|---|
+| Nimal's reefer truck, hero trip | VEH014, TRP-014-1 | VEH002, TRP-002-1 |
+| Dilini's outlet, Fresh Borella (4th stop, 06:09) | OUT032 | OUT005 |
+| The other four Colombo stops | OUT004, OUT018, OUT047, OUT056 | OUT008, OUT010, OUT013, OUT012 |
+| Recovery reserve (reefer truck, reefer van) | VEH008, VEH031 | VEH007, VEH036 |
+| Skipped yesterday | OUT043 | OUT043 (Fresh, Kalutara) |
+| Fuel-quota example | VEH024 | VEH024 |
+
+Names, times and the order of events are unchanged: the trip still leaves at 04:36 and reaches Borella at 06:09. The
+placeholder data uses the same ids, so the story is the same with or without the CSVs.
 
 ### Locked stops and locked trips (new)
 
@@ -492,15 +547,18 @@ Not in the Day 5 design. A dispatcher can lock a stop to its vehicle, or lock a 
 button in an order's drawer, and "Lock trip" on a trip card). Re-planning keeps locked stops on their vehicle at the
 same arrival times, and adds nothing to a locked trip; other orders may only use the room around them. Unassigning,
 deferring, moving a stop mid-route or a breakdown recovery clears the lock for that stop. The demo story's trip
-TRP-014-1 (VEH014, five Colombo stops) is seeded as a locked trip, which replaces an earlier rule that reserved VEH014
+TRP-002-1 (VEH002, five Colombo stops) is seeded as a locked trip, which replaces an earlier rule that reserved VEH002
 for the story and kept its spare capacity out of planning. The hero trip therefore stays exactly the five designed
 stops at the designed times.
 
 ## Known limitations
 
-- The real CSVs are not in the repository, so the default local run uses placeholder data.
-- The recovery reserve and fuel already used this week are set only on the demo day. Real imports carry neither yet,
-  so on the hosted site no vehicle is held in reserve and every vehicle starts the week with a full quota.
+- The real CSVs are not in the repository, so a local run without them uses placeholder data.
+- Judges on the deployed site share one operation; a reset by one judge resets it for everyone.
+- The recovery reserve is set only on the demo day; a real import doesn't mark reserve vehicles yet. A real import
+  starts each vehicle's week at 0 L, and fuel then builds up as days are closed.
+- Fuel used is the planned distance of completed trips (the booklet's distance model), not a measured odometer or
+  fuel-card reading.
 - Late-risk and service-time estimates appear only after Datathon model output is loaded (`POST /api/predictions`);
   there are no placeholder predictions, so screens from the Designathon that showed late risk are blank until then.
 - Demo outlets are placed near their district centre (approximate); real maps need `latitude`/`longitude` in

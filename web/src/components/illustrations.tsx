@@ -202,7 +202,7 @@ export function DeliveryScene({ className }: { className?: string }) {
             <rect x="0" y="0" width="150" height="58" rx="14" fill={offline ? INK : '#fff'} className="transition-colors duration-500" />
             <path d="M60 58l10 12l10 -12z" fill={offline ? INK : '#fff'} className="transition-colors duration-500" />
             <text x="16" y="25" fontFamily="Inter, sans-serif" fontWeight="700" fontSize="13" fill={offline ? '#fff' : INK}>
-              {offline ? 'Offline · saved' : 'OUT032 delivered'}
+              {offline ? 'Offline · saved' : 'OUT005 delivered'}
             </text>
             <text x="16" y="44" fontFamily="Inter, sans-serif" fontSize="11" fill={offline ? '#9aabae' : '#56676a'}>
               {offline ? '3 updates waiting' : '✓ Synced 06:12'}
@@ -351,7 +351,7 @@ export function DeliverVignette() {
           OFFLINE · SAVED
         </text>
         <text x="14" y="44" fontFamily="JetBrains Mono" fontWeight="700" fontSize="12" fill={INK}>
-          OUT032
+          OUT005
         </text>
         <text x="14" y="56" fontFamily="Inter" fontSize="7" fill="#56676a">
           Delivered in full
@@ -418,7 +418,7 @@ export function LaptopMock({ className }: { className?: string }) {
                 ))}
               </div>
               <div className="space-y-1 rounded bg-white/5 p-1.5">
-                {['VEH014', 'VEH008'].map((v, i) => (
+                {['VEH002', 'VEH007'].map((v, i) => (
                   <div key={v} className="rounded border border-white/10 bg-[#101c1f] p-1.5">
                     <div className="font-mono font-semibold">{v}</div>
                     <div className="mt-1 h-1 rounded bg-white/10">
@@ -426,7 +426,7 @@ export function LaptopMock({ className }: { className?: string }) {
                     </div>
                   </div>
                 ))}
-                <div className="ill-drag-mini rounded border border-[#5fd0cf] bg-[#101c1f] p-1 font-mono">OUT041 → VEH014</div>
+                <div className="ill-drag-mini rounded border border-[#5fd0cf] bg-[#101c1f] p-1 font-mono">OUT041 → VEH002</div>
               </div>
               <div className="space-y-1 rounded bg-[#e57f45]/10 p-1.5">
                 <div className="rounded border border-[#e57f45]/40 p-1 font-mono text-[#f2a275]">OUT043</div>
@@ -445,7 +445,7 @@ export function TabletMock({ className }: { className?: string }) {
   return (
     <div className={cn('rounded-[22px] border-[9px] border-[#1b2a2d] bg-white shadow-2xl', className)}>
       <div className="h-[230px] w-[170px] overflow-hidden rounded-xl bg-white p-2.5 text-[8px] text-[#0f1b1d]">
-        <div className="font-mono text-[11px] font-bold">VEH014 · Trip 1</div>
+        <div className="font-mono text-[11px] font-bold">VEH002 · Trip 1</div>
         <div className="mb-2 text-[#56676a]">Departure 03:45</div>
         <div className="mb-1 rounded bg-[#e2efef] px-1.5 py-0.5 text-[7px] font-bold tracking-widest text-teal">LOAD FIRST</div>
         {[5, 4, 3, 2, 1].map((n, i) => (
@@ -476,11 +476,11 @@ export function PhoneMock({ className, offline = true }: { className?: string; o
           </div>
           <div className="mt-2 rounded-lg bg-white/5 p-2">
             <div className="text-[6px] font-bold tracking-widest text-[#6fcaca]">NEXT STOP</div>
-            <div className="font-mono text-[12px] font-bold">OUT032</div>
+            <div className="font-mono text-[12px] font-bold">OUT005</div>
             <div className="text-white/50">ETA 06:12 · 05:00–07:30</div>
             <div className="mt-1.5 rounded bg-[#2a9a9a] py-1 text-center font-semibold">I've arrived</div>
           </div>
-          {['OUT004', 'OUT018', 'OUT032', 'OUT047'].map((o, i) => (
+          {['OUT004', 'OUT018', 'OUT005', 'OUT047'].map((o, i) => (
             <div key={o} className="flex items-center gap-1.5 border-b border-white/5 py-1">
               <span className={cn('grid size-3 place-items-center rounded-full text-[6px]', i < 2 ? 'bg-[#34c27a]' : i === 2 ? 'border border-[#2ea4e0]' : 'border border-white/20')}>{i < 2 ? '✓' : ''}</span>
               <span className="font-mono">{o}</span>

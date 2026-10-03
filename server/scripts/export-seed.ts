@@ -11,7 +11,7 @@ import path from 'node:path'
 import type { Catalog } from '@core/catalog'
 import { seedDemoOps } from '@core/demo'
 import { config } from '../src/config'
-import { readCsvs } from '../src/operation'
+import { readCsvs } from '../src/demo-data'
 
 const csv = readCsvs(config.dataDir)
 const catalogFile = path.join(config.dataDir, 'catalog.json')

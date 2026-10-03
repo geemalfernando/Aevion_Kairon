@@ -259,46 +259,10 @@ function CommandPreview() {
           ))}
         </div>
         <div className="mt-5 rounded-xl bg-[#0a1315]/60 p-4">
-          {trip ? (
-            <>
-              <div className="flex items-baseline justify-between">
-                <div>
-                  <div className="font-mono text-sm font-semibold">{trip.vehicleId}</div>
-                  <div className="text-xs text-white/50">
-                    {trip.depot} → {trip.district} · {VEHICLE_LABEL[trip.vehicleType]} · departs {trip.departure}
-                  </div>
-                </div>
-                <span className="rounded-full bg-[#5fd0cf]/15 px-2 py-0.5 text-[11px] font-semibold text-[#5fd0cf]">{TRIP_LABEL[trip.status]}</span>
-              </div>
-              <ol className="mt-3 space-y-2">
-                {trip.stops.slice(0, 6).map((s) => {
-                  const done = s.state === 'delivered'
-                  const current = s.state === 'arriving'
-                  return (
-                    <li key={s.outletId} className="flex items-center gap-3 text-sm">
-                      <span className={cn('grid size-4 place-items-center rounded-full border', done ? 'border-[#5fd0cf] bg-[#5fd0cf]' : current ? 'border-chocolate' : 'border-white/25')}>
-                        {done && <Check className="size-2.5 text-[#0a1315]" strokeWidth={4} />}
-                        {current && <span className="size-1.5 rounded-full bg-chocolate" />}
-                      </span>
-                      <span className="font-mono text-[13px]">{s.outletId}</span>
-                      <span className={cn('ml-auto text-xs', done ? 'text-[#5fd0cf]' : current ? 'text-chocolate' : 'text-white/40')}>{done ? 'Delivered' : current ? 'Arriving' : `ETA ${s.eta}`}</span>
-                    </li>
-                  )
-                })}
-              </ol>
-              {trip.stops.length > 6 && <div className="mt-2 text-xs text-white/40">+{trip.stops.length - 6} more stops</div>}
-            </>
-          ) : (
-            <div className="text-sm text-white/60">
-              {summary ? (
-                <>
-                  <span className="font-semibold text-white/80">No trips planned yet.</span> Orders for {fmtDate(summary.deliveryDate, { weekday: 'long', day: 'numeric', month: 'long' })} close at 16:00; the dispatcher then builds and publishes the plan.
-                </>
-              ) : failed ? (
-                'Live figures are unavailable right now.'
-              ) : (
-                'Loading the live plan…'
-              )}
+          <div className="flex items-baseline justify-between">
+            <div>
+              <div className="font-mono text-sm font-semibold">VEH002</div>
+              <div className="text-xs text-white/50">Peliyagoda → Colombo · Reefer</div>
             </div>
           )}
         </div>
@@ -391,9 +355,9 @@ function RouteScene() {
         <DeliveryScene className="shadow-pop ring-1 ring-white/5" />
         <div className="mt-4 grid gap-3 text-sm text-muted sm:grid-cols-3">
           {[
-            ['04:36', 'Reefer VEH014 leaves Peliyagoda with the stops loaded last-first.'],
+            ['04:36', 'Reefer VEH002 leaves Peliyagoda with the stops loaded last-first.'],
             ['05:10', 'Signal drops on the way — the route, proof capture and issues keep working.'],
-            ['06:12', 'OUT032 delivered, signed and photographed. It syncs the moment coverage returns.'],
+            ['06:12', 'OUT005 delivered, signed and photographed. It syncs the moment coverage returns.'],
           ].map(([t, d]) => (
             <p key={t} className="flex gap-3">
               <span className="font-mono font-semibold text-brand-ink">{t}</span>
