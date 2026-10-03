@@ -1,6 +1,6 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
-  "Description": "Kairon release: API/PWA, outbox publisher and push/SES/SNS worker. Existing VPC, Supabase and secrets required.",
+  "Description": "Kairon AWS: private RDS PostgreSQL identities/state, private S3 proof, ECS, SQS notifications and CloudFront HTTPS. Existing VPC required.",
   "Parameters": {
     "VpcId": {
       "Type": "AWS::EC2::VPC::Id"
@@ -23,14 +23,6 @@
       "AllowedPattern": "^$|^https://[a-zA-Z0-9.-]+$",
       "Description": "Exact HTTPS origin for direct ALB mode; omit with UseCloudFront=true (automatically assigned).",
       "Default": ""
-    },
-    "SupabaseUrl": {
-      "Type": "String",
-      "AllowedPattern": "https://[a-zA-Z0-9.-]+"
-    },
-    "SupabaseSecretArn": {
-      "Type": "String",
-      "Description": "JSON secret containing publishableKey, secretKey and mediaSigningKey, encrypted with aws/secretsmanager."
     },
     "ImageTag": {
       "Type": "String",
@@ -144,6 +136,44 @@
       "Default": "",
       "AllowedPattern": "^$|^pl-[a-f0-9]+$",
       "Description": "Regional com.amazonaws.global.cloudfront.origin-facing managed prefix list; deployment helper resolves automatically."
+    },
+    "RdsInstanceClass": {
+      "Type": "String",
+      "Default": "db.t4g.micro",
+      "AllowedValues": [
+        "db.t4g.micro",
+        "db.t4g.small",
+        "db.t4g.medium"
+      ]
+    },
+    "RdsMultiAZ": {
+      "Type": "String",
+      "Default": "true",
+      "AllowedValues": [
+        "true",
+        "false"
+      ]
+    },
+    "RdsEngineVersion": {
+      "Type": "String",
+      "Default": "17.6",
+      "Description": "Helper resolves the AWS default supported PostgreSQL version at bootstrap, then preserves it."
+    },
+    "RdsParameterFamily": {
+      "Type": "String",
+      "Default": "postgres17"
+    },
+    "InitialUsersSecretArn": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Optional separate secret JSON with users: a JSON string containing administrator-provisioned accounts. Migration task only."
+    },
+    "RdsBackupRetentionDays": {
+      "Type": "Number",
+      "Default": 7,
+      "MinValue": 1,
+      "MaxValue": 35,
+      "Description": "Automated RDS backup retention in days; free-plan accounts allow fewer than seven"
     }
   },
   "Resources": {
@@ -203,9 +233,6 @@
         "Queues": [
           {
             "Ref": "NotificationQueue"
-          },
-          {
-            "Ref": "NotificationDLQ"
           }
         ],
         "PolicyDocument": {
@@ -215,20 +242,12 @@
               "Effect": "Deny",
               "Principal": "*",
               "Action": "sqs:*",
-              "Resource": [
-                {
-                  "Fn::GetAtt": [
-                    "NotificationQueue",
-                    "Arn"
-                  ]
-                },
-                {
-                  "Fn::GetAtt": [
-                    "NotificationDLQ",
-                    "Arn"
-                  ]
-                }
-              ],
+              "Resource": {
+                "Fn::GetAtt": [
+                  "NotificationQueue",
+                  "Arn"
+                ]
+              },
               "Condition": {
                 "Bool": {
                   "aws:SecureTransport": "false"
@@ -292,7 +311,7 @@
         ],
         "Policies": [
           {
-            "PolicyName": "SupabaseSecretOnly",
+            "PolicyName": "RuntimeSecretsOnly",
             "PolicyDocument": {
               "Version": "2012-10-17",
               "Statement": [
@@ -300,9 +319,6 @@
                   "Effect": "Allow",
                   "Action": "secretsmanager:GetSecretValue",
                   "Resource": [
-                    {
-                      "Ref": "SupabaseSecretArn"
-                    },
                     {
                       "Fn::If": [
                         "HasExternalRedis",
@@ -335,6 +351,18 @@
                           "Ref": "AWS::NoValue"
                         }
                       ]
+                    },
+                    {
+                      "Ref": "RuntimeDatabaseSecret"
+                    },
+                    {
+                      "Ref": "AuthSigningSecret"
+                    },
+                    {
+                      "Ref": "MediaSigningSecret"
+                    },
+                    {
+                      "Ref": "ContactEncryptionSecret"
                     }
                   ]
                 }
@@ -358,7 +386,27 @@
               "Action": "sts:AssumeRole"
             }
           ]
-        }
+        },
+        "Policies": [
+          {
+            "PolicyName": "PrivateProofOnly",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:GetObject",
+                    "s3:PutObject"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "${ProofBucket.Arn}/proof/*"
+                  }
+                }
+              ]
+            }
+          }
+        ]
       }
     },
     "LoadBalancerSecurityGroup": {
@@ -802,12 +850,6 @@
                 }
               },
               {
-                "Name": "SUPABASE_URL",
-                "Value": {
-                  "Ref": "SupabaseUrl"
-                }
-              },
-              {
                 "Name": "STREAM_MAX_MS",
                 "Value": "240000"
               },
@@ -868,27 +910,46 @@
                 "Value": {
                   "Ref": "FcmEnabled"
                 }
+              },
+              {
+                "Name": "BACKEND",
+                "Value": "rds"
+              },
+              {
+                "Name": "PGHOST",
+                "Value": {
+                  "Fn::GetAtt": [
+                    "Database",
+                    "Endpoint.Address"
+                  ]
+                }
+              },
+              {
+                "Name": "PGDATABASE",
+                "Value": "kairon"
+              },
+              {
+                "Name": "PGUSER",
+                "Value": "kairon_runtime"
+              },
+              {
+                "Name": "MEDIA_BUCKET",
+                "Value": {
+                  "Ref": "ProofBucket"
+                }
+              },
+              {
+                "Name": "RDS_TLS",
+                "Value": "true"
+              },
+              {
+                "Name": "AWS_REGION",
+                "Value": {
+                  "Ref": "AWS::Region"
+                }
               }
             ],
             "Secrets": [
-              {
-                "Name": "SUPABASE_PUBLISHABLE_KEY",
-                "ValueFrom": {
-                  "Fn::Sub": "${SupabaseSecretArn}:publishableKey::"
-                }
-              },
-              {
-                "Name": "SUPABASE_SECRET_KEY",
-                "ValueFrom": {
-                  "Fn::Sub": "${SupabaseSecretArn}:secretKey::"
-                }
-              },
-              {
-                "Name": "MEDIA_SIGNING_KEY",
-                "ValueFrom": {
-                  "Fn::Sub": "${SupabaseSecretArn}:mediaSigningKey::"
-                }
-              },
               {
                 "Fn::If": [
                   "HasRedis",
@@ -904,20 +965,6 @@
                           "Fn::Sub": "${RedisSecretArn}:redisUrl::"
                         }
                       ]
-                    }
-                  },
-                  {
-                    "Ref": "AWS::NoValue"
-                  }
-                ]
-              },
-              {
-                "Fn::If": [
-                  "HasNotificationSecret",
-                  {
-                    "Name": "NOTIFICATION_ENCRYPTION_KEY",
-                    "ValueFrom": {
-                      "Fn::Sub": "${NotificationSecretArn}:encryptionKey::"
                     }
                   },
                   {
@@ -980,6 +1027,30 @@
                     "Ref": "AWS::NoValue"
                   }
                 ]
+              },
+              {
+                "Name": "PGPASSWORD",
+                "ValueFrom": {
+                  "Fn::Sub": "${RuntimeDatabaseSecret}:password::"
+                }
+              },
+              {
+                "Name": "AUTH_SECRET",
+                "ValueFrom": {
+                  "Fn::Sub": "${AuthSigningSecret}:key::"
+                }
+              },
+              {
+                "Name": "MEDIA_SIGNING_KEY",
+                "ValueFrom": {
+                  "Fn::Sub": "${MediaSigningSecret}:key::"
+                }
+              },
+              {
+                "Name": "NOTIFICATION_ENCRYPTION_KEY",
+                "ValueFrom": {
+                  "Fn::Sub": "${ContactEncryptionSecret}:key::"
+                }
               }
             ],
             "HealthCheck": {
@@ -1372,12 +1443,6 @@
                 }
               },
               {
-                "Name": "SUPABASE_URL",
-                "Value": {
-                  "Ref": "SupabaseUrl"
-                }
-              },
-              {
                 "Name": "WEB_ORIGIN",
                 "Value": {
                   "Fn::If": [
@@ -1462,27 +1527,46 @@
                 "Value": {
                   "Ref": "FcmEnabled"
                 }
+              },
+              {
+                "Name": "BACKEND",
+                "Value": "rds"
+              },
+              {
+                "Name": "PGHOST",
+                "Value": {
+                  "Fn::GetAtt": [
+                    "Database",
+                    "Endpoint.Address"
+                  ]
+                }
+              },
+              {
+                "Name": "PGDATABASE",
+                "Value": "kairon"
+              },
+              {
+                "Name": "PGUSER",
+                "Value": "kairon_runtime"
+              },
+              {
+                "Name": "MEDIA_BUCKET",
+                "Value": {
+                  "Ref": "ProofBucket"
+                }
+              },
+              {
+                "Name": "RDS_TLS",
+                "Value": "true"
+              },
+              {
+                "Name": "AWS_REGION",
+                "Value": {
+                  "Ref": "AWS::Region"
+                }
               }
             ],
             "Secrets": [
-              {
-                "Name": "SUPABASE_PUBLISHABLE_KEY",
-                "ValueFrom": {
-                  "Fn::Sub": "${SupabaseSecretArn}:publishableKey::"
-                }
-              },
-              {
-                "Name": "SUPABASE_SECRET_KEY",
-                "ValueFrom": {
-                  "Fn::Sub": "${SupabaseSecretArn}:secretKey::"
-                }
-              },
-              {
-                "Name": "MEDIA_SIGNING_KEY",
-                "ValueFrom": {
-                  "Fn::Sub": "${SupabaseSecretArn}:mediaSigningKey::"
-                }
-              },
               {
                 "Fn::If": [
                   "HasRedis",
@@ -1498,20 +1582,6 @@
                           "Fn::Sub": "${RedisSecretArn}:redisUrl::"
                         }
                       ]
-                    }
-                  },
-                  {
-                    "Ref": "AWS::NoValue"
-                  }
-                ]
-              },
-              {
-                "Fn::If": [
-                  "HasNotificationSecret",
-                  {
-                    "Name": "NOTIFICATION_ENCRYPTION_KEY",
-                    "ValueFrom": {
-                      "Fn::Sub": "${NotificationSecretArn}:encryptionKey::"
                     }
                   },
                   {
@@ -1574,6 +1644,30 @@
                     "Ref": "AWS::NoValue"
                   }
                 ]
+              },
+              {
+                "Name": "PGPASSWORD",
+                "ValueFrom": {
+                  "Fn::Sub": "${RuntimeDatabaseSecret}:password::"
+                }
+              },
+              {
+                "Name": "AUTH_SECRET",
+                "ValueFrom": {
+                  "Fn::Sub": "${AuthSigningSecret}:key::"
+                }
+              },
+              {
+                "Name": "MEDIA_SIGNING_KEY",
+                "ValueFrom": {
+                  "Fn::Sub": "${MediaSigningSecret}:key::"
+                }
+              },
+              {
+                "Name": "NOTIFICATION_ENCRYPTION_KEY",
+                "ValueFrom": {
+                  "Fn::Sub": "${ContactEncryptionSecret}:key::"
+                }
               }
             ],
             "LogConfiguration": {
@@ -1678,12 +1772,6 @@
                 }
               },
               {
-                "Name": "SUPABASE_URL",
-                "Value": {
-                  "Ref": "SupabaseUrl"
-                }
-              },
-              {
                 "Name": "WEB_ORIGIN",
                 "Value": {
                   "Fn::If": [
@@ -1768,27 +1856,46 @@
                 "Value": {
                   "Ref": "FcmEnabled"
                 }
+              },
+              {
+                "Name": "BACKEND",
+                "Value": "rds"
+              },
+              {
+                "Name": "PGHOST",
+                "Value": {
+                  "Fn::GetAtt": [
+                    "Database",
+                    "Endpoint.Address"
+                  ]
+                }
+              },
+              {
+                "Name": "PGDATABASE",
+                "Value": "kairon"
+              },
+              {
+                "Name": "PGUSER",
+                "Value": "kairon_runtime"
+              },
+              {
+                "Name": "MEDIA_BUCKET",
+                "Value": {
+                  "Ref": "ProofBucket"
+                }
+              },
+              {
+                "Name": "RDS_TLS",
+                "Value": "true"
+              },
+              {
+                "Name": "AWS_REGION",
+                "Value": {
+                  "Ref": "AWS::Region"
+                }
               }
             ],
             "Secrets": [
-              {
-                "Name": "SUPABASE_PUBLISHABLE_KEY",
-                "ValueFrom": {
-                  "Fn::Sub": "${SupabaseSecretArn}:publishableKey::"
-                }
-              },
-              {
-                "Name": "SUPABASE_SECRET_KEY",
-                "ValueFrom": {
-                  "Fn::Sub": "${SupabaseSecretArn}:secretKey::"
-                }
-              },
-              {
-                "Name": "MEDIA_SIGNING_KEY",
-                "ValueFrom": {
-                  "Fn::Sub": "${SupabaseSecretArn}:mediaSigningKey::"
-                }
-              },
               {
                 "Fn::If": [
                   "HasRedis",
@@ -1804,20 +1911,6 @@
                           "Fn::Sub": "${RedisSecretArn}:redisUrl::"
                         }
                       ]
-                    }
-                  },
-                  {
-                    "Ref": "AWS::NoValue"
-                  }
-                ]
-              },
-              {
-                "Fn::If": [
-                  "HasNotificationSecret",
-                  {
-                    "Name": "NOTIFICATION_ENCRYPTION_KEY",
-                    "ValueFrom": {
-                      "Fn::Sub": "${NotificationSecretArn}:encryptionKey::"
                     }
                   },
                   {
@@ -1880,6 +1973,30 @@
                     "Ref": "AWS::NoValue"
                   }
                 ]
+              },
+              {
+                "Name": "PGPASSWORD",
+                "ValueFrom": {
+                  "Fn::Sub": "${RuntimeDatabaseSecret}:password::"
+                }
+              },
+              {
+                "Name": "AUTH_SECRET",
+                "ValueFrom": {
+                  "Fn::Sub": "${AuthSigningSecret}:key::"
+                }
+              },
+              {
+                "Name": "MEDIA_SIGNING_KEY",
+                "ValueFrom": {
+                  "Fn::Sub": "${MediaSigningSecret}:key::"
+                }
+              },
+              {
+                "Name": "NOTIFICATION_ENCRYPTION_KEY",
+                "ValueFrom": {
+                  "Fn::Sub": "${ContactEncryptionSecret}:key::"
+                }
               }
             ],
             "LogConfiguration": {
@@ -2310,6 +2427,515 @@
           ]
         }
       }
+    },
+    "RuntimeDatabaseSecret": {
+      "Type": "AWS::SecretsManager::Secret",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "GenerateSecretString": {
+          "SecretStringTemplate": "{}",
+          "GenerateStringKey": "password",
+          "PasswordLength": 64,
+          "ExcludePunctuation": true
+        }
+      }
+    },
+    "AuthSigningSecret": {
+      "Type": "AWS::SecretsManager::Secret",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "GenerateSecretString": {
+          "SecretStringTemplate": "{}",
+          "GenerateStringKey": "key",
+          "PasswordLength": 64,
+          "ExcludePunctuation": true
+        }
+      }
+    },
+    "MediaSigningSecret": {
+      "Type": "AWS::SecretsManager::Secret",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "GenerateSecretString": {
+          "SecretStringTemplate": "{}",
+          "GenerateStringKey": "key",
+          "PasswordLength": 64,
+          "ExcludePunctuation": true
+        }
+      }
+    },
+    "ContactEncryptionSecret": {
+      "Type": "AWS::SecretsManager::Secret",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "GenerateSecretString": {
+          "SecretStringTemplate": "{}",
+          "GenerateStringKey": "key",
+          "PasswordLength": 64,
+          "ExcludePunctuation": true,
+          "ExcludeCharacters": "ghijklmnopqrstuvwxyz",
+          "ExcludeUppercase": true
+        }
+      }
+    },
+    "DatabaseSubnetGroup": {
+      "Type": "AWS::RDS::DBSubnetGroup",
+      "Properties": {
+        "DBSubnetGroupDescription": "Private Kairon PostgreSQL subnets",
+        "SubnetIds": {
+          "Ref": "PrivateSubnets"
+        }
+      }
+    },
+    "DatabaseSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "RDS TLS access from ECS only",
+        "VpcId": {
+          "Ref": "VpcId"
+        },
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 5432,
+            "ToPort": 5432,
+            "SourceSecurityGroupId": {
+              "Ref": "AppSecurityGroup"
+            }
+          }
+        ],
+        "SecurityGroupEgress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 5432,
+            "ToPort": 5432,
+            "CidrIp": "127.0.0.1/32"
+          }
+        ]
+      }
+    },
+    "AppDatabaseEgress": {
+      "Type": "AWS::EC2::SecurityGroupEgress",
+      "Properties": {
+        "GroupId": {
+          "Ref": "AppSecurityGroup"
+        },
+        "IpProtocol": "tcp",
+        "FromPort": 5432,
+        "ToPort": 5432,
+        "DestinationSecurityGroupId": {
+          "Ref": "DatabaseSecurityGroup"
+        }
+      }
+    },
+    "DatabaseParameters": {
+      "Type": "AWS::RDS::DBParameterGroup",
+      "Properties": {
+        "Description": "Enforce verified TLS for PostgreSQL connections",
+        "Family": {
+          "Ref": "RdsParameterFamily"
+        },
+        "Parameters": {
+          "rds.force_ssl": "1"
+        }
+      }
+    },
+    "Database": {
+      "Type": "AWS::RDS::DBInstance",
+      "DeletionPolicy": "Snapshot",
+      "UpdateReplacePolicy": "Snapshot",
+      "Properties": {
+        "Engine": "postgres",
+        "EngineVersion": {
+          "Ref": "RdsEngineVersion"
+        },
+        "DBName": "kairon",
+        "MasterUsername": "kairon_admin",
+        "ManageMasterUserPassword": true,
+        "DBInstanceClass": {
+          "Ref": "RdsInstanceClass"
+        },
+        "AllocatedStorage": "20",
+        "MaxAllocatedStorage": 100,
+        "StorageType": "gp3",
+        "StorageEncrypted": true,
+        "MultiAZ": {
+          "Fn::If": [
+            "RdsMultiAZ",
+            true,
+            false
+          ]
+        },
+        "PubliclyAccessible": false,
+        "DBSubnetGroupName": {
+          "Ref": "DatabaseSubnetGroup"
+        },
+        "VPCSecurityGroups": [
+          {
+            "Ref": "DatabaseSecurityGroup"
+          }
+        ],
+        "DBParameterGroupName": {
+          "Ref": "DatabaseParameters"
+        },
+        "BackupRetentionPeriod": {
+          "Ref": "RdsBackupRetentionDays"
+        },
+        "CopyTagsToSnapshot": true,
+        "DeletionProtection": true,
+        "AutoMinorVersionUpgrade": true
+      }
+    },
+    "ProofBucket": {
+      "Type": "AWS::S3::Bucket",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "IgnorePublicAcls": true,
+          "BlockPublicPolicy": true,
+          "RestrictPublicBuckets": true
+        },
+        "OwnershipControls": {
+          "Rules": [
+            {
+              "ObjectOwnership": "BucketOwnerEnforced"
+            }
+          ]
+        },
+        "VersioningConfiguration": {
+          "Status": "Enabled"
+        },
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "Id": "AbortIncompleteUploads",
+              "Status": "Enabled",
+              "AbortIncompleteMultipartUpload": {
+                "DaysAfterInitiation": 1
+              }
+            }
+          ]
+        }
+      }
+    },
+    "ProofBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "ProofBucket"
+        },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:*",
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "ProofBucket",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Sub": "${ProofBucket.Arn}/*"
+                }
+              ],
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "MigrationExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ecs-tasks.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Sub": "arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+          }
+        ],
+        "Policies": [
+          {
+            "PolicyName": "MigrationSecretsOnly",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": "secretsmanager:GetSecretValue",
+                  "Resource": [
+                    {
+                      "Fn::GetAtt": [
+                        "Database",
+                        "MasterUserSecret.SecretArn"
+                      ]
+                    },
+                    {
+                      "Ref": "RuntimeDatabaseSecret"
+                    },
+                    {
+                      "Ref": "ContactEncryptionSecret"
+                    },
+                    {
+                      "Fn::If": [
+                        "HasInitialUsers",
+                        {
+                          "Ref": "InitialUsersSecretArn"
+                        },
+                        {
+                          "Ref": "AWS::NoValue"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "MigrationTaskRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ecs-tasks.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "MigrationImportOnly",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": "s3:GetObject",
+                  "Resource": {
+                    "Fn::Sub": "${ProofBucket.Arn}/migration/*"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "MigrationTask": {
+      "Type": "AWS::ECS::TaskDefinition",
+      "Properties": {
+        "RequiresCompatibilities": [
+          "FARGATE"
+        ],
+        "NetworkMode": "awsvpc",
+        "Cpu": "512",
+        "Memory": "1024",
+        "ExecutionRoleArn": {
+          "Fn::GetAtt": [
+            "MigrationExecutionRole",
+            "Arn"
+          ]
+        },
+        "TaskRoleArn": {
+          "Fn::GetAtt": [
+            "MigrationTaskRole",
+            "Arn"
+          ]
+        },
+        "RuntimePlatform": {
+          "CpuArchitecture": "X86_64",
+          "OperatingSystemFamily": "LINUX"
+        },
+        "ContainerDefinitions": [
+          {
+            "Name": "migration",
+            "Image": {
+              "Fn::Sub": "${Repository.RepositoryUri}:${ImageTag}"
+            },
+            "Essential": true,
+            "User": "1000",
+            "ReadonlyRootFilesystem": true,
+            "StopTimeout": 30,
+            "Environment": [
+              {
+                "Name": "BACKEND",
+                "Value": "rds"
+              },
+              {
+                "Name": "PGHOST",
+                "Value": {
+                  "Fn::GetAtt": [
+                    "Database",
+                    "Endpoint.Address"
+                  ]
+                }
+              },
+              {
+                "Name": "PGDATABASE",
+                "Value": "kairon"
+              },
+              {
+                "Name": "PGUSER",
+                "Value": "kairon_admin"
+              },
+              {
+                "Name": "MEDIA_BUCKET",
+                "Value": {
+                  "Ref": "ProofBucket"
+                }
+              },
+              {
+                "Name": "RDS_TLS",
+                "Value": "true"
+              },
+              {
+                "Name": "TSX_DISABLE_CACHE",
+                "Value": "1"
+              },
+              {
+                "Name": "AWS_REGION",
+                "Value": {
+                  "Ref": "AWS::Region"
+                }
+              }
+            ],
+            "Secrets": [
+              {
+                "Name": "PGPASSWORD",
+                "ValueFrom": {
+                  "Fn::Sub": [
+                    "${Master}:password::",
+                    {
+                      "Master": {
+                        "Fn::GetAtt": [
+                          "Database",
+                          "MasterUserSecret.SecretArn"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "Name": "RDS_RUNTIME_PASSWORD",
+                "ValueFrom": {
+                  "Fn::Sub": "${RuntimeDatabaseSecret}:password::"
+                }
+              },
+              {
+                "Name": "NOTIFICATION_ENCRYPTION_KEY",
+                "ValueFrom": {
+                  "Fn::Sub": "${ContactEncryptionSecret}:key::"
+                }
+              },
+              {
+                "Fn::If": [
+                  "HasInitialUsers",
+                  {
+                    "Name": "RDS_INITIAL_USERS",
+                    "ValueFrom": {
+                      "Fn::Sub": "${InitialUsersSecretArn}:users::"
+                    }
+                  },
+                  {
+                    "Ref": "AWS::NoValue"
+                  }
+                ]
+              }
+            ],
+            "LogConfiguration": {
+              "LogDriver": "awslogs",
+              "Options": {
+                "awslogs-group": {
+                  "Ref": "Logs"
+                },
+                "awslogs-region": {
+                  "Ref": "AWS::Region"
+                },
+                "awslogs-stream-prefix": "migration"
+              }
+            },
+            "Command": [
+              "node",
+              "--import",
+              "tsx",
+              "scripts/migrate-rds.ts"
+            ]
+          }
+        ]
+      }
+    },
+    "DeadLetterQueuePolicy": {
+      "Type": "AWS::SQS::QueuePolicy",
+      "Properties": {
+        "Queues": [
+          {
+            "Ref": "NotificationDLQ"
+          }
+        ],
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "sqs:*",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "NotificationDLQ",
+                  "Arn"
+                ]
+              },
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              }
+            }
+          ]
+        }
+      }
     }
   },
   "Outputs": {
@@ -2420,6 +3046,47 @@
       "Value": {
         "Ref": "CloudFrontDistribution"
       }
+    },
+    "DatabaseEndpoint": {
+      "Value": {
+        "Fn::GetAtt": [
+          "Database",
+          "Endpoint.Address"
+        ]
+      }
+    },
+    "DatabaseMasterSecretArn": {
+      "Value": {
+        "Fn::GetAtt": [
+          "Database",
+          "MasterUserSecret.SecretArn"
+        ]
+      }
+    },
+    "MigrationTaskDefinition": {
+      "Value": {
+        "Ref": "MigrationTask"
+      }
+    },
+    "ProofBucketName": {
+      "Value": {
+        "Ref": "ProofBucket"
+      }
+    },
+    "AuthSigningSecretArn": {
+      "Value": {
+        "Ref": "AuthSigningSecret"
+      }
+    },
+    "ContactEncryptionSecretArn": {
+      "Value": {
+        "Ref": "ContactEncryptionSecret"
+      }
+    },
+    "LogGroupName": {
+      "Value": {
+        "Ref": "Logs"
+      }
     }
   },
   "Conditions": {
@@ -2504,6 +3171,26 @@
         },
         "true"
       ]
+    },
+    "RdsMultiAZ": {
+      "Fn::Equals": [
+        {
+          "Ref": "RdsMultiAZ"
+        },
+        "true"
+      ]
+    },
+    "HasInitialUsers": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "InitialUsersSecretArn"
+            },
+            ""
+          ]
+        }
+      ]
     }
   },
   "Rules": {
@@ -2543,61 +3230,6 @@
             ]
           },
           "AssertDescription": "Production requires a TLS Redis secret."
-        }
-      ]
-    },
-    "ChannelSecret": {
-      "RuleCondition": {
-        "Fn::Or": [
-          {
-            "Fn::Equals": [
-              {
-                "Ref": "WebPushEnabled"
-              },
-              "true"
-            ]
-          },
-          {
-            "Fn::Equals": [
-              {
-                "Ref": "EmailEnabled"
-              },
-              "true"
-            ]
-          },
-          {
-            "Fn::Equals": [
-              {
-                "Ref": "SmsEnabled"
-              },
-              "true"
-            ]
-          },
-          {
-            "Fn::Equals": [
-              {
-                "Ref": "FcmEnabled"
-              },
-              "true"
-            ]
-          }
-        ]
-      },
-      "Assertions": [
-        {
-          "Assert": {
-            "Fn::Not": [
-              {
-                "Fn::Equals": [
-                  {
-                    "Ref": "NotificationSecretArn"
-                  },
-                  ""
-                ]
-              }
-            ]
-          },
-          "AssertDescription": "Enabled notification channels need the notification secret."
         }
       ]
     },
@@ -2684,6 +3316,45 @@
             ]
           },
           "AssertDescription": "Direct ALB HTTPS requires CertificateArn and AppOrigin."
+        }
+      ]
+    },
+    "PushSecret": {
+      "RuleCondition": {
+        "Fn::Or": [
+          {
+            "Fn::Equals": [
+              {
+                "Ref": "WebPushEnabled"
+              },
+              "true"
+            ]
+          },
+          {
+            "Fn::Equals": [
+              {
+                "Ref": "FcmEnabled"
+              },
+              "true"
+            ]
+          }
+        ]
+      },
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Equals": [
+                  {
+                    "Ref": "NotificationSecretArn"
+                  },
+                  ""
+                ]
+              }
+            ]
+          },
+          "AssertDescription": "Push requires a secret containing VAPID or FCM provider settings."
         }
       ]
     }

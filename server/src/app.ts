@@ -16,7 +16,8 @@ import { HttpError, Operation } from './operation'
 import { publicSummary } from '@core/summary'
 import { signProofs, verifyMedia } from './media-access'
 import { contacts, registerPush, registerNativePush, securityAudit, subscriptionId, type Preferences } from './notifications/store'
-import { supabaseAdmin } from './supabase'
+import { closeRds } from './rds'
+import { removeDevice, hasVerifiedPhone } from './notifications/repository'
 
 export async function buildApp() {
   validateDeployment()
@@ -26,7 +27,7 @@ export async function buildApp() {
   const redis = config.redisUrl ? new Redis(config.redisUrl, { maxRetriesPerRequest: 1, enableOfflineQueue: false }) : undefined
   redis?.on('error', () => app.log.warn('Rate-limit Redis unavailable'))
   await app.register(rateLimit, { max: 240, timeWindow: '1 minute', redis, skipOnError: false, hook: 'preHandler' })
-  app.addHook('onClose', async () => { redis?.disconnect() })
+  app.addHook('onClose', async () => { redis?.disconnect(); if(config.backend==='rds') await closeRds() })
   const op = new Operation(app.log)
   const streams = new Set<import('node:http').ServerResponse>()
   app.addHook('preClose', async () => { for (const stream of streams) stream.end() })
@@ -113,10 +114,7 @@ export async function buildApp() {
     }
     if (user && token) {
       await logout(token)
-      if (config.backend === 'supabase') {
-        const { error } = await supabaseAdmin().from('kairon_push_devices').delete().eq('user_id', user.id)
-        if (error) throw error
-      }
+      if (config.backend !== 'postgres') await removeDevice(user.id)
       await securityAudit('logout', user.id)
     }
     reply.clearCookie(config.sessionCookieName, { path: '/api/auth' })
@@ -248,10 +246,7 @@ export async function buildApp() {
     const user = await auth(req)
     const p = req.body as Preferences
     if (!p || Object.keys(p).some((key) => !['push', 'email', 'sms', 'criticalOnly'].includes(key)) || ['push', 'email', 'sms', 'criticalOnly'].some((key) => typeof p[key as keyof Preferences] !== 'boolean')) throw new HttpError(400, 'Invalid notification preferences')
-    if (p.sms && config.backend === 'supabase') {
-      const { data, error } = await supabaseAdmin().from('kairon_contacts').select('encrypted_phone').eq('user_id', user.id).maybeSingle()
-      if (error || !data?.encrypted_phone) throw new HttpError(400, 'Ask an administrator to verify your phone first')
-    }
+    if (p.sms && config.backend !== 'postgres' && !await hasVerifiedPhone(user.id)) throw new HttpError(400, 'Ask an administrator to verify your phone first')
     await securityAudit('notification_preferences', user.id)
     return { preferences: await contacts(user, p) }
   })
@@ -266,10 +261,7 @@ export async function buildApp() {
     const user = await auth(req)
     const endpoint = (req.body as { endpoint?: string })?.endpoint
     if (typeof endpoint !== 'string') throw new HttpError(400, 'Endpoint required')
-    if (config.backend === 'supabase') {
-      const { error } = await supabaseAdmin().from('kairon_push_devices').delete().eq('id', subscriptionId(endpoint)).eq('user_id', user.id)
-      if (error) throw error
-    }
+    if (config.backend !== 'postgres') await removeDevice(user.id,subscriptionId(endpoint))
     return { ok: true }
   })
   app.post('/api/notifications/native-push', async (req) => {

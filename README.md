@@ -18,7 +18,7 @@ Every action by one role reaches the next through a live stream (server-sent eve
 device when offline and replayed in order on reconnect.
 
 For AWS staging, security prerequisites, notification delivery work and the paths to the cloud blueprint, see
-[the deployment guide](docs/deployment.md). The release template includes ECS notification workers, optional encrypted Redis and production security controls. Live provider checks and account configuration are required before production.
+[the deployment guide](docs/deployment.md). The RDS template includes private PostgreSQL identities/state, private S3 proof storage, ECS notification workers, Redis and production security controls. The current Vercel/Supabase site remains available until AWS cutover is verified. Live provider checks and account configuration are required before production.
 
 ## For judges: run it in one command
 
@@ -60,11 +60,13 @@ clean database: `docker compose down -v && docker compose up --build`. To check 
 | Web | React 19, TypeScript, Vite, Tailwind CSS v4, Zustand, React Router, i18next (English, Sinhala, Tamil), Leaflet; Capacitor for the Android and iOS apps |
 | Offline | vite-plugin-pwa (Workbox service worker), IndexedDB outbox, conflict detection in `web/src/store/conflict.ts` |
 | Server | Fastify 5, TypeScript run with tsx, server-sent events at `GET /api/stream` |
-| Storage | PostgreSQL: Supabase on the hosted site, a local PostgreSQL container with `docker compose` (see [Data model](#data-model)) |
-| Auth | Supabase Auth on the hosted site (JWTs checked against the project's JWKS); the four demo accounts with HMAC-signed tokens locally |
-| Deploy | Vercel (web + serverless API) with Supabase; or `docker compose up` on any machine |
+| Storage | AWS RDS PostgreSQL + private S3 on the new AWS deployment; legacy Supabase on the current site; local PostgreSQL for Docker demos |
+| Auth | RDS administrator-managed identities with salted scrypt passwords, JWTs and rotating/revocable refresh sessions; legacy Supabase Auth; demo accounts locally |
+| Deploy | AWS ECS/Fargate + RDS + S3 + CloudFront ([guide](docs/deployment.md)); legacy Vercel/Supabase; Docker Compose demos |
 
-## Two ways to run, one switch
+## Select the backend
+
+The AWS deployment sets `BACKEND=rds` explicitly and injects private PostgreSQL/S3/signing settings from its stack. The defaults below retain the source site and local demo while the RDS migration is verified.
 
 | | Hosted (live site) | Local (`docker compose up`) |
 |---|---|---|
@@ -91,8 +93,8 @@ core/         Shared rules and logic (single source of truth)
 server/       Fastify API
   src/app.ts       All endpoints
   src/operation.ts The authoritative operation: commands, field events, persistence
-  src/db.ts        Storage switch: db-supabase.ts (hosted) or db-postgres.ts (local)
-  src/auth.ts      Sign-in switch: Supabase Auth or auth-local.ts
+  src/db.ts        Storage switch: db-rds.ts (AWS), db-supabase.ts (legacy) or db-postgres.ts (demo)
+  src/auth.ts      Sign-in switch: auth-rds.ts (AWS), legacy Supabase Auth or auth-local.ts (demo)
   src/vercel.ts    Serverless entry for Vercel
   test/            Unit tests, Supabase flow test, smoke and walkthrough tests
   scripts/         seed-users, import-data, Vercel bundle, planner calibration
@@ -103,7 +105,9 @@ docs/         Project documentation (AI disclosure)
 Dockerfile, docker-compose.yml, .env.example, .github/workflows/ci.yml
 ```
 
-## Hosted deployment (Supabase and Vercel)
+## Legacy hosted deployment (Supabase and Vercel)
+
+For the new AWS RDS deployment and source migration, use [docs/deployment.md](docs/deployment.md). The following instructions describe the source site.
 
 The live site runs on Vercel with Supabase. It starts empty: it does not create sample outlets, vehicles, products,
 orders, deliveries, GPS movements or forecasts.

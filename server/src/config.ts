@@ -39,8 +39,15 @@ export const config = {
    * Storage and sign-in. With SUPABASE_URL set: Supabase (the hosted deployment). Without it: a local PostgreSQL at
    * DATABASE_URL and the four local demo accounts, which is how `docker compose up` runs with no external service.
    */
-  backend: (env.SUPABASE_URL ? 'supabase' : 'postgres') as 'supabase' | 'postgres',
+  backend: (env.BACKEND ?? (env.SUPABASE_URL ? 'supabase' : 'postgres')) as 'supabase' | 'postgres' | 'rds',
   databaseUrl: env.DATABASE_URL ?? '',
+  rdsHost: env.PGHOST ?? '',
+  rdsDatabase: env.PGDATABASE ?? 'kairon',
+  rdsUser: env.PGUSER ?? '',
+  rdsPassword: env.PGPASSWORD ?? '',
+  rdsTls: env.RDS_TLS !== 'false',
+  rdsCaFile: env.RDS_CA_FILE ?? '/app/server/certs/rds-global-bundle.pem',
+  mediaBucket: env.MEDIA_BUCKET ?? '',
   /** Signs local session tokens (local backend only). Use a long random value outside local demos. */
   authSecret: env.AUTH_SECRET ?? '',
   tokenTtlHours: Number(env.TOKEN_TTL_HOURS ?? 12),
@@ -62,12 +69,14 @@ export function validateDeployment(c = config) {
   if (!Number.isInteger(c.trustProxy) || c.trustProxy < 0) throw new Error('TRUST_PROXY_HOPS must be a non-negative integer')
   if (!['staging', 'production'].includes(c.deploymentEnv)) return
   if (c.demoMode || c.seedDemoDay) throw new Error('Hosted deployments must disable DEMO_MODE and SEED_DEMO_DAY')
-  if (c.backend !== 'supabase') throw new Error('Hosted deployments require Supabase Auth; PostgreSQL-only authentication is demo-only')
-  if (!c.supabasePublishableKey || !c.supabaseSecretKey) throw new Error('Hosted deployments require Supabase keys')
+  if (!['supabase','rds'].includes(c.backend)) throw new Error('Hosted deployments require managed identities; PostgreSQL-only authentication is demo-only')
+  if (c.backend === 'supabase' && (!c.supabasePublishableKey || !c.supabaseSecretKey)) throw new Error('Hosted deployments require Supabase keys')
   if (c.mediaSigningKey.length < 32) throw new Error('Hosted deployments require MEDIA_SIGNING_KEY of at least 32 characters')
   const secure = (value: string) => { try { return new URL(value).protocol === 'https:' } catch { return false } }
-  if (!secure(c.supabaseUrl) || !secure(c.supabaseJwksUrl)) throw new Error('Supabase URLs must use HTTPS')
+  if (c.backend === 'supabase' && (!secure(c.supabaseUrl) || !secure(c.supabaseJwksUrl))) throw new Error('Supabase URLs must use HTTPS')
   if (!c.webOrigins.length || c.webOrigins.some((origin) => origin !== 'capacitor://localhost' && (!secure(origin) || new URL(origin).origin !== origin))) throw new Error('WEB_ORIGIN must contain explicit HTTPS origins (or capacitor://localhost for iOS)')
+  if (c.backend === 'rds' && (!c.rdsTls || !c.rdsCaFile || !c.rdsHost || !c.rdsUser || !c.rdsPassword || c.authSecret.length < 32 || !c.mediaBucket)) throw new Error('RDS deployments require verified TLS, database settings, AUTH_SECRET and private MEDIA_BUCKET')
+  if (c.backend === 'rds' && c.databaseUrl) throw new Error('Hosted RDS uses PGHOST/PGUSER/PGPASSWORD; DATABASE_URL cannot override verified TLS')
   if (c.publicApiUrl && !secure(c.publicApiUrl)) throw new Error('PUBLIC_API_URL must use HTTPS')
   if (c.deploymentEnv === 'production' && !c.redisUrl.startsWith('rediss://')) throw new Error('Production requires a TLS Redis URL for distributed rate limiting')
   if (c.webPushEnabled || c.fcmEnabled || c.emailEnabled || c.smsEnabled) {

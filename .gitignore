@@ -36,3 +36,6 @@ infra/aws/parameters.json
 **/*service-account*.json
 **/*.p8
 web/ios/App/CapApp-SPM/symlinks/
+
+# Successful one-off migration task receipts (non-secret, environment-specific)
+infra/aws/parameters.json.migration.json

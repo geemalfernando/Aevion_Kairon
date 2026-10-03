@@ -32,6 +32,8 @@ COPY core ./core
 COPY server/package.json server/package-lock.json ./server/
 RUN npm ci --prefix server --omit=dev && npm cache clean --force
 COPY server ./server
+COPY database ./database
+RUN mkdir -p /app/server/certs && wget -q -O /app/server/certs/rds-global-bundle.pem https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
 WORKDIR /app/server
 USER node
 EXPOSE 8080

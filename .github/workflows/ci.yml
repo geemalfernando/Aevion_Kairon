@@ -46,6 +46,8 @@ jobs:
           path: server/test-results.xml
           retention-days: 14
       - run: npm run test:notifications:db
+      - name: Verify RDS authentication, permissions and atomic commits
+        run: npm run test:rds
       - name: Bundle the Vercel function
         run: npm run bundle:vercel
 

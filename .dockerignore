@@ -7,6 +7,8 @@
 .github
 .env
 .env.*
+**/.env
+**/.env.*
 # Competition data is mounted at runtime, never baked into an image.
 data
 mobile
