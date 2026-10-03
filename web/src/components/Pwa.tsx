@@ -51,6 +51,10 @@ export function PwaUpdater() {
       if (reg) setInterval(() => void reg.update(), 30 * 60 * 1000)
     },
   })
+  // Tiles cached before the map sent a Referer are OpenStreetMap "Access denied" images; drop that cache (now osm-tiles-v2).
+  useEffect(() => {
+    if ('caches' in window) void caches.delete('osm-tiles').catch(() => undefined)
+  }, [])
   useEffect(() => {
     if (!offlineReady) return
     const t = setTimeout(() => setOfflineReady(false), 6000)
