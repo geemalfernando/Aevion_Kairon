@@ -25,10 +25,48 @@ import { DeliverVignette, DeliveryScene, LaptopMock, LoadVignette, OrderVignette
 import { BRAND_SHAPE, OutletMap } from '../../components/RouteMap'
 import { Button, cn } from '../../components/ui'
 import { DEPOT_POS as DEPOTS } from '@core/reference'
+import type { PublicSummary } from '@core/summary'
+import { fmtDate } from '@core/time'
+import type { Outlet, TripStatus, VehicleType } from '@core/types'
+import { create } from 'zustand'
 import { useOps, useSession } from '../../store'
+import { api } from '../../store/remote'
+
+/** Live figures for the landing page from GET /api/public/summary, refreshed every minute. */
+const usePublic = create<{ summary?: PublicSummary; failed: boolean }>(() => ({ failed: false }))
+function usePublicSummaryRefresh() {
+  useEffect(() => {
+    let alive = true
+    const load = () =>
+      api.publicSummary().then(
+        (summary) => alive && usePublic.setState({ summary, failed: false }),
+        () => alive && usePublic.setState({ failed: true }),
+      )
+    void load()
+    const timer = setInterval(load, 60_000)
+    return () => {
+      alive = false
+      clearInterval(timer)
+    }
+  }, [])
+}
+
+/**
+ * Outlets for the landing maps: the public map points, or the signed-in operation when the points are withheld.
+ * The maps read only id, name, brand, district, depot and coordinates, which the public points carry.
+ */
+function useLandingOutlets(): Outlet[] {
+  const points = usePublic((s) => s.summary?.outlets)
+  const own = useOps((s) => s.data.outlets)
+  return (points as unknown as Outlet[] | undefined) ?? own
+}
+
+const VEHICLE_LABEL: Record<VehicleType, string> = { REEFER_TRUCK: 'Reefer truck', REEFER_VAN: 'Reefer van', TRUCK: 'Dry-box truck', VAN: 'Van' }
+const TRIP_LABEL: Record<TripStatus, string> = { DRAFT: 'Draft', PLANNED: 'Planned', LOADING: 'Loading', LOADED: 'Loaded', IN_PROGRESS: 'On the road', PAUSED: 'Paused', COMPLETED: 'Completed', ABORTED: 'Cancelled' }
 
 export function Landing() {
   const user = useSession((s) => s.user)
+  usePublicSummaryRefresh()
   return (
     <div className="bg-bg">
       <Nav signedIn={!!user} home={user ? HOME[user.role] : '/login'} />
@@ -160,7 +198,7 @@ function Hero() {
 }
 
 function NetworkBackdrop() {
-  const outlets = useOps((s) => s.data.outlets)
+  const outlets = useLandingOutlets()
   return (
     <svg className="pointer-events-none absolute inset-y-0 right-0 h-full w-full opacity-[0.16] lg:w-2/3" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice" aria-hidden>
       {outlets.slice(0, 80).map((o) => {
@@ -177,34 +215,30 @@ function NetworkBackdrop() {
   )
 }
 
-/** Animated preview of the command centre, driven by the seeded network. */
+/** Today's network from the live operation (public summary): counts, one real trip and the top deferral. */
 function CommandPreview() {
-  const d = useOps((s) => s.data)
-  const stops = ['OUT004', 'OUT018', 'OUT023', 'OUT031', 'OUT047']
-  const etas = ['05:12', '05:41', '06:08', '06:42', '07:13']
-  const [step, setStep] = useState(1)
-  useEffect(() => {
-    const t = setInterval(() => setStep((s) => (s >= stops.length ? 0 : s + 1)), 1600)
-    return () => clearInterval(t)
-  }, [stops.length])
-  const counts = useMemo(() => {
-    const planned = d.orders.filter((o) => o.tripId || o.status === 'CONFIRMED').length
-    return { outlets: d.outlets.length, vehicles: d.vehicles.length, orders: d.orders.length, planned: Math.min(planned, d.orders.length - 14), deferred: 14, risk: 8 }
-  }, [d])
+  const summary = usePublic((s) => s.summary)
+  const failed = usePublic((s) => s.failed)
+  const c = summary?.counts
+  const trip = summary?.featuredTrip
+  const deferral = summary?.topDeferral
+  const show = (v: number | undefined) => (v === undefined ? '–' : v)
   return (
     <div className="relative animate-rise [animation-delay:150ms]">
       <div className="rounded-2xl border border-white/10 bg-[#0f1b1e]/90 p-5 shadow-2xl backdrop-blur-md sm:p-6">
         <div className="mb-5 flex items-center justify-between">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/50">Today's network</span>
-          <span className="inline-flex items-center gap-1.5 text-xs text-[#5fd0cf]">
-            <span className="size-1.5 animate-pulse rounded-full bg-[#5fd0cf]" /> Live
+          <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/50">
+            Today's network{summary && <span className="ml-2 normal-case tracking-normal text-white/40">· delivery {fmtDate(summary.deliveryDate, { weekday: 'short', day: 'numeric', month: 'short' })}</span>}
+          </span>
+          <span className={cn('inline-flex items-center gap-1.5 text-xs', summary && !failed ? 'text-[#5fd0cf]' : 'text-white/40')}>
+            <span className={cn('size-1.5 rounded-full', summary && !failed ? 'animate-pulse bg-[#5fd0cf]' : 'bg-white/40')} /> {summary && !failed ? 'Live' : failed ? 'Offline' : 'Connecting'}
           </span>
         </div>
         <div className="grid grid-cols-3 gap-3">
           {[
-            [counts.outlets, 'Outlets'],
-            [counts.vehicles, 'Vehicles'],
-            [counts.orders, 'Orders'],
+            [show(c?.outlets), 'Outlets'],
+            [show(c?.vehicles), 'Vehicles'],
+            [show(c?.orders), 'Orders'],
           ].map(([v, l]) => (
             <div key={l as string} className="rounded-xl bg-white/5 p-3">
               <div className="font-display text-2xl font-semibold tabular-nums sm:text-3xl">{v}</div>
@@ -214,12 +248,12 @@ function CommandPreview() {
         </div>
         <div className="mt-3 grid grid-cols-3 divide-x divide-white/10 rounded-xl border border-white/10">
           {[
-            [counts.planned, 'Planned', 'text-[#5fd0cf]'],
-            [counts.deferred, 'Deferred', 'text-chocolate'],
-            [counts.risk, 'At risk', 'text-[#f2a275]'],
-          ].map(([v, l, c]) => (
+            [show(c?.planned), 'Planned', 'text-[#5fd0cf]'],
+            [show(c?.deferred), 'Deferred', 'text-chocolate'],
+            [show(c?.atRisk), 'At risk', 'text-[#f2a275]'],
+          ].map(([v, l, cls]) => (
             <div key={l as string} className="px-3 py-2.5">
-              <div className={cn('font-display text-xl font-semibold tabular-nums', c as string)}>{v}</div>
+              <div className={cn('font-display text-xl font-semibold tabular-nums', cls as string)}>{v}</div>
               <div className="text-[11px] text-white/50">{l}</div>
             </div>
           ))}
@@ -230,35 +264,22 @@ function CommandPreview() {
               <div className="font-mono text-sm font-semibold">VEH002</div>
               <div className="text-xs text-white/50">Peliyagoda → Colombo · Reefer</div>
             </div>
-            <span className="rounded-full bg-[#5fd0cf]/15 px-2 py-0.5 text-[11px] font-semibold text-[#5fd0cf]">{step === 0 ? 'Loading' : 'Departed'}</span>
+          )}
+        </div>
+      </div>
+      {deferral && (
+        <div className="absolute -bottom-5 -left-4 hidden items-center gap-3 rounded-xl border border-white/10 bg-[#101c1f] px-4 py-3 shadow-xl sm:flex">
+          <span className="grid size-8 place-items-center rounded-lg bg-chocolate/20 text-chocolate">
+            <Snowflake className="size-4" />
+          </span>
+          <div>
+            <div className="text-xs font-semibold">{deferral.outletId} deferred</div>
+            <div className="text-[11px] text-white/50">
+              {deferral.reason} · priority {deferral.priority}
+            </div>
           </div>
-          <ol className="mt-3 space-y-2">
-            {stops.map((s, k) => {
-              const done = k < step - 1
-              const current = k === step - 1
-              return (
-                <li key={s} className="flex items-center gap-3 text-sm">
-                  <span className={cn('grid size-4 place-items-center rounded-full border transition-all duration-500', done ? 'border-[#5fd0cf] bg-[#5fd0cf]' : current ? 'border-chocolate' : 'border-white/25')}>
-                    {done && <Check className="size-2.5 text-[#0a1315]" strokeWidth={4} />}
-                    {current && <span className="size-1.5 rounded-full bg-chocolate" />}
-                  </span>
-                  <span className="font-mono text-[13px]">{s}</span>
-                  <span className={cn('ml-auto text-xs transition-colors', done ? 'text-[#5fd0cf]' : current ? 'text-chocolate' : 'text-white/40')}>{done ? 'Delivered' : current ? 'Arriving' : `ETA ${etas[k]}`}</span>
-                </li>
-              )
-            })}
-          </ol>
         </div>
-      </div>
-      <div className="absolute -bottom-5 -left-4 hidden items-center gap-3 rounded-xl border border-white/10 bg-[#101c1f] px-4 py-3 shadow-xl sm:flex">
-        <span className="grid size-8 place-items-center rounded-lg bg-chocolate/20 text-chocolate">
-          <Snowflake className="size-4" />
-        </span>
-        <div>
-          <div className="text-xs font-semibold">OUT043 deferred</div>
-          <div className="text-[11px] text-white/50">Reefer capacity exhausted · priority 74</div>
-        </div>
-      </div>
+      )}
     </div>
   )
 }
@@ -535,9 +556,12 @@ const ROLES: { role: 'DISPATCHER' | 'LOADER' | 'DRIVER' | 'STORE_MANAGER'; name:
 ]
 
 function Coverage() {
-  const outlets = useOps((s) => s.data.outlets)
+  const outlets = useLandingOutlets()
+  const summary = usePublic((s) => s.summary)
   const [selected, setSelected] = useState<string>()
-  const byDistrict = useMemo(() => {
+  const byDistrict = useMemo((): [string, { total: number; Fresh: number; Style: number; Tech: number; depot: string }][] => {
+    // District totals come from the public summary, so they show even when the map points are withheld.
+    if (summary) return summary.districts.map((r) => [r.district, r])
     const m = new Map<string, { total: number; Fresh: number; Style: number; Tech: number; depot: string }>()
     for (const o of outlets) {
       const r = m.get(o.district) ?? { total: 0, Fresh: 0, Style: 0, Tech: 0, depot: o.depot }
@@ -546,13 +570,16 @@ function Coverage() {
       m.set(o.district, r)
     }
     return [...m.entries()].sort((a, b) => b[1].total - a[1].total)
-  }, [outlets])
-  const max = Math.max(...byDistrict.map(([, r]) => r.total))
+  }, [summary, outlets])
+  const max = Math.max(1, ...byDistrict.map(([, r]) => r.total))
+  const outletCount = summary?.counts.outlets ?? outlets.length
+  const depotCount = summary?.counts.depots ?? new Set(outlets.map((o) => o.depot)).size
+  const brandCount = (b: 'Fresh' | 'Style' | 'Tech') => summary?.brands[b] ?? outlets.filter((o) => o.brand === b).length
   const sel = outlets.find((o) => o.id === selected)
   return (
     <section id="coverage" className="py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <SectionHead eyebrow="Where we deliver" title="120 outlets across Sri Lanka, served from two depots." sub="Every Fresh, Style and Tech outlet on one live map — tap any store to see it." />
+        <SectionHead eyebrow="Where we deliver" title={outletCount ? `${outletCount} outlets across Sri Lanka, served from ${depotCount === 2 ? 'two' : depotCount} depot${depotCount === 1 ? '' : 's'}.` : 'Outlets across Sri Lanka, served from two depots.'} sub="Every Fresh, Style and Tech outlet on one live map — tap any store to see it." />
         <div className="grid gap-6 lg:grid-cols-[1.35fr_1fr]">
           <Reveal>
             <OutletMap outlets={outlets} selected={selected} onSelect={setSelected} className="h-[440px] shadow-pop sm:h-[560px]" describe={(o) => `${o.district} · ${o.brand}`} />
@@ -560,9 +587,9 @@ function Coverage() {
           <Reveal delay={150} className="flex flex-col gap-4">
             <div className="grid grid-cols-3 gap-3">
               {[
-                [outlets.length, 'Outlets'],
+                [outletCount, 'Outlets'],
                 [byDistrict.length, 'Districts'],
-                [2, 'Depots'],
+                [depotCount, 'Depots'],
               ].map(([v, l]) => (
                 <div key={l as string} className="rounded-2xl bg-teal p-4 text-white">
                   <div className="font-display text-3xl font-bold">{v}</div>
@@ -585,7 +612,8 @@ function Coverage() {
                       <span className="text-xs text-muted">{r.depot}</span>
                     </div>
                     <div className="mt-1.5 flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-surface-2" style={{ width: `${(r.total / max) * 100}%` }}>
-                      {(['Fresh', 'Style', 'Tech'] as const).map((b) => (r[b] ? <span key={b} title={`${b}: ${r[b]}`} className={`km-${b.toLowerCase()} h-full`} style={{ flex: r[b], background: 'var(--c)' }} /> : null))}
+                      {/* One brand colour in three shades: markers show brand by shape, never colour. */}
+                      {(['Fresh', 'Style', 'Tech'] as const).map((b) => (r[b] ? <span key={b} title={`${b}: ${r[b]}`} className="h-full" style={{ flex: r[b], background: 'var(--brand)', opacity: { Fresh: 1, Style: 0.6, Tech: 0.3 }[b] }} /> : null))}
                     </div>
                   </li>
                 ))}
@@ -594,7 +622,7 @@ function Coverage() {
                 {(['Fresh', 'Style', 'Tech'] as const).map((b) => (
                   <span key={b} className="inline-flex items-center gap-1.5">
                     <span className={`km-outlet km-${b.toLowerCase()} km-shape-${BRAND_SHAPE[b]}`} style={{ ['--s' as string]: '10px', margin: 0 }} />
-                    {b} · {outlets.filter((o) => o.brand === b).length}
+                    {b} · {brandCount(b)}
                   </span>
                 ))}
               </div>

@@ -2,9 +2,10 @@ import { createRemoteJWKSet, jwtVerify } from 'jose'
 import type { User } from '@core/types'
 import { config } from './config'
 import * as local from './auth-local'
+import * as rds from './auth-rds'
 import { authClient, supabaseAdmin } from './supabase'
 
-/** Supabase Auth on the hosted deployment; the local demo accounts (auth-local.ts) with the local backend. */
+/** RDS identities for AWS; legacy Supabase Auth and isolated local demo accounts remain available for migration/development. */
 export interface Session extends User { exp: number; id: string; sessionId?: string }
 const roles = ['DISPATCHER', 'LOADER', 'DRIVER', 'STORE_MANAGER'] as const
 export function profile(email: string | undefined, metadata: Record<string, unknown>): User | null {
@@ -14,6 +15,7 @@ export function profile(email: string | undefined, metadata: Record<string, unkn
 }
 let jwks: ReturnType<typeof createRemoteJWKSet> | undefined
 export async function verifyToken(token: string | undefined): Promise<Session | null> {
+  if (config.backend === 'rds') return rds.verifyToken(token)
   if (config.backend === 'postgres') return local.verifyToken(token)
   if (!token) return null
   try {
@@ -29,11 +31,13 @@ export async function verifyToken(token: string | undefined): Promise<Session | 
 }
 
 export async function logout(token: string) {
+  if (config.backend === 'rds') return rds.logout(token)
   if (config.backend !== 'supabase') return
   const { error } = await supabaseAdmin().auth.admin.signOut(token, 'local')
   if (error) throw new Error('Session could not be revoked')
 }
 export async function login(email: string, password: string) {
+  if (config.backend === 'rds') return rds.login(email, password)
   if (config.backend === 'postgres') return local.login(email, password)
   const { data, error } = await authClient().auth.signInWithPassword({ email: email.trim(), password })
   if (error || !data.session) return null
@@ -41,6 +45,7 @@ export async function login(email: string, password: string) {
   return user ? { user, token: data.session.access_token, refreshToken: data.session.refresh_token, expiresAt: data.session.expires_at } : null
 }
 export async function refreshSession(refreshToken: string) {
+  if (config.backend === 'rds') return rds.refreshSession(refreshToken)
   if (config.backend === 'postgres') return local.refreshSession(refreshToken)
   const { data, error } = await authClient().auth.refreshSession({ refresh_token: refreshToken })
   if (error || !data.session || !data.user) return null

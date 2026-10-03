@@ -1,0 +1,17 @@
+{
+  "VpcId": "vpc-REPLACE",
+  "PublicSubnets": "subnet-PUBLIC_A,subnet-PUBLIC_B",
+  "PrivateSubnets": "subnet-PRIVATE_A,subnet-PRIVATE_B",
+  "SupabaseUrl": "https://PROJECT.supabase.co",
+  "SupabaseSecretArn": "arn:aws:secretsmanager:ap-south-1:ACCOUNT:secret:REPLACE",
+  "DeploymentEnv": "staging",
+  "ProvisionRedis": "true",
+  "DesiredCount": 2,
+  "PublisherCount": 0,
+  "WorkerCount": 0,
+  "WebPushEnabled": "false",
+  "FcmEnabled": "false",
+  "EmailEnabled": "false",
+  "SmsEnabled": "false",
+  "UseCloudFront": "true"
+}

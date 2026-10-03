@@ -2,14 +2,15 @@ import crypto from 'node:crypto'
 import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand, ChangeMessageVisibilityCommand } from '@aws-sdk/client-sqs'
 import type { Notification } from '@core/types'
 import { config, validateDeployment } from '../config'
-import { supabaseAdmin } from '../supabase'
+import * as repository from './repository'
+import { closeRds } from '../rds'
 import { profile } from '../auth'
 import { deliver, eligible, type DeliveryPort } from './delivery'
-import { decrypt, type Preferences, type Subscription } from './store'
+import { decrypt, type Subscription } from './store'
 import { sendEmail, sendPush, sendNativePush, sendSms } from './providers'
 
 validateDeployment()
-if (config.backend !== 'supabase' || !config.notificationQueueUrl || ![config.webPushEnabled, config.fcmEnabled, config.emailEnabled, config.smsEnabled].some(Boolean)) throw new Error('Worker requires Supabase, a queue and at least one configured channel')
+if (!['supabase','rds'].includes(config.backend) || !config.notificationQueueUrl || ![config.webPushEnabled, config.fcmEnabled, config.emailEnabled, config.smsEnabled].some(Boolean)) throw new Error('Worker requires a hosted database, a queue and at least one configured channel')
 const sqs = new SQSClient({ maxAttempts: 2 })
 const owner = crypto.randomUUID()
 let stopping = false
@@ -17,55 +18,35 @@ process.on('SIGTERM', () => { stopping = true })
 process.on('SIGINT', () => { stopping = true })
 
 async function processNotification(id: string) {
-  const db = supabaseAdmin()
-  const { data: row, error } = await db.from('kairon_notification_outbox').select('payload,expires_at').eq('id', id).maybeSingle()
-  if (error) throw new Error('NotificationReadFailed')
+  const row = await repository.readOutbox(id)
   if (!row || Date.parse(row.expires_at) <= Date.now()) return
   const n = row.payload as Notification
   if (!n.depot || !Array.isArray(n.to)) throw new Error('InvalidNotification')
   let failed = false
   for (let offset = 0; ; offset += 100) {
-    const { data: recipients, error: recipientError } = await db.from('kairon_contacts').select('*').eq('depot', n.depot).in('role', n.to).order('user_id').range(offset, offset + 99)
-    if (recipientError) throw new Error('RecipientsReadFailed')
-    for (const contact of recipients ?? []) {
-      const { data: identity, error: identityError } = await db.auth.admin.getUserById(contact.user_id)
-      if (identityError) {
-        if (identityError.status === 404) continue
-        failed = true
-        continue
-      }
-      const current = identity.user
-      if (!current || current.banned_until && Date.parse(current.banned_until) > Date.now()) continue
+    const recipients = await repository.recipients(n.depot,n.to,offset)
+    for (const contact of recipients) {
+      let current
+      try { current = await repository.identity(contact.user_id) } catch { failed = true; continue }
+      if (!current) continue
       const user = profile(current.email, current.app_metadata)
-      const preferences = contact.preferences as Preferences
+      const preferences = contact.preferences
       if (!user || !eligible(n, user, preferences)) continue
       const port: DeliveryPort = {
-        claim: async (deliveryId, channel) => {
-          const { data, error } = await db.rpc('kairon_claim_delivery', { delivery_id: deliveryId, notification: id, recipient: contact.user_id, delivery_channel: channel, owner })
-          if (error) throw new Error('DeliveryClaimFailed')
-          return data === true
-        },
-        status: async (deliveryId) => {
-          const { data, error } = await db.from('kairon_notification_deliveries').select('status').eq('id', deliveryId).maybeSingle()
-          if (error) throw new Error('DeliveryStatusFailed')
-          return data?.status ?? null
-        },
-        finish: async (deliveryId, status, code) => {
-          const { data, error } = await db.from('kairon_notification_deliveries').update({ status, provider_id: status === 'sent' ? code : null, error_code: status !== 'sent' ? code : null, lease_until: null, lease_owner: null, updated_at: new Date().toISOString() }).eq('id', deliveryId).eq('lease_owner', owner).select('id')
-          if (error || !data?.length) throw new Error('DeliveryAcknowledgementFailed')
-        },
+        claim: (deliveryId, channel) => repository.claimDelivery(deliveryId,id,contact.user_id,channel,owner),
+        status: repository.deliveryStatus,
+        finish: (deliveryId,status,code) => repository.finishDelivery(deliveryId,owner,status,code),
       }
       const jobs: (() => Promise<void>)[] = []
       if (config.emailEnabled && preferences.email && current.email_confirmed_at && !contact.suppressed_email) jobs.push(() => deliver(`${id}:${contact.user_id}:email`, 'email', () => sendEmail(user.email), port))
-      if (config.smsEnabled && preferences.sms && ['HIGH', 'CRITICAL'].includes(n.severity) && contact.encrypted_phone) jobs.push(() => deliver(`${id}:${contact.user_id}:sms`, 'sms', () => sendSms(decrypt<string>(contact.encrypted_phone)), port))
+      const encryptedPhone = contact.encrypted_phone
+      if (config.smsEnabled && preferences.sms && ['HIGH', 'CRITICAL'].includes(n.severity) && encryptedPhone) jobs.push(() => deliver(`${id}:${contact.user_id}:sms`, 'sms', () => sendSms(decrypt<string>(encryptedPhone!)), port))
       if ((config.webPushEnabled || config.fcmEnabled) && preferences.push) {
-        const { data: devices, error } = await db.from('kairon_push_devices').select('*').eq('user_id', contact.user_id)
-        if (error) failed = true
+        const devices = await repository.devices(contact.user_id)
         for (const device of devices ?? []) {
           if (device.kind === 'fcm' ? !config.fcmEnabled : !config.webPushEnabled) continue
           jobs.push(() => deliver(`${id}:${contact.user_id}:push:${device.id}`, 'push', () => device.kind === 'fcm' ? sendNativePush(decrypt<{ token: string }>(device.encrypted_subscription).token, id) : sendPush(decrypt<Subscription>(device.encrypted_subscription), id), port, async () => {
-          const { error } = await db.from('kairon_push_devices').delete().eq('id', device.id).eq('user_id', contact.user_id)
-          if (error) throw new Error('DeviceRemovalFailed')
+          await repository.removeDevice(contact.user_id,device.id)
         }))
         }
       }
@@ -83,8 +64,7 @@ async function processFeedback(value: { TopicArn?: string; Type?: string; Messag
   const type = event.eventType ?? event.notificationType
   const recipients = type === 'Complaint' ? event.complaint?.complainedRecipients : type === 'Bounce' && event.bounce?.bounceType === 'Permanent' ? event.bounce.bouncedRecipients : []
   for (const recipient of recipients ?? []) {
-    const { error } = await supabaseAdmin().from('kairon_contacts').update({ suppressed_email: true }).ilike('email', recipient.emailAddress.replace(/[%_]/g, '\\$&'))
-    if (error) throw new Error('FeedbackSuppressionFailed')
+    await repository.suppressEmail(recipient.emailAddress)
   }
 }
 
@@ -121,3 +101,5 @@ while (!stopping) {
     if (!stopping) await new Promise((resolve) => setTimeout(resolve, 5000))
   }
 }
+
+await closeRds()

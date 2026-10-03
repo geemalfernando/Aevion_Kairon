@@ -32,3 +32,13 @@ test('API requires header authentication and prevents sensitive response caching
     await app.close()
   }
 })
+
+
+test('hosted RDS rejects demo auth, plaintext DB connections and connection-string TLS overrides', () => {
+  const hosted = { ...config, backend: 'rds' as const, deploymentEnv: 'production', demoMode: false, seedDemoDay: false, databaseUrl: '', rdsHost: 'private.example.rds.amazonaws.com', rdsUser: 'kairon_runtime', rdsPassword: 'test', rdsTls: true, rdsCaFile: '/test/ca.pem', authSecret: 'a'.repeat(64), mediaSigningKey: 'b'.repeat(64), mediaBucket: 'private-test-proof', webOrigins: ['https://example.cloudfront.net'], publicApiUrl: 'https://example.cloudfront.net', redisUrl: 'rediss://example.test:6379', trustProxy: 2, webPushEnabled: false, fcmEnabled: false, emailEnabled: false, smsEnabled: false }
+  assert.doesNotThrow(() => validateDeployment(hosted))
+  assert.throws(() => validateDeployment({ ...hosted, rdsTls: false }), /verified TLS/)
+  assert.throws(() => validateDeployment({ ...hosted, databaseUrl: 'postgres://override/?sslmode=no-verify' }), /cannot override/)
+  assert.throws(() => validateDeployment({ ...hosted, authSecret: '' }), /AUTH_SECRET/)
+  assert.throws(() => validateDeployment({ ...hosted, mediaBucket: '' }), /MEDIA_BUCKET/)
+})

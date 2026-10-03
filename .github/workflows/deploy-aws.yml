@@ -1,0 +1,79 @@
+# Releases main to the AWS RDS staging stack after CI passes: builds the production image,
+# pushes it to ECR, updates the ECS services through CloudFormation and smoke-tests the
+# CloudFront URL. Schema changes are refused here; run deploy-rds.mjs migrate by hand first.
+name: Deploy AWS staging
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-aws-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Release to ECS
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      STACK: ${{ vars.KAIRON_STACK }}
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Read deployed parameters
+        run: node scripts/stack-parameters.mjs "$STACK" > "$RUNNER_TEMP/parameters.json"
+
+      - name: Refuse unreviewed schema changes
+        run: |
+          set -eu
+          deployed=$(aws cloudformation describe-stacks --stack-name "$STACK" --query "Stacks[0].Parameters[?ParameterKey=='ImageTag'].ParameterValue" --output text)
+          schema="database/ server/scripts/migrate-rds.ts server/scripts/import-rds.ts server/scripts/rds-users.ts"
+          case "$deployed" in
+            git-*)
+              base=$(echo "$deployed" | cut -d- -f2)
+              if ! git diff --quiet "$base" "$SHA" -- $schema; then
+                echo "::error::Schema files changed since $deployed. Run deploy-rds.mjs migrate manually, then re-run this workflow."
+                exit 1
+              fi ;;
+            *)
+              if [ "$GITHUB_EVENT_NAME" != workflow_dispatch ]; then
+                echo "::error::Deployed image $deployed was released by hand, so schema changes can't be compared. Start this workflow manually once to confirm."
+                exit 1
+              fi ;;
+          esac
+
+      - name: Build, push and release
+        run: node scripts/deploy-rds.mjs release "$STACK" "$RUNNER_TEMP/parameters.json" "git-${SHA::12}-${{ github.run_attempt }}"
+        env:
+          KAIRON_CFN_ROLE_ARN: ${{ vars.KAIRON_CFN_ROLE_ARN }}
+
+      - name: Smoke test
+        run: |
+          set -eu
+          url=$(aws cloudformation describe-stacks --stack-name "$STACK" --query "Stacks[0].Outputs[?OutputKey=='ApplicationUrl'].OutputValue" --output text)
+          for i in $(seq 1 20); do curl -fsS "$url/api/health" | grep -q '"ok":true' && break; sleep 15; done
+          curl -fsS "$url/api/health" | grep -q '"ok":true'
+          test "$(curl -s -o /dev/null -w '%{http_code}' "$url/api/state")" = 401
+          echo "Released ${SHA::12} to $url" >> "$GITHUB_STEP_SUMMARY"

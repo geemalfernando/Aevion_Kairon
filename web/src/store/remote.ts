@@ -1,5 +1,6 @@
-/** Client for the authenticated, Supabase-backed API. */
+/** Client for the authenticated API (RDS or legacy Supabase). */
 import type { CommandName } from '@core/ops'
+import type { PublicSummary } from '@core/summary'
 import type { OpsData, QueuedEvent, User } from '@core/types'
 import { Capacitor } from '@capacitor/core'
 
@@ -52,10 +53,17 @@ export interface EventResult {
   message?: string
 }
 
+// Browser tabs share the HttpOnly refresh cookie. Serialize cookie-changing requests
+// across tabs so normal refresh races are not mistaken for refresh-token replay.
+function sessionRequest<T>(action: () => Promise<T>): Promise<T> {
+  if (COOKIE_SESSION && typeof navigator !== 'undefined' && navigator.locks) return navigator.locks.request('kairon-session-cookie', action)
+  return action()
+}
+
 export const api = {
-  login: (email: string, password: string) => request<{ token: string; refreshToken: string | null; expiresAt: number; user: User }>('/api/auth/login', { body: { email, password } }),
-  refresh: (refreshToken: string | null, expectedEmail?: string) => request<{ token: string; refreshToken: string | null; expiresAt: number; user: User }>('/api/auth/refresh', { body: { refreshToken, expectedEmail } }),
-  logout: (token: string | null) => request('/api/auth/logout', { body: {}, token: token ?? undefined }),
+  login: (email: string, password: string) => sessionRequest(() => request<{ token: string; refreshToken: string | null; expiresAt: number; user: User }>('/api/auth/login', { body: { email, password } })),
+  refresh: (refreshToken: string | null, expectedEmail?: string) => sessionRequest(() => request<{ token: string; refreshToken: string | null; expiresAt: number; user: User }>('/api/auth/refresh', { body: { refreshToken, expectedEmail } })),
+  logout: (token: string | null) => sessionRequest(() => request('/api/auth/logout', { body: {}, token: token ?? undefined })),
   preferences: (token: string) => request<{ preferences: { push: boolean; email: boolean; sms: boolean; criticalOnly: boolean }; channels: { push: boolean; nativePush: boolean; email: boolean; sms: boolean }; publicKey: string | null }>('/api/notifications/preferences', { token }),
   setPreferences: (token: string, preferences: { push: boolean; email: boolean; sms: boolean; criticalOnly: boolean }) => request('/api/notifications/preferences', { token, body: preferences }),
   registerPush: (token: string, subscription: PushSubscriptionJSON) => request('/api/notifications/push', { token, body: subscription }),
@@ -68,6 +76,8 @@ export const api = {
   /** Demo mode only: the server puts the seeded delivery day back. */
   reset: (token: string) => request<{ version: number }>('/api/demo/reset', { token, body: {} }),
   health: () => request<{ ok: boolean }>('/api/health', { timeoutMs: 4000 }),
+  /** Landing page figures; no sign-in needed. */
+  publicSummary: () => request<PublicSummary>('/api/public/summary', { timeoutMs: 8000 }),
   /** Live version updates (server-sent events). Returns a close function. */
   stream(token: string, onVersion: (v: number) => void, onStatus: (open: boolean) => void) {
     // fetch supports Authorization headers; EventSource would put the access token in the URL.
