@@ -115,8 +115,8 @@ export function Dashboard() {
         </Card>
       )}
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1.6fr_1fr]">
-        <div className="space-y-6">
+      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <div className="min-w-0 space-y-6">
           <Card>
             <CardHeader eyebrow="Delivery day" title="Delivery sessions" action={<span className="text-xs text-muted">03:30 → 17:00</span>} />
             <div className="space-y-4 p-5">
@@ -133,7 +133,7 @@ export function Dashboard() {
                 return (
                   <div key={brand}>
                     <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2 text-sm">
-                      <span className="inline-flex items-center gap-2 font-semibold">
+                      <span className="flex min-w-0 flex-wrap items-center gap-2 font-semibold">
                         <BrandTag brand={brand} className="!text-sm !text-ink" /> <span className="text-xs font-normal text-muted">{note}</span>
                       </span>
                       <span className="text-xs text-muted">

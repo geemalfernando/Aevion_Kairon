@@ -245,9 +245,9 @@ export function NetworkPill({ compact }: { compact?: boolean }) {
   }[net.status]
   const to = user?.role === 'DRIVER' ? '/driver/sync' : user?.role === 'LOADER' ? '/loader/sync' : undefined
   const body = (
-    <span className={cn('inline-flex h-8 items-center gap-2 rounded-full border border-line bg-surface px-3 text-xs font-semibold', meta.text)}>
+    <span title={meta.label} aria-label={`${meta.label}. ${t('sync.queued', { count: net.pending })}`} className={cn('inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-surface px-2 text-xs font-semibold sm:min-h-8 sm:px-3', meta.text)}>
       <span className={cn('size-2 rounded-full', meta.dot)} />
-      {(!compact || net.status !== 'online') && meta.label}
+      {(!compact || net.status !== 'online') && <span className={cn('max-w-16 truncate sm:max-w-none', net.status === 'online' && 'hidden sm:inline')}>{meta.label}</span>}
       {net.pending > 0 && (
         <span className="inline-flex items-center gap-1 text-muted">
           <CloudOff className="size-3.5" /> {net.pending}
@@ -288,10 +288,11 @@ function TopBar({ user, onSearch, onNotifications }: { user: User; onSearch: () 
   const searchable = user.role === 'DISPATCHER' || user.role === 'STORE_MANAGER'
   const field = isField(user.role)
   return (
-    <header className="sticky top-0 z-30 border-b border-line bg-surface/90 backdrop-blur">
-      <div className="flex h-16 items-center gap-2 px-4 sm:gap-3 sm:px-6 lg:px-8">
+    <header className="sticky top-[env(safe-area-inset-top)] z-30 border-b border-line bg-surface/90 backdrop-blur">
+      <div className="flex min-h-16 items-center gap-1 px-3 sm:gap-3 sm:px-6 lg:px-8">
         <Link to={HOME[user.role]} className="lg:hidden">
-          <Logo className="!text-[15px]" />
+          <span className="sm:hidden"><Logo mark={false} className="!text-[15px]" /></span>
+          <span className="hidden sm:inline-flex"><Logo className="!text-[15px]" /></span>
         </Link>
         <div className="hidden min-w-0 lg:block">
           <div className="text-sm font-semibold">{user.role === 'STORE_MANAGER' ? byOutlet(d, user.assignedOutlet) : `${user.depot} Operations`}</div>
@@ -306,7 +307,7 @@ function TopBar({ user, onSearch, onNotifications }: { user: User; onSearch: () 
             <kbd className="rounded border border-line bg-surface px-1.5 font-mono text-[10px]">⌘K</kbd>
           </button>
         )}
-        <div className="ml-auto flex items-center gap-1 sm:gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-2">
           {searchable && (
             <IconButton label="Search" onClick={onSearch} className="md:hidden">
               <Search className="size-[18px]" />

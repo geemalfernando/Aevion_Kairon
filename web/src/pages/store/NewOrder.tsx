@@ -62,7 +62,7 @@ export function NewOrder() {
   return (
     <>
       <PageHeader eyebrow={`${outlet.name} · ${outlet.id}`} title="New order" />
-      <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <Card>
           <CardHeader title="Products" eyebrow={`${outlet.brand} catalogue`} />
           <ul className="divide-y divide-line">
@@ -72,7 +72,7 @@ export function NewOrder() {
               const v = qty[name] ?? 0
               const set = (n: number) => setQty((q) => ({ ...q, [name]: Math.max(0, Math.min(99, n)) }))
               return (
-                <li key={name} className="flex items-center gap-3 px-5 py-4">
+                <li key={name} className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4 py-4 sm:flex sm:px-5">
                   <span className={`grid size-9 place-items-center rounded-lg ${chilled ? 'bg-info-soft text-info-ink' : 'bg-surface-2 text-muted'}`}>{chilled ? <Snowflake className="size-4" /> : <Sun className="size-4" />}</span>
                   <div className="min-w-0 flex-1">
                     <div className="font-medium">{name}</div>
@@ -80,7 +80,7 @@ export function NewOrder() {
                       {unit} · {chilled ? 'chilled' : 'ambient'}
                     </div>
                   </div>
-                  <div className="inline-flex items-center rounded-lg border border-line-strong">
+                  <div className="col-start-2 inline-flex shrink-0 items-center justify-self-start rounded-lg border border-line-strong">
                     <button className="grid size-11 place-items-center" onClick={() => set(v - 1)} aria-label={`Fewer ${name}`}>
                       <Minus className="size-4" />
                     </button>
@@ -108,7 +108,7 @@ export function NewOrder() {
             ) : (
               <div className="mt-4 space-y-2">
                 {parts.map((p) => (
-                  <div key={p.temp} className={`flex items-center justify-between rounded-lg p-3 text-sm ${p.temp === 'CHILLED' ? 'bg-info-soft text-info-ink' : 'bg-surface-2'}`}>
+                  <div key={p.temp} className={`flex flex-wrap items-center justify-between gap-2 rounded-lg p-3 text-sm ${p.temp === 'CHILLED' ? 'bg-info-soft text-info-ink' : 'bg-surface-2'}`}>
                     <span className="inline-flex items-center gap-2 font-semibold">
                       {p.temp === 'CHILLED' ? <Snowflake className="size-4" /> : <Sun className="size-4" />}
                       {p.temp === 'CHILLED' ? 'Chilled delivery' : 'Dry delivery'}

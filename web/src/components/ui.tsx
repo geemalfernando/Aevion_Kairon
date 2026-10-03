@@ -64,7 +64,7 @@ export function Button({ variant = 'primary', size = 'md', icon, loading, block,
       {...rest}
       disabled={disabled || loading}
       className={cn(
-        'inline-flex select-none items-center justify-center gap-2 rounded-lg font-semibold whitespace-nowrap transition-[background,color,box-shadow,transform] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100',
+        'inline-flex max-w-full select-none items-center justify-center gap-2 rounded-lg font-semibold whitespace-normal sm:whitespace-nowrap transition-[background,color,box-shadow,transform] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100',
         {
           primary: 'bg-brand-fill text-on-brand shadow-sm hover:bg-brand-hover',
           secondary: 'border border-line-strong bg-surface text-ink hover:bg-surface-2',
@@ -73,7 +73,7 @@ export function Button({ variant = 'primary', size = 'md', icon, loading, block,
           attention: 'bg-attention-fill text-white hover:brightness-95',
           inverse: 'bg-white text-teal hover:bg-platinum',
         }[variant],
-        { sm: 'h-8 px-3 text-xs', md: 'h-10 px-4 text-sm', lg: 'h-12 px-5 text-[15px]', xl: 'h-14 px-6 text-base' }[size],
+        { sm: 'min-h-11 px-3 py-1.5 text-xs sm:min-h-8', md: 'min-h-11 px-4 py-2 text-sm sm:min-h-10', lg: 'min-h-12 px-5 py-2 text-[15px]', xl: 'min-h-14 px-6 py-3 text-base' }[size],
         block && 'w-full',
         className,
       )}
@@ -86,7 +86,7 @@ export function Button({ variant = 'primary', size = 'md', icon, loading, block,
 
 export function IconButton({ label, className, children, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string }) {
   return (
-    <button {...rest} aria-label={label} title={label} className={cn('relative grid size-9 place-items-center rounded-lg text-muted transition hover:bg-surface-2 hover:text-ink', className)}>
+    <button {...rest} aria-label={label} title={label} className={cn('relative grid size-11 shrink-0 place-items-center rounded-lg text-muted transition hover:bg-surface-2 hover:text-ink sm:size-9', className)}>
       {children}
     </button>
   )
@@ -189,13 +189,13 @@ export function CardHeader({ title, eyebrow, action, className }: { title: React
 
 export function PageHeader({ eyebrow, title, subtitle, actions }: { eyebrow?: ReactNode; title: ReactNode; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div className="mb-6 flex min-w-0 flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
         {eyebrow && <div className="eyebrow mb-2">{eyebrow}</div>}
         <h1 className="text-2xl font-semibold sm:text-[28px]">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {actions && <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">{actions}</div>}
     </div>
   )
 }
@@ -296,7 +296,7 @@ export function Field({ label, hint, children, className }: { label: string; hin
   )
 }
 
-const inputCls = 'w-full rounded-lg border border-line-strong bg-surface px-3 text-sm text-ink placeholder:text-faint transition focus:border-brand focus:outline-none focus:ring-3 focus:ring-brand/20'
+const inputCls = 'w-full min-w-0 rounded-lg border border-line-strong bg-surface px-3 text-base sm:text-sm text-ink placeholder:text-faint transition focus:border-brand focus:outline-none focus:ring-3 focus:ring-brand/20'
 
 export const Input = ({ className, ...p }: InputHTMLAttributes<HTMLInputElement>) => <input {...p} className={cn(inputCls, 'h-11', className)} />
 /** Password field with a show/hide toggle, so people can check what they typed on a phone keyboard. */
