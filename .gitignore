@@ -1,6 +1,3 @@
-# Local Vercel project metadata
-.vercel/
-
 # Dependencies and builds
 node_modules/
 dist/
@@ -15,9 +12,6 @@ dist/
 data/**/*.csv
 data/**/*.zip
 data/catalog.json
-
-# Generated Vercel function bundle (npm --prefix server run bundle:vercel)
-web/api/_server.mjs
 
 # Leftover Flutter build output (app removed)
 /mobile/

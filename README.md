@@ -4,12 +4,9 @@ Kairon is a delivery planning system for **Waypoint Group**, a fictional Sri Lan
 brands (Fresh, Style, Tech), two depots (Peliyagoda, Kandy) and 60 vehicles. It was built by team **Aevion** for
 Tech-Triathlon 2026.
 
-## About the live deployments
+## Live AWS deployment
 
-- **AWS judge site:** [d10j8dr2q1dn87.cloudfront.net](https://d10j8dr2q1dn87.cloudfront.net)
-- **Vercel site:** [kairon-eight.vercel.app](https://kairon-eight.vercel.app)
-
-We keep both deployments available to support our **zero-downtime rollout goal**: Vercel remains accessible while AWS is deployed or updated, giving users an alternative entry point during the transition. AWS is the primary judge site. Switching between the links is manual, and each deployment has its own accounts and data (AWS uses RDS; Vercel uses Supabase). Changes on one site are not automatically synchronized to the other, so continue a judge walkthrough on the same site.
+**[Open the AWS judge site](https://d10j8dr2q1dn87.cloudfront.net)** — hosted in Sydney with CloudFront, ECS Fargate, RDS PostgreSQL and private S3 storage. AWS is the hosted deployment used for recording and judging.
 
 Kairon turns the day's orders into a plan that obeys the operating rules, and keeps four people in step while the day
 goes wrong:
@@ -25,22 +22,22 @@ Every action by one role reaches the next through a live stream (server-sent eve
 device when offline and replayed in order on reconnect.
 
 For AWS staging, security prerequisites, notification delivery work and the paths to the cloud blueprint, see
-[the deployment guide](docs/deployment.md). The RDS template includes private PostgreSQL identities/state, private S3 proof storage, ECS notification workers, Redis and production security controls. The current Vercel/Supabase site remains available until AWS cutover is verified. Live provider checks and account configuration are required before production.
+[the deployment guide](docs/deployment.md). The RDS template includes private PostgreSQL identities/state, private S3 proof storage, ECS notification workers, Redis and production security controls. Live provider checks and account configuration are required before production.
 
 ## For judges
 
 ### Deployed site (AWS)
 
 **<https://d10j8dr2q1dn87.cloudfront.net>**, hosted on AWS in Sydney (CloudFront, ECS Fargate, RDS PostgreSQL, S3),
-seeded with one delivery day built from the competition datasets. These public judge/demo accounts were verified on AWS on 4 October 2026. Every account listed below uses **`kairon2026`**; Vercel has a separate account store, so this table describes AWS sign-ins.
+seeded with one delivery day built from the competition datasets. These public judge/demo accounts were verified on AWS on 4 October 2026. Every account listed below uses **`kairon2026`**; this table describes AWS sign-ins.
 
 | Role | Email | Password | Depot / assignment |
 |---|---|---|---|
-| Dispatcher | `dispatcher@kairon.example` | `kairon2026` | Geemal, Peliyagoda |
-| Loader — Peliyagoda | `loader@kairon.example` | `kairon2026` | Kamal, Peliyagoda loading bay |
-| Loader — Kandy | `loader.kandy@kairon.example` | `kairon2026` | Kandy loading bay |
-| Driver | `driver@kairon.example` | `kairon2026` | Nimal, Peliyagoda, reefer truck VEH002 (trip TRP-002-1) |
-| Store manager — walkthrough | `store@kairon.example` | `kairon2026` | Dilini, Peliyagoda, Fresh Borella (OUT005) |
+| Dispatcher | `dispatcher@kairon.demo` | `kairon2026` | Geemal, Peliyagoda |
+| Loader — Peliyagoda | `loader@kairon.demo` | `kairon2026` | Kamal, Peliyagoda loading bay |
+| Loader — Kandy | `loader.kandy@kairon.demo` | `kairon2026` | Kandy loading bay |
+| Driver | `driver@kairon.demo` | `kairon2026` | Nimal, Peliyagoda, reefer truck VEH002 (trip TRP-002-1) |
+| Store manager — walkthrough | `store@kairon.demo` | `kairon2026` | Dilini, Peliyagoda, Fresh Borella (OUT005) |
 | Store manager — Fresh | `fresh@kairon.demo` | `kairon2026` | Peliyagoda, Fresh Borella (OUT005) |
 | Store manager — Style | `style@kairon.demo` | `kairon2026` | Peliyagoda, OUT001 |
 | Store manager — Tech | `tech@kairon.demo` | `kairon2026` | Peliyagoda, OUT006 |
@@ -137,15 +134,15 @@ AWS continues to pull production images from ECR through its existing deployment
 | Web | React 19, TypeScript, Vite, Tailwind CSS v4, Zustand, React Router, i18next (English, Sinhala, Tamil), Leaflet; Capacitor for the Android and iOS apps |
 | Offline | vite-plugin-pwa (Workbox service worker), IndexedDB outbox, conflict detection in `web/src/store/conflict.ts` |
 | Server | Fastify 5, TypeScript run with tsx, server-sent events at `GET /api/stream` |
-| Storage | AWS RDS PostgreSQL + private S3 on the live site; local PostgreSQL for Docker; Supabase on the legacy Vercel site |
+| Storage | AWS RDS PostgreSQL + private S3 on the live site; local PostgreSQL for Docker |
 | Auth | RDS administrator-managed identities with salted scrypt passwords, JWTs and rotating/revocable refresh sessions; legacy Supabase Auth; demo accounts locally |
-| Deploy | AWS: CloudFront, WAF, ECS Fargate, RDS, S3, SQS, Secrets Manager, CloudWatch, as CloudFormation in `infra/aws/` ([guide](docs/deployment.md)); continuous deployment from `main` through AWS CodeBuild; Docker Compose locally; legacy Vercel/Supabase |
+| Deploy | AWS: CloudFront, WAF, ECS Fargate, RDS, S3, SQS, Secrets Manager, CloudWatch, as CloudFormation in `infra/aws/` ([guide](docs/deployment.md)); continuous deployment from `main` through AWS CodeBuild; Docker Compose locally |
 
 ## Select the backend
 
 The server picks its storage and sign-in with `BACKEND` (or, without it, from whether `SUPABASE_URL` is set).
 
-| | AWS (live site) | Local (`docker compose up`) | Legacy (Vercel) |
+| | AWS (live site) | Local (`docker compose up`) | Supabase adapter (migration support) |
 |---|---|---|---|
 | Selected by | `BACKEND=rds` | No `SUPABASE_URL`; `DATABASE_URL` set | `SUPABASE_URL` set |
 | Storage | RDS PostgreSQL + S3 proof bucket (`db-rds.ts`) | Local PostgreSQL (`db-postgres.ts`) | Supabase PostgreSQL (`db-supabase.ts`) |
@@ -172,9 +169,8 @@ server/       Fastify API
   src/operation.ts The authoritative operation: commands, field events, persistence
   src/db.ts        Storage switch: db-rds.ts (AWS), db-supabase.ts (legacy) or db-postgres.ts (demo)
   src/auth.ts      Sign-in switch: auth-rds.ts (AWS), legacy Supabase Auth or auth-local.ts (demo)
-  src/vercel.ts    Serverless entry for Vercel
   test/            Unit tests, Supabase flow test, smoke and walkthrough tests
-  scripts/         seed-users, import-data, Vercel bundle, planner calibration
+  scripts/         seed-users, import-data, planner calibration
 infra/aws/    CloudFormation: network, application stack (rds.json), CodeBuild deployment
 database/     SQL migrations for AWS RDS
 supabase/     SQL migrations for the legacy Supabase database
@@ -184,109 +180,9 @@ docs/         Architecture (poster and diagrams), data model, AWS deployment gui
 Dockerfile, docker-compose.yml, .env.example, .github/workflows/ci.yml
 ```
 
-## Legacy hosted deployment (Supabase and Vercel)
+## Hosted deployment and local development
 
-For the new AWS RDS deployment and source migration, use [docs/deployment.md](docs/deployment.md). The following instructions describe the source site.
-
-The live site runs on Vercel with Supabase. It starts empty: it does not create sample outlets, vehicles, products,
-orders, deliveries, GPS movements or forecasts.
-
-### Set up Supabase
-
-1. Open your Supabase project → **SQL Editor** → **New query**.
-2. Paste and run [`supabase/migrations/202610010001_kairon.sql`](supabase/migrations/202610010001_kairon.sql), then
-   [`202610010002_photos_bucket.sql`](supabase/migrations/202610010002_photos_bucket.sql).
-3. Copy `.env.example` to `.env` and fill in your project URL, publishable key, secret key and JWKS URL. If `.env`
-   already exists, add the missing settings without overwriting it.
-
-The migration creates `kairon_state`, `kairon_events`, `kairon_media` and the `kairon_commit` function. It inserts no
-records and deletes no existing data. RLS blocks direct browser access; the server checks the authenticated user's role
-and assignments, then commits each operation, offline receipt and proof image in a single transaction. Version checks
-prevent overwrites across API instances.
-
-Keep `SUPABASE_SECRET_KEY` on the server. Never give it a `VITE_` prefix or put it in browser code. `.env` is git-ignored.
-
-### Create the four users
-
-The seed manifest is [`server/seeds/users.json`](server/seeds/users.json). It covers dispatcher, loader, driver and
-store manager. Edit the display names there; set each role's email, password and depot in `.env`, using the `SEED_*`
-fields from `.env.example`. Driver and store assignments may be left blank when creating accounts. Add real
-vehicle/outlet IDs matching your imported data before using those workflows. Supported depots are `Peliyagoda` and
-`Kandy`.
-
-```sh
-npm --prefix server ci
-npm --prefix server run seed:users
-```
-
-Passwords must be at least 10 characters. The script validates every account before writing, creates email-confirmed
-Supabase Auth users, and stores authorization in administrator-controlled `app_metadata`. Re-running skips existing
-emails; it does not reset passwords or change roles. No emails are sent by this script. To change an existing
-account's assignments, update its app metadata with a trusted Supabase Admin client and sign in again.
-
-With Supabase, no default passwords or demo accounts are accepted. The `…@kairon.demo` accounts exist only in local
-mode.
-
-### Import your actual business data
-
-Put the six reference CSVs and `catalog.json` in `data/`, following [`data/README.md`](data/README.md). Then run:
-
-```sh
-npm --prefix server run import:data
-```
-
-This explicit import replaces reference data and the product catalogue while preserving operational orders, trips,
-issues and history. It refuses to remove outlets/vehicles used by existing orders/trips. Missing data stays empty; it is
-never replaced with samples. Import forecasts through the authenticated dispatcher-only `POST /api/predictions`
-endpoint when genuine model output is available.
-
-### Develop against Supabase
-
-Requires Node.js 22.14+ and the SQL migration above.
-
-```sh
-npm --prefix server ci
-npm --prefix web ci
-npm --prefix server run dev
-# In another terminal:
-npm --prefix web run dev
-```
-
-Open `http://localhost:5173`. Vite proxies `/api` to `http://localhost:8080`. Sign in with one of the seeded accounts.
-Accounts without an imported outlet see an assignment message.
-
-The API is always required. Field devices cache authenticated state and queue field actions in IndexedDB for
-reconnection. Commands such as ordering need the API to confirm the save. Supabase access tokens are renewed using the
-HttpOnly refresh cookie in browsers (in-memory bearer credentials on native); API requests verify JWT signatures and current Supabase session/administrator assignments.
-
-To develop in local mode instead, leave `SUPABASE_URL` empty and point `DATABASE_URL` at any PostgreSQL; set
-`DEMO_MODE`, `SEED_DEMO_DAY` and `VITE_DEMO_MODE` for the demo day and tools (see `.env.example`).
-
-### Seed the judges' demo day
-
-This was the setup for the earlier Vercel site; the judges now use the AWS site above.
-
-1. Create the four accounts with `seed:users`, using the emails and password in the table at the top
-   (`SEED_*_EMAIL=dispatcher@kairon.demo` and so on, every `SEED_*_PASSWORD=kairon2026`), with
-   `SEED_DRIVER_VEHICLE=VEH002` and `SEED_STORE_OUTLET=OUT005`.
-2. In Vercel, set `DEMO_MODE=true` (API) and `VITE_DEMO_MODE=true` (web build), then redeploy.
-3. On a machine that has the competition CSVs in `data/` and the Supabase keys in `.env`, run once:
-
-   ```sh
-   npm --prefix server run seed:demo -- --replace
-   ```
-
-   It builds the demo day from the CSVs and saves it to Supabase. The CSVs stay on that machine; only the resulting
-   operation (outlets, vehicles, calendar, orders) is stored, in the private database.
-
-Afterwards **Demo → Reset demo data** rebuilds the day for the current date from the rows stored in the database, so
-Vercel never needs the CSVs. Without `DEMO_MODE` the reset endpoint and demo tools are off.
-
-### Deploy
-
-For a separately hosted frontend such as Vercel, set `VITE_API_URL` at build time to your public API origin. On the
-API, set `WEB_ORIGIN` to the frontend origin and `PUBLIC_API_URL` to the API origin so proof image URLs resolve
-correctly. Both should use HTTPS. See [`web/README.md`](web/README.md).
+Use [the AWS deployment guide](docs/deployment.md) for RDS identity provisioning, private storage, image releases and AWS CodeBuild deployment. For local development, use the Docker stack described above or start the API and Vite separately against your local PostgreSQL database. The browser uses the authenticated API for every operation and queues field events while offline.
 
 ## Datasets
 
@@ -351,7 +247,7 @@ recovery reserve and the deferral wording. `server/test/supabase-flow.test.ts` c
 in-memory repository: version checks, offline replay and proof media. Unit tests never create records in Supabase. The
 web app has no unit tests.
 
-CI (`.github/workflows/ci.yml`) runs the API tests and typecheck, the Vercel bundle, web lint and build, the Docker
+CI (`.github/workflows/ci.yml`) runs the API tests and typecheck, web lint and build, the Docker
 stack with the 4-role walkthrough, the Android and iOS builds, and a production smoke test.
 
 ## Judge walkthrough

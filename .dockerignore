@@ -15,6 +15,5 @@ mobile
 supabase
 web/android
 web/ios
-web/api/_server.mjs
 server/test
 docker-compose*.yml

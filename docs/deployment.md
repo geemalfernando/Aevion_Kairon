@@ -169,7 +169,7 @@ Use a separate production stack and hostname/project boundary. Set `DeploymentEn
 
 Each build runs `scripts/codebuild-release.mjs`. Builds may overlap: each waits until the application stack is idle and skips itself when the live release is not an ancestor of its commit, so an older build never replaces a newer one.
 
-To list AWS releases under the repository's **Deployments** (environment `aws-staging`, next to Vercel), create a fine-grained GitHub token for the repository with **Deployments: Read and write**, then in Secrets Manager open the stack's `GitHubTokenSecretName` secret, choose **Retrieve secret value → Edit** and replace `not-set` with the token (plaintext). Until then builds release normally and skip the GitHub record; a GitHub API error never fails a release.
+To list AWS releases under the repository's **Deployments** (environment `aws-staging`), create a fine-grained GitHub token for the repository with **Deployments: Read and write**, then in Secrets Manager open the stack's `GitHubTokenSecretName` secret, choose **Retrieve secret value → Edit** and replace `not-set` with the token (plaintext). Until then builds release normally and skip the GitHub record; a GitHub API error never fails a release.
 
 Deploy by hand from CodeBuild → Build projects → **Start build**. After a hand-tagged release, the first build must use **Start build with overrides** and set `SCHEMA_CONFIRMED=true`. A build that fails the schema guard leaves the running release untouched; run `migrate` by hand, then start the build again.
 
