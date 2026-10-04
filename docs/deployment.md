@@ -31,6 +31,21 @@ BACKEND=rds DEPLOYMENT_ENV=staging npm --prefix server run rds:repair-judge-user
 
 The first command reads the four profiles and verification/disabled flags, without reading password hashes. The second aligns the driver/store assignments and all four names with `STORY`/`DEMO_USERS`. It preserves passwords, roles, depots, flags and extra metadata; only changed accounts have sessions revoked. Repeated execution leaves already-correct profiles and sessions alone. It refuses missing accounts, unexpected roles/depots, and missing story resources. Check the corresponding names and assignments in the stack's `InitialUsersSecretArn` secret too, preserving every other field so future explicit user reprovisioning cannot undo the repair. Never commit credentials or paste the secret contents into chat.
 
+#### Hosted judge verification — 4 October 2026
+
+Verified against `https://d10j8dr2q1dn87.cloudfront.net` and its private RDS database in `ap-southeast-2`, following the repair tool merged in PR #27:
+
+| Account | Verified name | Verified assignment |
+| --- | --- | --- |
+| `driver@kairon.example` | Nimal | `assignedVehicle: VEH002` |
+| `store@kairon.example` | Dilini | `assignedOutlet: OUT005` (Fresh Borella) |
+| `dispatcher@kairon.example` | Geemal | Dispatcher, Peliyagoda |
+| `loader@kairon.example` | Kamal | Loader, Peliyagoda |
+
+The administrator inspection selected only email, metadata, verification and disabled flags. All four accounts were already correct, email-verified and enabled, so no identity update or password rehash was needed. The stack's initial-users provisioning secret also already matched; no secret update was needed and its contents were not displayed. Each hosted login succeeded with the configured judge password.
+
+After the dispatcher's **Close orders & generate plan** flow, the driver's authenticated state contained `TRP-002-1` on `VEH002`, with five stops and a 04:36 departure. The store's authenticated state contained chilled order `ORD1407` on the same vehicle. The dispatcher then reset the demo data successfully: orders open and plan `NONE`, ready for recording. These are observed results from this verification, not a guarantee of future hosted state. No deployment or application service restart was performed; temporary maintenance files were removed.
+
 Local Docker includes `fresh@kairon.demo`, `style@kairon.demo`, and `tech@kairon.demo` with password `kairon2026`. Hosted RDS accounts must be provisioned separately. After importing the operation, run the following from a maintenance environment inside the VPC with the migration/administrator DB credentials (ordinary CloudShell cannot reach private RDS):
 
 ```sh
