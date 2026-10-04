@@ -465,9 +465,17 @@ rear_dock 15 min, Fresh with street 16 min, Colombo 24 min out and 8 min between
 
 ## Departures from the Day 5 design
 
-> **TODO (team):** list every other place where the implementation differs from the Day 5 design: screens not built,
-> changed or merged, flows changed, and why. Judges score fidelity to the design, so an honest list is better than an
-> empty section. Suggested table columns: Design screen or behaviour | What was built | Why it differs.
+### Screens added after the Designathon
+
+These screens were not in the Day 5 design. They were added while building, because the field roles needed them:
+
+| Role | Screen | Why |
+|---|---|---|
+| Loader | **Issues** (`/loader/issues`) | The shortfalls the loader reported and the dispatcher's decision on each |
+| Loader | **History** (`/loader/history`) | Everything this loader counted and confirmed today |
+| Loader | **Sync** (`/loader/sync`) | What is saved on the tablet and waiting to be sent, and the last sync |
+| Driver | **History** (`/driver/history`) | The day's deliveries, with proof and outcome |
+| Driver | **Sync** (`/driver/sync`) | The offline outbox: actions saved on the phone, pending count, replay on reconnect |
 
 ### Planner: more orders served on the same fleet
 
