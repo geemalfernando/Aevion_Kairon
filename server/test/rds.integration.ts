@@ -9,12 +9,45 @@ import {contacts,securityAudit} from '../src/notifications/store'
 import {claimOutbox,claimDelivery,finishDelivery} from '../src/notifications/repository'
 import {importSnapshot,type Snapshot} from '../scripts/import-rds'
 import {provisionUsers} from '../scripts/rds-users'
+import {repairJudgeAccounts} from '../scripts/repair-judge-accounts'
 import {buildApp} from '../src/app'
 import {seedOps} from '@core/ops'
 import {seedDemoOps} from '@core/demo'
 const admin=new pg.Pool({connectionString:process.env.KAIRON_TEST_ADMIN_URL})
 after(async()=>{await closeRds();await admin.end()})
 const metadata={name:'Test driver',role:'DRIVER',depot:'Peliyagoda',assignedVehicle:'vehicle-a'}
+test('judge account repair preserves credentials, flags and extra metadata; read mode does not mutate', async () => {
+ const db=await admin.connect()
+ try {
+  await db.query('begin')
+  const state=seedDemoOps()
+  await db.query('insert into kairon_state(id,version,data) values(1,1,$1) on conflict(id) do update set data=excluded.data',[JSON.stringify(state)])
+  const hash=await hashPassword('kairon2026')
+  for(const [name,role] of [['driver','DRIVER'],['store','STORE_MANAGER'],['dispatcher','DISPATCHER'],['loader','LOADER']]) {
+   const id=crypto.randomUUID()
+   await db.query('insert into kairon_users(id,email,password_hash,app_metadata,email_verified,disabled) values($1,$2,$3,$4,$5,$6)',[id,`${name}@kairon.example`,hash,JSON.stringify({name:'Old name',role,depot:'Peliyagoda',extra:'preserve me',...(name==='driver'?{assignedVehicle:'VEH014'}:name==='store'?{assignedOutlet:'OUT032'}:{})}),name==='driver',name==='loader'])
+   await db.query("insert into kairon_sessions(id,user_id,expires_at) values($1,$2,now()+interval '1 hour')",[crypto.randomUUID(),id])
+  }
+  const read=await repairJudgeAccounts(db)
+  assert.equal(read.before.find(r=>r.email==='driver@kairon.example').app_metadata.assignedVehicle,'VEH014')
+  assert.equal((await db.query('select count(*) from kairon_sessions where revoked_at is not null')).rows[0].count,'0')
+  const changed=await repairJudgeAccounts(db,true)
+  for(const row of changed.after!) {
+   const original=read.before.find(r=>r.email===row.email)
+   assert.equal(row.email_verified,original.email_verified);assert.equal(row.disabled,original.disabled)
+   assert.equal(row.app_metadata.extra,'preserve me');assert.equal(row.app_metadata.role,original.app_metadata.role);assert.equal(row.app_metadata.depot,'Peliyagoda')
+   assert.equal((await db.query('select password_hash from kairon_users where email=$1',[row.email])).rows[0].password_hash,hash)
+  }
+  assert.equal(changed.after!.find(r=>r.email==='driver@kairon.example').app_metadata.assignedVehicle,'VEH002')
+  assert.equal(changed.after!.find(r=>r.email==='store@kairon.example').app_metadata.assignedOutlet,'OUT005')
+  assert.equal(changed.after!.find(r=>r.email==='driver@kairon.example').app_metadata.name,'Nimal')
+  assert.equal(changed.after!.find(r=>r.email==='store@kairon.example').app_metadata.name,'Dilini')
+  assert.equal((await db.query('select count(*) from kairon_sessions where revoked_at is not null')).rows[0].count,'4')
+  await db.query("insert into kairon_sessions(id,user_id,expires_at) select $1,id,now()+interval '1 hour' from kairon_users where email='driver@kairon.example'",[crypto.randomUUID()])
+  await repairJudgeAccounts(db,true)
+  assert.equal((await db.query('select count(*) from kairon_sessions where revoked_at is null')).rows[0].count,'1','Repeated repair leaves current sessions intact')
+ } finally {await db.query('rollback');db.release()}
+})
 async function user(){const id=crypto.randomUUID(),email=id+'@example.test';await admin.query('insert into kairon_users(id,email,password_hash,app_metadata) values ($1,$2,$3,$4)',[id,email,await hashPassword('test-long-password-123'),JSON.stringify(metadata)]);return {id,email}}
 
 test('dispatcher HTTP messages commit to the RDS outbox and appear in the assigned driver inbox',async()=>{
