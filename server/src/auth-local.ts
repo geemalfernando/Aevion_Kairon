@@ -3,13 +3,13 @@
  * with HMAC-signed session tokens. Same response shapes as the Supabase sign-in so the web app can't tell them apart.
  */
 import crypto from 'node:crypto'
-import { DEMO_PASSWORD, DEMO_USERS, HOSTED_DEMO_USERS, STORE_DEMO_EMAILS, storeDemoUsers } from '@core/demo'
+import { DEMO_PASSWORD, HOSTED_DEMO_USERS, STORE_DEMO_EMAILS, storeDemoUsers } from '@core/demo'
 import type { User } from '@core/types'
 import { config } from './config'
 import { loadOps } from './db-postgres'
 
 async function findUser(email: string) {
-  const existing = [...Object.values(DEMO_USERS), ...HOSTED_DEMO_USERS].find(u => u.email === email)
+  const existing = HOSTED_DEMO_USERS.find(u => u.email === email)
   if (existing) return existing
   if (!Object.values(STORE_DEMO_EMAILS).includes(email as typeof STORE_DEMO_EMAILS[keyof typeof STORE_DEMO_EMAILS])) return undefined
   const data = await loadOps()

@@ -33,11 +33,11 @@ seeded with one delivery day built from the competition datasets. These public j
 
 | Role | Email | Password | Depot / assignment |
 |---|---|---|---|
-| Dispatcher | `dispatcher@kairon.example` | `kairon2026` | Geemal, Peliyagoda |
-| Loader — Peliyagoda | `loader@kairon.example` | `kairon2026` | Kamal, Peliyagoda loading bay |
-| Loader — Kandy | `loader.kandy@kairon.example` | `kairon2026` | Kandy loading bay |
-| Driver | `driver@kairon.example` | `kairon2026` | Nimal, Peliyagoda, reefer truck VEH002 (trip TRP-002-1) |
-| Store manager — walkthrough | `store@kairon.example` | `kairon2026` | Dilini, Peliyagoda, Fresh Borella (OUT005) |
+| Dispatcher | `dispatcher@kairon.demo` | `kairon2026` | Geemal, Peliyagoda |
+| Loader — Peliyagoda | `loader@kairon.demo` | `kairon2026` | Kamal, Peliyagoda loading bay |
+| Loader — Kandy | `loader.kandy@kairon.demo` | `kairon2026` | Kandy loading bay |
+| Driver | `driver@kairon.demo` | `kairon2026` | Nimal, Peliyagoda, reefer truck VEH002 (trip TRP-002-1) |
+| Store manager — walkthrough | `store@kairon.demo` | `kairon2026` | Dilini, Peliyagoda, Fresh Borella (OUT005) |
 | Store manager — Fresh | `fresh@kairon.demo` | `kairon2026` | Peliyagoda, Fresh Borella (OUT005) |
 | Store manager — Style | `style@kairon.demo` | `kairon2026` | Peliyagoda, OUT001 |
 | Store manager — Tech | `tech@kairon.demo` | `kairon2026` | Peliyagoda, OUT006 |
@@ -67,13 +67,13 @@ No `.env`, Supabase project or AWS credentials are needed. For background operat
 stop with `docker compose down`. Each API startup reseeds the demo day, replacing previous demo progress
 even when the PostgreSQL volume already exists. To keep progress instead, set `SEED_DEMO_EVERY_START: "false"`
 in `docker-compose.yml`. To reseed an already-running stack, use `docker compose restart backend`.
-Every local demo account uses the password **`kairon2026`**. The hosted sign-ins (`dispatcher@`, `loader@`, `driver@`, `store@` and `loader.kandy@kairon.example`, Kandy depot) also work locally with the same profiles and password.
+Every local demo account uses the password **`kairon2026`**. Docker and AWS use the same emails, profiles and password, including `loader.kandy@kairon.demo` for the Kandy depot.
 
 | Role | Email | Password | Who / assignment |
 |---|---|---|---|
 | Dispatcher | `dispatcher@kairon.demo` | `kairon2026` | Geemal, Peliyagoda |
 | Loader — Peliyagoda | `loader@kairon.demo` | `kairon2026` | Kamal, Peliyagoda |
-| Loader — Kandy | `loader.kandy@kairon.example` | `kairon2026` | Kandy loading bay |
+| Loader — Kandy | `loader.kandy@kairon.demo` | `kairon2026` | Kandy loading bay |
 | Driver | `driver@kairon.demo` | `kairon2026` | Nimal, drives reefer truck VEH002 |
 | Store manager — walkthrough | `store@kairon.demo` | `kairon2026` | Dilini, Fresh Borella (OUT005) |
 | Store manager — Fresh | `fresh@kairon.demo` | `kairon2026` | Fresh walkthrough outlet |
@@ -252,7 +252,7 @@ stack with the 4-role walkthrough, the Android and iOS builds, and a production 
 
 ## Judge walkthrough
 
-This follows one delivery day across all four roles. It works on the deployed site (accounts `…@kairon.example`)
+This follows one delivery day across all four roles. It works on the deployed site (accounts `…@kairon.demo`)
 and on `docker compose up` (accounts `…@kairon.demo`); the steps below name the local accounts. Use one browser window
 per role (each window keeps its own sign-in, so roles can sit side by side), and phone-sized windows for the loader
 and driver. **Demo** is the pill at the bottom left of the app; it is presenter-only. Start with **Demo → Reset demo

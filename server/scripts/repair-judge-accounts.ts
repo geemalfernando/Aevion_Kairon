@@ -6,10 +6,10 @@ import { closeRds, rdsTransaction } from '../src/rds'
 
 export async function repairJudgeAccounts(db: PoolClient, apply = false) {
   const patches = [
-    { email: 'driver@kairon.example', role: 'DRIVER', metadata: { assignedVehicle: STORY.vehicle, name: DEMO_USERS.DRIVER.name } },
-    { email: 'store@kairon.example', role: 'STORE_MANAGER', metadata: { assignedOutlet: STORY.store, name: DEMO_USERS.STORE_MANAGER.name } },
-    { email: 'dispatcher@kairon.example', role: 'DISPATCHER', metadata: { name: DEMO_USERS.DISPATCHER.name } },
-    { email: 'loader@kairon.example', role: 'LOADER', metadata: { name: DEMO_USERS.LOADER.name } },
+    { email: 'driver@kairon.demo', role: 'DRIVER', metadata: { assignedVehicle: STORY.vehicle, name: DEMO_USERS.DRIVER.name } },
+    { email: 'store@kairon.demo', role: 'STORE_MANAGER', metadata: { assignedOutlet: STORY.store, name: DEMO_USERS.STORE_MANAGER.name } },
+    { email: 'dispatcher@kairon.demo', role: 'DISPATCHER', metadata: { name: DEMO_USERS.DISPATCHER.name } },
+    { email: 'loader@kairon.demo', role: 'LOADER', metadata: { name: DEMO_USERS.LOADER.name } },
   ]
   await db.query('select pg_advisory_xact_lock(781493)')
   const { rows: before } = await db.query('select email,app_metadata,email_verified,disabled from public.kairon_users where email=any($1) order by email for update', [patches.map(p => p.email)])

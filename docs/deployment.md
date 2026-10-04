@@ -22,7 +22,18 @@ CloudFront-to-ALB and ALB-to-task connections use HTTP inside the private networ
 
 ### Store-type staging accounts
 
-To repair the legacy judge accounts under `@kairon.example`, use the administrator maintenance environment inside the VPC:
+Docker and AWS use the same `@kairon.demo` accounts and public demo password `kairon2026` (see the README for all eight logins). Keep the stack's `InitialUsersSecretArn` users array on these canonical emails, including `loader.kandy@kairon.demo`; do not include retired domain aliases when seeding a new stack.
+
+To migrate an existing staging database, first inspect profiles, then apply from the administrator maintenance environment inside the VPC:
+
+```sh
+BACKEND=rds DEPLOYMENT_ENV=staging npm --prefix server run rds:rename-demo-emails
+BACKEND=rds DEPLOYMENT_ENV=staging npm --prefix server run rds:rename-demo-emails -- --apply
+```
+
+This changes an old email only when the canonical login is absent, updates its notification contact email, and revokes that identity's sessions. It preserves IDs, password hashes, metadata and flags. When both emails already exist, it keeps both identities and their histories; it never merges or deletes users. Both profiles must match the expected role and depot. Update the provisioning secret separately: retain existing canonical entries, rename missing ones, and remove legacy entries from the seed array. Never commit or display the secret.
+
+To repair the canonical judge accounts under `@kairon.demo`, use the administrator maintenance environment inside the VPC:
 
 ```sh
 BACKEND=rds DEPLOYMENT_ENV=staging npm --prefix server run rds:repair-judge-users
@@ -33,20 +44,22 @@ The first command reads the four profiles and verification/disabled flags, witho
 
 #### Hosted judge verification — 4 October 2026
 
-Verified against `https://d10j8dr2q1dn87.cloudfront.net` and its private RDS database in `ap-southeast-2`, following the repair tool merged in PR #27:
+Verified against `https://d10j8dr2q1dn87.cloudfront.net` and its private RDS database in `ap-southeast-2`, following the repair tool merged in PR #27. The initial inspection used legacy-domain logins; the table below shows their current canonical counterparts:
 
 | Account | Verified name | Verified assignment |
 | --- | --- | --- |
-| `driver@kairon.example` | Nimal | `assignedVehicle: VEH002` |
-| `store@kairon.example` | Dilini | `assignedOutlet: OUT005` (Fresh Borella) |
-| `dispatcher@kairon.example` | Geemal | Dispatcher, Peliyagoda |
-| `loader@kairon.example` | Kamal | Loader, Peliyagoda |
+| `driver@kairon.demo` | Nimal | `assignedVehicle: VEH002` |
+| `store@kairon.demo` | Dilini | `assignedOutlet: OUT005` (Fresh Borella) |
+| `dispatcher@kairon.demo` | Geemal | Dispatcher, Peliyagoda |
+| `loader@kairon.demo` | Kamal | Loader, Peliyagoda |
 
-The administrator inspection selected only email, metadata, verification and disabled flags. All four accounts were already correct, email-verified and enabled, so no identity update or password rehash was needed. The stack's initial-users provisioning secret also already matched; no secret update was needed and its contents were not displayed. Each hosted login succeeded with the configured judge password.
+In the initial legacy-account verification, the administrator inspection selected only email, metadata, verification and disabled flags. All four legacy accounts were already correct, email-verified and enabled; that check required no identity or secret update.
+
+The subsequent credential alignment verified all eight `@kairon.demo` logins and their scoped state with `kairon2026`. Seven canonical accounts already existed; the Kandy loader email was renamed while preserving its identity, password and flags. Existing canonical accounts retain their original verification flags. The provisioning secret now contains only eight canonical accounts, preserving their fields. Four existing legacy identities were retained to preserve their histories, but are no longer advertised or seeded. No secret contents were displayed.
 
 After the dispatcher's **Close orders & generate plan** flow, the driver's authenticated state contained `TRP-002-1` on `VEH002`, with five stops and a 04:36 departure. The store's authenticated state contained chilled order `ORD1407` on the same vehicle. The dispatcher then reset the demo data successfully: orders open and plan `NONE`, ready for recording. These are observed results from this verification, not a guarantee of future hosted state. No deployment or application service restart was performed; temporary maintenance files were removed.
 
-Local Docker includes `fresh@kairon.demo`, `style@kairon.demo`, and `tech@kairon.demo` with password `kairon2026`. Hosted RDS accounts must be provisioned separately. After importing the operation, run the following from a maintenance environment inside the VPC with the migration/administrator DB credentials (ordinary CloudShell cannot reach private RDS):
+Local Docker includes `fresh@kairon.demo`, `style@kairon.demo`, and `tech@kairon.demo` with password `kairon2026`. Hosted RDS accounts are seeded through the initial-users secret; the following command provisions the three brand-specific accounts if missing. After importing the operation, run the following from a maintenance environment inside the VPC with the migration/administrator DB credentials (ordinary CloudShell cannot reach private RDS):
 
 ```sh
 read -r -s -p 'Store staging password (at least 10 characters): ' KAIRON_STORE_PASSWORD

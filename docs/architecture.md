@@ -120,7 +120,7 @@ flowchart TB
 | API and web app | ECS Fargate tasks from images in ECR | `backend` and `frontend` containers |
 | Database | RDS PostgreSQL, encrypted (`database/migrations/001_rds.sql`) | `database` container (PostgreSQL 16) |
 | Proof photos | Private, encrypted S3 bucket; signed 10-minute links | In the database |
-| Sign-in | RDS accounts (`…@kairon.example`) | Demo accounts (`…@kairon.demo`) |
+| Sign-in | RDS accounts (`…@kairon.demo`) | Demo accounts (`…@kairon.demo`) |
 | Starting data | The demo day built from the competition CSVs, imported once; Demo → Reset rebuilds it from the stored rows | The demo day, from `data/` CSVs when present, otherwise placeholders |
 | Notifications | Publisher and worker on ECS with SQS and a dead-letter queue (scaled to 0 on staging) | Off |
 | Secrets and monitoring | Secrets Manager; CloudWatch logs and alarms to an SNS topic | Container logs |

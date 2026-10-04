@@ -25,6 +25,7 @@
     "rds:migrate": "node --import tsx scripts/migrate-rds.ts",
     "rds:users": "node --import tsx scripts/rds-users.ts",
     "rds:store-users": "node --import tsx scripts/rds-store-users.ts",
+    "rds:rename-demo-emails": "node --import tsx scripts/rename-demo-emails.ts",
     "rds:repair-judge-users": "node --import tsx scripts/repair-judge-accounts.ts",
     "migration:export-supabase": "node --import tsx scripts/export-supabase.ts",
     "test:rds": "node scripts/test-rds.mjs"
