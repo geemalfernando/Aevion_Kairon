@@ -227,6 +227,12 @@ A write against an old version is refused, so devices and serverless instances n
 
 ## Checks and tests
 
+> **About the red ❌ on GitHub Actions:** the CI jobs are not running because the repository owner's GitHub account is
+> locked by a billing issue. GitHub reports *"The job was not started because your account is locked due to a billing
+> issue"* and no step runs. The checks below were run by the team instead: 130/130 server tests, web lint and build,
+> and the 4-role walkthrough on `docker compose up` and on the live AWS site (all passing on 4 October 2026).
+> Deployments are unaffected: they run through AWS CodeBuild.
+
 ```sh
 cd server
 npm test                  # 101 unit tests: rules, planner, Supabase flow (in-memory repository, no database)
