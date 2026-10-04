@@ -4,6 +4,13 @@ Kairon is a delivery planning system for **Waypoint Group**, a fictional Sri Lan
 brands (Fresh, Style, Tech), two depots (Peliyagoda, Kandy) and 60 vehicles. It was built by team **Aevion** for
 Tech-Triathlon 2026.
 
+## About the live deployments
+
+- **AWS judge site:** [d10j8dr2q1dn87.cloudfront.net](https://d10j8dr2q1dn87.cloudfront.net)
+- **Vercel site:** [kairon-eight.vercel.app](https://kairon-eight.vercel.app)
+
+We keep both deployments available to support our **zero-downtime rollout goal**: Vercel remains accessible while AWS is deployed or updated, giving users an alternative entry point during the transition. AWS is the primary judge site. Switching between the links is manual, and each deployment has its own accounts and data (AWS uses RDS; Vercel uses Supabase). Changes on one site are not automatically synchronized to the other, so continue a judge walkthrough on the same site.
+
 Kairon turns the day's orders into a plan that obeys the operating rules, and keeps four people in step while the day
 goes wrong:
 
