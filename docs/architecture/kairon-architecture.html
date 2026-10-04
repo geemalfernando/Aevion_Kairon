@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>Kairon architecture</title>
-<!-- Source of docs/architecture/kairon-architecture.png. Render: chrome --headless --screenshot --window-size=2400,1350 --force-device-scale-factor=2 -->
+<!-- Source of docs/architecture/kairon-architecture.png. Render: chrome --headless --screenshot --window-size=2400,1520 --force-device-scale-factor=2 -->
 <style>
   :root {
     --ink: #13201f; --muted: #52615f; --line: #d5dedc; --bg: #f6f8f7; --card: #ffffff;
@@ -12,7 +12,7 @@
     --gray-soft: #f1f3f3;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { width: 2400px; height: 1350px; background: var(--bg); font-family: 'Segoe UI', Inter, Arial, sans-serif; color: var(--ink); padding: 34px 40px; }
+  body { width: 2400px; height: 1520px; background: var(--bg); font-family: 'Segoe UI', Inter, Arial, sans-serif; color: var(--ink); padding: 34px 40px; }
   .row { display: flex; gap: 22px; }
   h1 { font-size: 46px; letter-spacing: -0.5px; }
   h1 span { color: var(--teal); }
@@ -40,7 +40,26 @@
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   td { padding: 6px 6px; border-top: 1px solid var(--line); vertical-align: top; color: var(--muted); }
   td:first-child { font-weight: 700; color: var(--ink); white-space: nowrap; }
+  .conn { display: grid; place-items: center; min-width: 46px; }
+  .conn svg { overflow: visible; }
+  .async-row { display: flex; align-items: center; gap: 8px; }
+  .async-row .box { padding: 8px 10px; font-size: 13.5px; }
+  .async-row .box b { font-size: 14.5px; }
+  .eng { border: 3px solid var(--teal); background: linear-gradient(#ffffff, #f2fbfa); }
+  .eng .split { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; margin: 4px 0 10px; }
+  .eng .side { border-radius: 10px; padding: 8px 10px; font-size: 13.5px; line-height: 1.35; }
+  .legend { display: flex; gap: 22px; align-items: center; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
 </style>
+<!-- Connectors: solid = synchronous request/data, dashed = asynchronous message, dotted = deployment/control -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <marker id="h-ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#52615f"/></marker>
+    <marker id="h-async" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#b0377e"/></marker>
+    <marker id="h-ctrl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#c2402b"/></marker>
+    <marker id="h-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#0f7b78"/></marker>
+  </defs>
+</svg>
 </head>
 <body>
 
@@ -79,11 +98,11 @@
 
     <div class="row">
       <div class="box" style="flex:1"><h4><span class="chip" style="background:#8c4fd1">CF</span> Amazon CloudFront</h4><p>Public HTTPS address, TLS at the edge, no caching of API responses; a CloudFront function passes the real client IP</p></div>
-      <div class="arrow">→</div>
+      <div class="conn"><svg width="40" height="12"><line x1="2" y1="6" x2="36" y2="6" stroke="#52615f" stroke-width="2.4" marker-end="url(#h-ink)"/></svg></div>
       <div class="box" style="flex:1"><h4><span class="chip" style="background:#8c4fd1">VO</span> CloudFront VPC origin</h4><p>Private link into the VPC: the load balancer has no public address</p></div>
-      <div class="arrow">→</div>
+      <div class="conn"><svg width="40" height="12"><line x1="2" y1="6" x2="36" y2="6" stroke="#52615f" stroke-width="2.4" marker-end="url(#h-ink)"/></svg></div>
       <div class="box" style="flex:1"><h4><span class="chip" style="background:var(--red)">WAF</span> AWS WAF</h4><p>Managed rule sets in front of the application</p></div>
-      <div class="arrow">→</div>
+      <div class="conn"><svg width="40" height="12"><line x1="2" y1="6" x2="36" y2="6" stroke="#52615f" stroke-width="2.4" marker-end="url(#h-ink)"/></svg></div>
       <div class="box" style="flex:1"><h4><span class="chip" style="background:#8c4fd1">ALB</span> Internal load balancer</h4><p>Health check <b>/api/health</b>, routes to healthy tasks only</p></div>
     </div>
 
@@ -121,6 +140,19 @@
         <div class="box" style="flex:1"><h4><span class="chip" style="background:#b0377e">SQS</span> Notification queue</h4><p>Notification jobs plus a dead-letter queue for failed sends</p></div>
         <div class="box off" style="flex:0.95"><h4><span class="chip" style="background:#c5432f">EC</span> ElastiCache Redis<span class="badge opt">OPTIONAL</span></h4><p>Shared rate limits across API tasks (required for production)</p></div>
       </div>
+
+      <div class="panel" style="margin-top:12px; border-color:#e3a7c8; background:#fdf3f8; padding:10px 14px">
+        <div class="ptitle" style="font-size:15.5px; margin-bottom:8px"><span class="chip" style="background:#b0377e">ASYNC</span> Notification flow · asynchronous messages, never in the request path</div>
+        <div class="async-row">
+          <div class="box" style="flex:1.05"><b>API</b><br><span class="muted">a change that needs a notification</span></div><div class="conn"><svg width="40" height="12"><line x1="2" y1="6" x2="36" y2="6" stroke="#52615f" stroke-width="2.4" marker-end="url(#h-ink)"/></svg></div>
+          <div class="box" style="flex:1.35; border-color:var(--data)"><b>RDS · notification outbox</b><br><span class="muted">written in the same transaction as the change</span></div><div class="conn"><svg width="40" height="12"><line x1="2" y1="6" x2="36" y2="6" stroke="#b0377e" stroke-width="2.4" stroke-dasharray="6 4" marker-end="url(#h-async)"/></svg></div>
+          <div class="box off" style="flex:1"><b>Publisher</b><br><span class="muted">claims outbox rows</span></div><div class="conn"><svg width="40" height="12"><line x1="2" y1="6" x2="36" y2="6" stroke="#b0377e" stroke-width="2.4" stroke-dasharray="6 4" marker-end="url(#h-async)"/></svg></div>
+          <div class="box" style="flex:1"><b>SQS queue</b><br><span class="muted">notification jobs</span></div><div class="conn"><svg width="40" height="12"><line x1="2" y1="6" x2="36" y2="6" stroke="#b0377e" stroke-width="2.4" stroke-dasharray="6 4" marker-end="url(#h-async)"/></svg></div>
+          <div class="box off" style="flex:1"><b>Worker</b><br><span class="muted">delivers, records each send</span></div><div class="conn"><svg width="40" height="12"><line x1="2" y1="6" x2="36" y2="6" stroke="#b0377e" stroke-width="2.4" stroke-dasharray="6 4" marker-end="url(#h-async)"/></svg></div>
+          <div class="box" style="flex:1.45"><b>Web push · FCM · SES · SNS</b><br><span class="muted">push, Android/iOS, email, SMS</span></div>
+          <div class="box" style="flex:1.2; border-color:#c2402b"><b>Dead-letter queue</b><br><span class="muted">repeated failures · CloudWatch alarm</span></div>
+        </div>
+      </div>
     </div>
 
     <div class="row" style="margin-top:12px">
@@ -133,10 +165,10 @@
     <div class="panel" style="margin-top:12px; border-color:#f0b0a3; background:var(--red-soft); padding:10px 14px">
       <div class="ptitle" style="font-size:16px; margin-bottom:6px"><span class="chip" style="background:var(--red)">CI/CD</span> Continuous deployment</div>
       <div class="row" style="align-items:center; font-size:14.5px; gap:10px">
-        <div class="box" style="flex:1"><b>GitHub main</b><br><span class="muted">pull requests, reviews</span></div><div class="arrow">→</div>
-        <div class="box" style="flex:1"><b>CodeConnections</b><br><span class="muted">push to main triggers a build</span></div><div class="arrow">→</div>
-        <div class="box" style="flex:1.2"><b>AWS CodeBuild</b><br><span class="muted">build image, schema guard, push to ECR</span></div><div class="arrow">→</div>
-        <div class="box" style="flex:1.2"><b>Rolling update</b><br><span class="muted">CloudFormation release, then smoke test</span></div><div class="arrow">→</div>
+        <div class="box" style="flex:1"><b>GitHub main</b><br><span class="muted">pull requests, reviews</span></div><div class="conn"><svg width="40" height="12"><line x1="2" y1="6" x2="36" y2="6" stroke="#c2402b" stroke-width="2.4" stroke-dasharray="1.5 4" stroke-linecap="round" marker-end="url(#h-ctrl)"/></svg></div>
+        <div class="box" style="flex:1"><b>CodeConnections</b><br><span class="muted">push to main triggers a build</span></div><div class="conn"><svg width="40" height="12"><line x1="2" y1="6" x2="36" y2="6" stroke="#c2402b" stroke-width="2.4" stroke-dasharray="1.5 4" stroke-linecap="round" marker-end="url(#h-ctrl)"/></svg></div>
+        <div class="box" style="flex:1.2"><b>AWS CodeBuild</b><br><span class="muted">build image, schema guard, push to ECR</span></div><div class="conn"><svg width="40" height="12"><line x1="2" y1="6" x2="36" y2="6" stroke="#c2402b" stroke-width="2.4" stroke-dasharray="1.5 4" stroke-linecap="round" marker-end="url(#h-ctrl)"/></svg></div>
+        <div class="box" style="flex:1.2"><b>Rolling update</b><br><span class="muted">CloudFormation release, then smoke test</span></div><div class="conn"><svg width="40" height="12"><line x1="2" y1="6" x2="36" y2="6" stroke="#c2402b" stroke-width="2.4" stroke-dasharray="1.5 4" stroke-linecap="round" marker-end="url(#h-ctrl)"/></svg></div>
         <div class="box" style="flex:1"><b>GitHub Deployments</b><br><span class="muted">record of each release</span></div>
       </div>
     </div>
@@ -145,8 +177,16 @@
   <!-- Right column -->
   <div style="width:560px; display:flex; flex-direction:column; gap:16px">
 
-    <div class="panel" style="border-color:#9bc9c7">
-      <div class="ptitle"><span class="chip" style="background:var(--teal)">core</span> One rules engine, two places</div>
+    <div class="panel eng">
+      <div class="ptitle" style="font-size:20px"><span class="chip" style="background:var(--teal)">core</span> One rules engine, two places</div>
+      <div class="split">
+        <div class="side" style="background:var(--teal-soft)"><b>Browser</b><br><span class="muted">instant feedback, works offline</span></div>
+        <div style="text-align:center; font-weight:800; color:var(--teal); font-size:13px">
+          <svg width="44" height="12" style="transform:rotate(180deg)"><line x1="2" y1="6" x2="40" y2="6" stroke="#0f7b78" stroke-width="2.6" marker-end="url(#h-teal)"/></svg><br>core/<br>
+          <svg width="44" height="12"><line x1="2" y1="6" x2="40" y2="6" stroke="#0f7b78" stroke-width="2.6" marker-end="url(#h-teal)"/></svg>
+        </div>
+        <div class="side" style="background:#d6efed; border:2px solid var(--teal)"><b>Server · authoritative</b><br><span class="muted">re-runs every change; its result wins</span></div>
+      </div>
       <ol>
         <li><b>validate()</b>: capacity (kg, m³), temperature, outlet access, mall windows, delivery windows, fuel quota, time budgets, two-trip limit, depot, vehicle status</li>
         <li><b>Planner</b>: priority queue, 4 ways to build the plan, independent audit, greedy fallback</li>
@@ -188,7 +228,12 @@
 </div>
 
 <div class="row" style="margin-top:14px; font-size:14px; color:var(--muted); justify-content:space-between">
-  <div>Solid border: running on the live site · dashed border: built and configured, off on staging (cost) · source: <b>infra/aws/rds.json</b>, <b>server/</b>, <b>core/</b></div>
+  <div class="legend">
+    <span><svg width="40" height="12"><line x1="2" y1="6" x2="36" y2="6" stroke="#52615f" stroke-width="2.4" marker-end="url(#h-ink)"/></svg> synchronous request</span>
+    <span><svg width="40" height="12"><line x1="2" y1="6" x2="36" y2="6" stroke="#b0377e" stroke-width="2.4" stroke-dasharray="6 4" marker-end="url(#h-async)"/></svg> asynchronous message</span>
+    <span><svg width="40" height="12"><line x1="2" y1="6" x2="36" y2="6" stroke="#c2402b" stroke-width="2.4" stroke-dasharray="1.5 4" stroke-linecap="round" marker-end="url(#h-ctrl)"/></svg> deployment</span>
+    <span>· solid box: running on the live site · dashed box: built, off on staging (cost) · source: <b>infra/aws/rds.json</b>, <b>server/</b>, <b>core/</b></span>
+  </div>
   <div>Details: docs/architecture.md · docs/data-model.md · docs/deployment.md</div>
 </div>
 
