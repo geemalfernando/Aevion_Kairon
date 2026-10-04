@@ -13,7 +13,7 @@
     },
     "Repository": {
       "Type": "String",
-      "Default": "https://github.com/geemalfernando/Kairon.git"
+      "Default": "https://github.com/geemalfernando/Aevion_Kairon.git"
     },
     "Branch": {
       "Type": "String",
@@ -43,7 +43,7 @@
     },
     "GitHubRepository": {
       "Type": "String",
-      "Default": "geemalfernando/Kairon",
+      "Default": "geemalfernando/Aevion_Kairon",
       "AllowedPattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
       "Description": "owner/name, for GitHub deployment records."
     }
