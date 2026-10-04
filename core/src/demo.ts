@@ -369,6 +369,15 @@ export const DEMO_USERS: Record<Role, User> = {
 }
 export const DEMO_PASSWORD = 'kairon2026'
 
+/** The hosted judge site's sign-ins (AWS staging), so the same emails and password also work in the local stack. */
+export const HOSTED_DEMO_USERS: User[] = [
+  { ...DEMO_USERS.DISPATCHER, email: 'dispatcher@kairon.example' },
+  { ...DEMO_USERS.LOADER, email: 'loader@kairon.example' },
+  { ...DEMO_USERS.DRIVER, email: 'driver@kairon.example' },
+  { ...DEMO_USERS.STORE_MANAGER, email: 'store@kairon.example' },
+  { name: 'Kandy loader', email: 'loader.kandy@kairon.example', role: 'LOADER', depot: 'Kandy' },
+]
+
 export const STORE_DEMO_EMAILS = { Fresh: 'fresh@kairon.demo', Style: 'style@kairon.demo', Tech: 'tech@kairon.demo' } as const
 
 /** Resolve store accounts against the loaded dataset so imports retain correct outlet/depot isolation. */

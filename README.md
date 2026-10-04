@@ -58,7 +58,7 @@ No `.env`, Supabase project or AWS credentials are needed. For background operat
 stop with `docker compose down`. Each API startup reseeds the demo day, replacing previous demo progress
 even when the PostgreSQL volume already exists. To keep progress instead, set `SEED_DEMO_EVERY_START: "false"`
 in `docker-compose.yml`. To reseed an already-running stack, use `docker compose restart backend`.
-Every local demo account uses the password **`kairon2026`**. Hosted accounts have separately managed passwords.
+Every local demo account uses the password **`kairon2026`**. The hosted sign-ins (`dispatcher@`, `loader@`, `driver@`, `store@` and `loader.kandy@kairon.example`, Kandy depot) also work locally with the same profiles and password.
 
 | Role | Email | Who |
 |---|---|---|
