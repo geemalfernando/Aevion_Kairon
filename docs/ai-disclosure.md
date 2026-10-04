@@ -1,6 +1,6 @@
 # AI tool disclosure
 
-Team **Aevion** (Thisuka, Geemal, Chanith) · Kairon · Tech-Triathlon 2026
+Team **Aevion** (Thisuka, Geemal, Chanith, Malshi, Pamindu, Tharuki) · Kairon · Tech-Triathlon 2026
 
 This file records where AI tools were used on Kairon and what the team decided and checked itself. Sections 3 and 4
 are the team's own account: Thisuka gave the facts and decisions, Claude Code typed them up on 4 October 2026, and
