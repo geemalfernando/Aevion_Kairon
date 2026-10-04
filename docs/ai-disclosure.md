@@ -1,16 +1,19 @@
 # AI tool disclosure
 
-Team **Aevion** · Kairon · Tech-Triathlon 2026
+Team **Aevion** (Thisuka, Geemal, Chanith) · Kairon · Tech-Triathlon 2026
 
-This file records where AI tools were used on Kairon. Sections marked **TEAM TO FILL IN** can only be written by the
-team; they are left empty on purpose and must not be completed by an AI tool.
+This file records where AI tools were used on Kairon and what the team decided and checked itself. Sections 3 and 4
+are the team's own account: Thisuka gave the facts and decisions, Claude Code typed them up on 4 October 2026, and
+the team checked them before submission.
 
 ## 1. Tools used
 
 | Tool | Version / model | Used for |
 |---|---|---|
-| Claude Code (Anthropic), VS Code extension | Claude Sonnet 5.5 (`claude-sonnet-5-5`) | The work listed in section 2 |
-| TEAM TO FILL IN | | Any other AI tool used on the product, the Figma files, the Datathon, copy or translations |
+| Claude Code (Anthropic), VS Code extension | Claude Sonnet 5.5, then Claude Opus 5.5 | Used by Thisuka: code, tests, documentation, diagrams, the demo-video voiceover script and recording plan (section 2 and the log in section 5) |
+| OpenAI Codex | GPT-6 | Used by Geemal: notifications, security, AWS templates and deployment documentation, hosted account checks (log in section 5) |
+| Microsoft Edge neural text-to-speech (`edge-tts`) | `en-GB-SoniaNeural` voice | The AI voiceover of the Designathon and Hackathon demo videos (the script was written with Claude Code and reviewed by Thisuka) |
+| No AI tool | | Datathon work: not part of this repository yet; it will be the team's own code, as the competition terms require |
 
 ## 2. What Claude Code did (as recorded in the session of 30 Sep 2026)
 
@@ -53,33 +56,61 @@ checks. No browser or UI testing was done.
 
 ### 2.4 Not recorded here
 
-- **Repo report.** No repository report was produced in the session this section is based on. If one was produced in
-  another session or tool, the team should add it here: **TEAM TO FILL IN**.
-- **`.claude/skills/waypoint-rules/SKILL.md`** (added in the same commit) holds the project rules Claude Code reads.
-  Who drafted it, and from which sources, is not recorded: **TEAM TO FILL IN**.
-- Earlier commits (the Figma pages, the demo presets, the Designathon screens, the shipped web, server and core code):
-  the session record does not show whether AI tools were used. **TEAM TO FILL IN**.
-- Sinhala and Tamil strings in `web/src/i18n/locales/` are believed to be AI-drafted and not reviewed by a native
-  speaker. **TEAM TO FILL IN** (confirm, and say who reviewed them, if anyone).
+- **Repo reports.** Claude Code produced read-only reports on the repository for Thisuka (how the planner works, the
+  booklet requirements, deferral causes, engineering quality). They were used for team discussion and are not files
+  in the repository.
+- **`.claude/skills/waypoint-rules/SKILL.md`** holds the project rules Claude Code reads. It was drafted with Claude
+  Code from the challenge booklet and reviewed by Thisuka.
+- **Earlier code and design work.** The web, server and core code was written with AI coding assistants under the
+  team's direction: Claude Code (Thisuka) and OpenAI Codex (Geemal). The demo presets and the Figma helper pages that
+  turned app screens into Figma frames were built with Claude Code. The Designathon design itself (screens, flows,
+  colours, the Kairon name and story) was decided by the team; Thisuka built the Figma file and prototype.
+- **Sinhala and Tamil strings** in `web/src/i18n/locales/` are AI-drafted and have **not** been reviewed by a native
+  speaker yet. They are listed under Known limitations in the README.
 
 ## 3. What the team designed and wrote themselves
 
-**TEAM TO FILL IN.** Suggested headings, replace with the truth:
+**Team members:** Thisuka (ThisukaMW), Geemal (geemalfernando) and Chanith.
 
-- Problem framing and the Day 5 design (screens, degradation scenarios): who did what
-- Architecture decisions (shared `core/`, PostgreSQL with JSONB documents, SSE, Dexie outbox)
-- Team policies (fuel model, priority weights, recovery reserve, departures): who chose them and why
-- Code written by hand, by person and area
-- Datathon work (must be the team's own code; see the competition terms)
+| Area | Who | What |
+|---|---|---|
+| Problem framing and the Day 5 design | The team · Thisuka built the Figma file and prototype | The four roles and their devices, the screens and flows, the three degradation scenarios, the colours, the Kairon name and the delivery-day story (Nimal, Dilini, the flooded road to Borella) |
+| Architecture decisions | The team | One shared rules engine in `core/` used by the browser and the server; one versioned operation document with an atomic commit; server-sent events for live updates; an offline outbox replayed exactly once; the server always decides |
+| The 10 merge decisions (2 Oct) | Thisuka and Geemal | `main` as the final branch, two storage backends behind one switch, demo accounts only in local and demo mode, the seeded demo day, demo tools only with `DEMO_MODE`, keeping all tests, CI, README structure, honest data model |
+| Team policies | The team | Fuel model, priority weights, the recovery reserve (two reefers), locked stops and trips, mall and window rules, the departures from the Day 5 design. Each policy and why is in the README under Assumptions and team policies |
+| Planning engine | Thisuka, with Claude Code | Multi-start planner with an independent audit, locked stops and trips, deferral explanations, the weekly fuel quota and day close, the live rule check |
+| Hosting and deployment | Geemal and Thisuka | First on Vercel with Supabase; then AWS in Sydney (CloudFront, ECS Fargate, RDS, S3, SQS, WAF, CodeBuild), built mainly by Geemal with Codex, decided and tested together |
+| Mobile apps, sign-in, notifications, security | Geemal, with Codex | Android and iOS builds (Capacitor), hosted sign-in and sessions, the notification outbox and workers, depot and assignment isolation, signed proof links |
+| Data | The team | Chose the five competition CSVs used by the Hackathon app; kept the datasets out of the repository as the terms require |
+| Testing and walkthrough | Thisuka | Ran the test suites and the 4-role walkthrough on Docker and on the live AWS site; clicked through every walkthrough step while recording |
+| Demo video | Thisuka recorded the clips; Chanith edited the video | Story, clip plan and voiceover timing by the team |
+| Datathon work | The team | Not in this repository yet; it will be the team's own code |
 
 ## 4. How the team reviewed AI output
 
-**TEAM TO FILL IN.** Suggested questions:
-
-- Who read the AI-written tests and validator changes line by line before committing?
-- Which AI suggestions were rejected or changed?
-- What was checked by running it (tests, walkthrough) as opposed to reading it?
-- Was any AI-generated text (README, docs, translations) reviewed before submission, and by whom?
+- **Everything went through pull requests.** Thisuka's AI-assisted changes were opened as pull requests and reviewed
+  and merged by Geemal (for example #7 and #8); Geemal's changes were merged by Geemal, and #26 was merged by
+  Thisuka with Geemal's go-ahead. Conflicts between the two lines of work were resolved by hand and re-tested.
+- **Checked by running, not only by reading.** After every change: the server tests (130 at submission), type checks
+  and the web build; the full 4-role walkthrough test on `docker compose up`, on placeholder data and on the real
+  competition data; on 4 October the same walkthrough against the live AWS site, followed by a demo reset. Thisuka
+  also clicked through every step of the README walkthrough in the app while recording the video.
+- **The planner was checked against the data.** Plans for 40 delivery days on the real CSVs were re-checked by the
+  independent audit with no rule violations, and planner figures in the README were re-measured on the real data
+  instead of being kept from placeholder runs.
+- **AI suggestions the team rejected or changed:**
+  - A schedule cache proposed for planner speed was measured, found slower, and removed.
+  - An AI-generated architecture poster that showed services Kairon doesn't use (Next.js, Flutter, FastAPI, Google
+    Maps) was not used; the submitted poster was redrawn from the real AWS templates and code.
+  - Suggested poster edits that would have placed AWS WAF on CloudFront and added PostGIS were rejected because they
+    contradict `infra/aws/rds.json` and the code.
+  - Traffic data was kept out of the hard rules, because the booklet defines trip time with free-flow minutes; traffic
+    is left for later risk warnings (Datathon).
+  - The deferral-classification work ("Phase B") and a smaller recovery reserve were proposed and deliberately left
+    out of the Hackathon submission by the team.
+- **Text.** The README, the docs and the voiceover script were AI-drafted and reviewed by Thisuka; facts in them
+  (rules, figures, IDs, AWS services) were checked against the code and the running app. The Sinhala and Tamil
+  strings were not reviewed by a native speaker (see section 2.4).
 
 ## 5. Running log
 
