@@ -554,19 +554,20 @@ export async function resetDemo() {
 }
 
 // ---------------------------------------------------------------------------
-// Theme: the driver app is dark by default (Fresh runs leave at 03:30); every other role starts light.
+// Theme: follow the device's system preference unless the user explicitly chooses a theme.
 // ---------------------------------------------------------------------------
 
 export type ThemePref = 'light' | 'dark' | 'system'
-const DEFAULT_THEME: Record<Role, ThemePref> = { DRIVER: 'dark', LOADER: 'light', DISPATCHER: 'light', STORE_MANAGER: 'light' }
+const DEFAULT_THEME: ThemePref = 'system'
 
 function themePrefFor(role?: Role): ThemePref {
   if (THEME_OVERRIDE) return THEME_OVERRIDE
-  if (!role) return 'light'
+  if (!role) return DEFAULT_THEME
   try {
-    return (localStorage.getItem(`kairon-theme:${role}`) as ThemePref) || DEFAULT_THEME[role]
+    const saved = localStorage.getItem(`kairon-theme:${role}`)
+    return saved === 'light' || saved === 'dark' || saved === 'system' ? saved : DEFAULT_THEME
   } catch {
-    return DEFAULT_THEME[role]
+    return DEFAULT_THEME
   }
 }
 
