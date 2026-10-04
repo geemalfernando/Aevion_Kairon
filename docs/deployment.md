@@ -22,6 +22,15 @@ CloudFront-to-ALB and ALB-to-task connections use HTTP inside the private networ
 
 ### Store-type staging accounts
 
+To repair the legacy judge accounts under `@kairon.example`, use the administrator maintenance environment inside the VPC:
+
+```sh
+BACKEND=rds DEPLOYMENT_ENV=staging npm --prefix server run rds:repair-judge-users
+BACKEND=rds DEPLOYMENT_ENV=staging npm --prefix server run rds:repair-judge-users -- --apply
+```
+
+The first command reads the four profiles and verification/disabled flags, without reading password hashes. The second aligns the driver/store assignments and all four names with `STORY`/`DEMO_USERS`. It preserves passwords, roles, depots, flags and extra metadata; only changed accounts have sessions revoked. Repeated execution leaves already-correct profiles and sessions alone. It refuses missing accounts, unexpected roles/depots, and missing story resources. Check the corresponding names and assignments in the stack's `InitialUsersSecretArn` secret too, preserving every other field so future explicit user reprovisioning cannot undo the repair. Never commit credentials or paste the secret contents into chat.
+
 Local Docker includes `fresh@kairon.demo`, `style@kairon.demo`, and `tech@kairon.demo` with password `kairon2026`. Hosted RDS accounts must be provisioned separately. After importing the operation, run the following from a maintenance environment inside the VPC with the migration/administrator DB credentials (ordinary CloudShell cannot reach private RDS):
 
 ```sh
