@@ -14,7 +14,6 @@
     "seed:users": "tsx scripts/seed-users.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "import:data": "tsx scripts/import-data.ts",
-    "bundle:vercel": "node scripts/bundle-vercel.mjs",
     "test:ci": "node --import tsx --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=test-results.xml test/*.test.ts",
     "test:walkthrough": "tsx test/walkthrough.smoke.ts",
     "export:seed": "tsx scripts/export-seed.ts",
@@ -53,7 +52,6 @@
     "@types/node": "^24.0.0",
     "@types/pg": "^8.23.1",
     "@types/web-push": "^3.6.4",
-    "esbuild": "^0.28.2",
     "typescript": "~5.9.2"
   },
   "overrides": {

@@ -36,7 +36,7 @@ export async function buildApp() {
   const originGuard = (req: FastifyRequest) => { if (!req.headers.origin || !config.webOrigins.includes(req.headers.origin)) throw new HttpError(403, 'Untrusted request origin') }
   const sessionResponse = (req: FastifyRequest, reply: import('fastify').FastifyReply, session: NonNullable<Awaited<ReturnType<typeof login>>>) => {
     if (!cookieMode(req)) return session
-    reply.setCookie(config.sessionCookieName, session.refreshToken, { httpOnly: true, secure: ['staging', 'production'].includes(config.deploymentEnv) || !!process.env.VERCEL, sameSite: 'strict', path: '/api/auth', maxAge: 30 * 86400 })
+    reply.setCookie(config.sessionCookieName, session.refreshToken, { httpOnly: true, secure: ['staging', 'production'].includes(config.deploymentEnv), sameSite: 'strict', path: '/api/auth', maxAge: 30 * 86400 })
     return { ...session, refreshToken: null }
   }
 

@@ -1,17 +1,15 @@
 # Kairon web
 
-React frontend for the Supabase-backed Kairon API. See the [root setup guide](../README.md) for the SQL migration, user seed, and real data import.
+React/Vite frontend for the Kairon API, hosted on [AWS](https://d10j8dr2q1dn87.cloudfront.net). See the [root setup guide](../README.md) for judge accounts and local Docker setup, and the [deployment guide](../docs/deployment.md) for AWS releases.
 
 ```sh
 npm ci
 npm run dev
 ```
 
-Vite proxies `/api` to `http://localhost:8080`; start the server in another terminal. The app always uses the API. There are no local demo accounts or sample data fallbacks.
+Vite proxies `/api` to `http://localhost:8080`; start the API separately or use Docker Compose. The browser signs in through the API, renews its session, and queues field events locally while offline.
 
-For Vercel, use `web` as the root directory, `npm run build` as the build command and `dist` as the output. Set `VITE_API_URL` to the deployed API origin before building. Configure `WEB_ORIGIN` and `PUBLIC_API_URL` on that API as described in the root README. A static frontend deployment alone does not host the API.
-
-Supabase secrets belong only in the server environment. The browser signs in through `/api/auth/login`, renews its session, and sends authenticated commands to the API. Field events are queued locally while offline.
+Native builds require `VITE_API_URL=https://d10j8dr2q1dn87.cloudfront.net`. The hosted web app and API share the same origin. Credentials remain in the server environment.
 
 ```sh
 npm run lint
