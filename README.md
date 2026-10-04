@@ -36,11 +36,11 @@ seeded with one delivery day built from the competition datasets. These public j
 
 | Role | Email | Password | Depot / assignment |
 |---|---|---|---|
-| Dispatcher | `dispatcher@kairon.example` | `kairon2026` | Geemal, Peliyagoda |
-| Loader — Peliyagoda | `loader@kairon.example` | `kairon2026` | Kamal, Peliyagoda loading bay |
-| Loader — Kandy | `loader.kandy@kairon.example` | `kairon2026` | Kandy loading bay |
-| Driver | `driver@kairon.example` | `kairon2026` | Nimal, Peliyagoda, reefer truck VEH002 (trip TRP-002-1) |
-| Store manager — walkthrough | `store@kairon.example` | `kairon2026` | Dilini, Peliyagoda, Fresh Borella (OUT005) |
+| Dispatcher | `dispatcher@kairon.demo` | `kairon2026` | Geemal, Peliyagoda |
+| Loader — Peliyagoda | `loader@kairon.demo` | `kairon2026` | Kamal, Peliyagoda loading bay |
+| Loader — Kandy | `loader.kandy@kairon.demo` | `kairon2026` | Kandy loading bay |
+| Driver | `driver@kairon.demo` | `kairon2026` | Nimal, Peliyagoda, reefer truck VEH002 (trip TRP-002-1) |
+| Store manager — walkthrough | `store@kairon.demo` | `kairon2026` | Dilini, Peliyagoda, Fresh Borella (OUT005) |
 | Store manager — Fresh | `fresh@kairon.demo` | `kairon2026` | Peliyagoda, Fresh Borella (OUT005) |
 | Store manager — Style | `style@kairon.demo` | `kairon2026` | Peliyagoda, OUT001 |
 | Store manager — Tech | `tech@kairon.demo` | `kairon2026` | Peliyagoda, OUT006 |
