@@ -32,15 +32,20 @@ For AWS staging, security prerequisites, notification delivery work and the path
 ### Deployed site (AWS)
 
 **<https://d10j8dr2q1dn87.cloudfront.net>**, hosted on AWS in Sydney (CloudFront, ECS Fargate, RDS PostgreSQL, S3),
-seeded with one delivery day built from the competition datasets. Every hosted account uses the password
-**`kairon2026`**:
+seeded with one delivery day built from the competition datasets. These public judge/demo accounts were verified on AWS on 4 October 2026. Every account listed below uses **`kairon2026`**; Vercel has a separate account store, so this table describes AWS sign-ins.
 
-| Role | Email | In the story |
-|---|---|---|
-| Dispatcher | `dispatcher@kairon.example` | Geemal, Peliyagoda depot |
-| Loader | `loader@kairon.example` | Kamal, Peliyagoda loading bay |
-| Driver | `driver@kairon.example` | Nimal, reefer truck VEH002 (trip TRP-002-1) |
-| Store manager | `store@kairon.example` | Dilini, Fresh Borella (OUT005) |
+| Role | Email | Password | Depot / assignment |
+|---|---|---|---|
+| Dispatcher | `dispatcher@kairon.example` | `kairon2026` | Geemal, Peliyagoda |
+| Loader — Peliyagoda | `loader@kairon.example` | `kairon2026` | Kamal, Peliyagoda loading bay |
+| Loader — Kandy | `loader.kandy@kairon.example` | `kairon2026` | Kandy loading bay |
+| Driver | `driver@kairon.example` | `kairon2026` | Nimal, Peliyagoda, reefer truck VEH002 (trip TRP-002-1) |
+| Store manager — walkthrough | `store@kairon.example` | `kairon2026` | Dilini, Peliyagoda, Fresh Borella (OUT005) |
+| Store manager — Fresh | `fresh@kairon.demo` | `kairon2026` | Peliyagoda, Fresh Borella (OUT005) |
+| Store manager — Style | `style@kairon.demo` | `kairon2026` | Peliyagoda, OUT001 |
+| Store manager — Tech | `tech@kairon.demo` | `kairon2026` | Peliyagoda, OUT006 |
+
+The three brand-specific store-manager accounts use `@kairon.demo` emails on AWS too. Each manager sees only their assigned outlet. Both loaders see the loading work for their own depot.
 
 1. Sign in as the dispatcher first and use **Demo → Reset demo data**, so the walkthrough starts from a clean day.
 2. Then follow the [judge walkthrough](#judge-walkthrough), with one browser window per role (each window keeps its
@@ -59,7 +64,7 @@ Needs only Docker.
 docker compose up
 ```
 
-Open <http://localhost:8080> and sign in with one of the four accounts (the sign-in page also has one-tap buttons).
+Open <http://localhost:8080> and sign in with one of the demo accounts (the sign-in page also has one-tap buttons).
 Each `up` builds the current web app and API from your checkout, using cached layers when unchanged.
 No `.env`, Supabase project or AWS credentials are needed. For background operation, use `docker compose up -d`;
 stop with `docker compose down`. Each API startup reseeds the demo day, replacing previous demo progress
@@ -67,12 +72,16 @@ even when the PostgreSQL volume already exists. To keep progress instead, set `S
 in `docker-compose.yml`. To reseed an already-running stack, use `docker compose restart backend`.
 Every local demo account uses the password **`kairon2026`**. The hosted sign-ins (`dispatcher@`, `loader@`, `driver@`, `store@` and `loader.kandy@kairon.example`, Kandy depot) also work locally with the same profiles and password.
 
-| Role | Email | Who |
-|---|---|---|
-| Dispatcher | `dispatcher@kairon.demo` | Geemal, Peliyagoda |
-| Loader | `loader@kairon.demo` | Kamal, Peliyagoda |
-| Driver | `driver@kairon.demo` | Nimal, drives reefer truck VEH002 |
-| Store manager | `store@kairon.demo` | Dilini, Fresh Borella (OUT005) |
+| Role | Email | Password | Who / assignment |
+|---|---|---|---|
+| Dispatcher | `dispatcher@kairon.demo` | `kairon2026` | Geemal, Peliyagoda |
+| Loader — Peliyagoda | `loader@kairon.demo` | `kairon2026` | Kamal, Peliyagoda |
+| Loader — Kandy | `loader.kandy@kairon.example` | `kairon2026` | Kandy loading bay |
+| Driver | `driver@kairon.demo` | `kairon2026` | Nimal, drives reefer truck VEH002 |
+| Store manager — walkthrough | `store@kairon.demo` | `kairon2026` | Dilini, Fresh Borella (OUT005) |
+| Store manager — Fresh | `fresh@kairon.demo` | `kairon2026` | Fresh walkthrough outlet |
+| Store manager — Style | `style@kairon.demo` | `kairon2026` | First Style outlet in the loaded dataset |
+| Store manager — Tech | `tech@kairon.demo` | `kairon2026` | First Tech outlet in the loaded dataset |
 
 Store-type demo logins are also available: **`fresh@kairon.demo`**, **`style@kairon.demo`**, and **`tech@kairon.demo`**, all with **`kairon2026`**. Fresh uses the walkthrough outlet when available; Style and Tech use the first outlet of their brand in the loaded dataset. Each manager sees only their assigned outlet. The local sign-in page includes buttons for these accounts. Run `docker compose up` to rebuild and enable them.
 
