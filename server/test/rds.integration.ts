@@ -9,6 +9,8 @@ import {contacts,securityAudit} from '../src/notifications/store'
 import {claimOutbox,claimDelivery,finishDelivery} from '../src/notifications/repository'
 import {importSnapshot,type Snapshot} from '../scripts/import-rds'
 import {provisionUsers} from '../scripts/rds-users'
+import {renameDemoEmails} from '../scripts/rename-demo-emails'
+import {HOSTED_DEMO_USERS} from '@core/demo'
 import {repairJudgeAccounts} from '../scripts/repair-judge-accounts'
 import {buildApp} from '../src/app'
 import {seedOps} from '@core/ops'
@@ -25,11 +27,11 @@ test('judge account repair preserves credentials, flags and extra metadata; read
   const hash=await hashPassword('kairon2026')
   for(const [name,role] of [['driver','DRIVER'],['store','STORE_MANAGER'],['dispatcher','DISPATCHER'],['loader','LOADER']]) {
    const id=crypto.randomUUID()
-   await db.query('insert into kairon_users(id,email,password_hash,app_metadata,email_verified,disabled) values($1,$2,$3,$4,$5,$6)',[id,`${name}@kairon.example`,hash,JSON.stringify({name:'Old name',role,depot:'Peliyagoda',extra:'preserve me',...(name==='driver'?{assignedVehicle:'VEH014'}:name==='store'?{assignedOutlet:'OUT032'}:{})}),name==='driver',name==='loader'])
+   await db.query('insert into kairon_users(id,email,password_hash,app_metadata,email_verified,disabled) values($1,$2,$3,$4,$5,$6)',[id,`${name}@kairon.demo`,hash,JSON.stringify({name:'Old name',role,depot:'Peliyagoda',extra:'preserve me',...(name==='driver'?{assignedVehicle:'VEH014'}:name==='store'?{assignedOutlet:'OUT032'}:{})}),name==='driver',name==='loader'])
    await db.query("insert into kairon_sessions(id,user_id,expires_at) values($1,$2,now()+interval '1 hour')",[crypto.randomUUID(),id])
   }
   const read=await repairJudgeAccounts(db)
-  assert.equal(read.before.find(r=>r.email==='driver@kairon.example').app_metadata.assignedVehicle,'VEH014')
+  assert.equal(read.before.find(r=>r.email==='driver@kairon.demo').app_metadata.assignedVehicle,'VEH014')
   assert.equal((await db.query('select count(*) from kairon_sessions where revoked_at is not null')).rows[0].count,'0')
   const changed=await repairJudgeAccounts(db,true)
   for(const row of changed.after!) {
@@ -38,14 +40,47 @@ test('judge account repair preserves credentials, flags and extra metadata; read
    assert.equal(row.app_metadata.extra,'preserve me');assert.equal(row.app_metadata.role,original.app_metadata.role);assert.equal(row.app_metadata.depot,'Peliyagoda')
    assert.equal((await db.query('select password_hash from kairon_users where email=$1',[row.email])).rows[0].password_hash,hash)
   }
-  assert.equal(changed.after!.find(r=>r.email==='driver@kairon.example').app_metadata.assignedVehicle,'VEH002')
-  assert.equal(changed.after!.find(r=>r.email==='store@kairon.example').app_metadata.assignedOutlet,'OUT005')
-  assert.equal(changed.after!.find(r=>r.email==='driver@kairon.example').app_metadata.name,'Nimal')
-  assert.equal(changed.after!.find(r=>r.email==='store@kairon.example').app_metadata.name,'Dilini')
+  assert.equal(changed.after!.find(r=>r.email==='driver@kairon.demo').app_metadata.assignedVehicle,'VEH002')
+  assert.equal(changed.after!.find(r=>r.email==='store@kairon.demo').app_metadata.assignedOutlet,'OUT005')
+  assert.equal(changed.after!.find(r=>r.email==='driver@kairon.demo').app_metadata.name,'Nimal')
+  assert.equal(changed.after!.find(r=>r.email==='store@kairon.demo').app_metadata.name,'Dilini')
   assert.equal((await db.query('select count(*) from kairon_sessions where revoked_at is not null')).rows[0].count,'4')
-  await db.query("insert into kairon_sessions(id,user_id,expires_at) select $1,id,now()+interval '1 hour' from kairon_users where email='driver@kairon.example'",[crypto.randomUUID()])
+  await db.query("insert into kairon_sessions(id,user_id,expires_at) select $1,id,now()+interval '1 hour' from kairon_users where email='driver@kairon.demo'",[crypto.randomUUID()])
   await repairJudgeAccounts(db,true)
   assert.equal((await db.query('select count(*) from kairon_sessions where revoked_at is null')).rows[0].count,'1','Repeated repair leaves current sessions intact')
+ } finally {await db.query('rollback');db.release()}
+})
+test('demo email maintenance preserves identity, credentials, flags and contacts; reuses canonical accounts', async () => {
+ const db=await admin.connect()
+ try {
+  await db.query('begin')
+  const hash=await hashPassword('kairon2026')
+  for(const user of HOSTED_DEMO_USERS) {
+   const id=crypto.randomUUID(),email=user.email.replace('@kairon.demo','@kairon.example')
+   await db.query('insert into kairon_users(id,email,password_hash,app_metadata,email_verified,disabled) values($1,$2,$3,$4,true,false)',[id,email,hash,JSON.stringify({...user,extra:'keep'})])
+   await db.query("insert into kairon_sessions(id,user_id,expires_at) values($1,$2,now()+interval '1 hour')",[crypto.randomUUID(),id])
+   await db.query('insert into kairon_contacts(user_id,email,role,depot) values($1,$2,$3,$4)',[id,email,user.role,user.depot])
+  }
+  const canonical=HOSTED_DEMO_USERS[0],canonicalId=crypto.randomUUID()
+  await db.query('insert into kairon_users(id,email,password_hash,app_metadata,email_verified,disabled) values($1,$2,$3,$4,false,false)',[canonicalId,canonical.email,hash,JSON.stringify(canonical)])
+  const read=await renameDemoEmails(db)
+  assert.equal(read.before.length,6)
+  assert.equal((await db.query('select count(*) from kairon_sessions where revoked_at is not null')).rows[0].count,'0')
+  const changed=await renameDemoEmails(db,true)
+  assert.equal(changed.renamed,4)
+  assert.deepEqual(changed.retainedLegacyEmails,['dispatcher@kairon.example'])
+  for(const row of changed.after!) {
+   const original=read.before.find(r=>r.id===row.id)!
+   assert.deepEqual(row.app_metadata,original.app_metadata)
+   assert.equal(row.email_verified,original.email_verified);assert.equal(row.disabled,original.disabled)
+   assert.equal((await db.query('select password_hash from kairon_users where id=$1',[row.id])).rows[0].password_hash,hash)
+  }
+  assert.equal(changed.after!.find(r=>r.email===canonical.email)!.id,canonicalId)
+  assert.equal((await db.query("select count(*) from kairon_contacts where email like '%@kairon.demo'")).rows[0].count,'4')
+  assert.equal((await db.query('select count(*) from kairon_sessions where revoked_at is not null')).rows[0].count,'4')
+  assert.equal((await renameDemoEmails(db,true)).renamed,0)
+  await db.query('update kairon_users set app_metadata=app_metadata || $2::jsonb where email=$1',[canonical.email,JSON.stringify({role:'DRIVER'})])
+  await assert.rejects(renameDemoEmails(db,true),/Unexpected role or depot/)
  } finally {await db.query('rollback');db.release()}
 })
 async function user(){const id=crypto.randomUUID(),email=id+'@example.test';await admin.query('insert into kairon_users(id,email,password_hash,app_metadata) values ($1,$2,$3,$4)',[id,email,await hashPassword('test-long-password-123'),JSON.stringify(metadata)]);return {id,email}}

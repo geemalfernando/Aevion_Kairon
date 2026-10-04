@@ -5,8 +5,8 @@ import { loadEnvFile } from 'node:process'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const envPath = path.join(path.resolve(here, '../..'), process.env.ENV_FILE ?? '.env')
-// Hosted containers receive settings through environment variables; .env is excluded from images.
-if (existsSync(envPath)) loadEnvFile(envPath)
+// On Vercel, settings come from project environment variables; never read (or bundle) a local .env.
+if (!process.env.VERCEL && existsSync(envPath)) loadEnvFile(envPath)
 const env = process.env
 export const config = {
   deploymentEnv: env.DEPLOYMENT_ENV ?? 'development',
@@ -63,8 +63,8 @@ export const config = {
   dataDir: env.DATA_DIR ?? path.resolve(here, '../../data'),
   webDist: env.WEB_DIST ?? path.resolve(here, '../../web/dist'),
   logLevel: env.LOG_LEVEL ?? 'info',
-  // Optional stream lifetime; AWS uses long-lived connections by default.
-  streamMaxMs: Number(env.STREAM_MAX_MS ?? 0),
+  // On Vercel, SSE streams close before the function time limit (300 s) and the client reconnects.
+  streamMaxMs: Number(env.STREAM_MAX_MS ?? (env.VERCEL ? 280_000 : 0)),
 }
 
 /** Fail closed before a hosted service can expose the local demo authenticator. */

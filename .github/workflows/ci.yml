@@ -45,6 +45,8 @@ jobs:
           name: api-test-results
           path: server/test-results.xml
           retention-days: 14
+      - name: Bundle the Vercel function
+        run: npm run bundle:vercel
       - run: npm run test:notifications:db
       - name: Verify RDS authentication, permissions and atomic commits
         run: npm run test:rds
@@ -173,11 +175,11 @@ jobs:
         run: npm ci && npm run test:smoke
         env:
           API_URL: ${{ env.PRODUCTION_URL }}
-          SEED_DISPATCHER_EMAIL: dispatcher@kairon.example
+          SEED_DISPATCHER_EMAIL: dispatcher@kairon.demo
           SEED_DISPATCHER_PASSWORD: kairon2026
-          SEED_LOADER_EMAIL: loader@kairon.example
+          SEED_LOADER_EMAIL: loader@kairon.demo
           SEED_LOADER_PASSWORD: kairon2026
-          SEED_DRIVER_EMAIL: driver@kairon.example
+          SEED_DRIVER_EMAIL: driver@kairon.demo
           SEED_DRIVER_PASSWORD: kairon2026
-          SEED_STORE_EMAIL: store@kairon.example
+          SEED_STORE_EMAIL: store@kairon.demo
           SEED_STORE_PASSWORD: kairon2026

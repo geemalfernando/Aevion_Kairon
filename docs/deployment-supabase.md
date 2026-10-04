@@ -7,6 +7,7 @@ This prerelease implements notification publishing and delivery, plus production
 | Option | Use |
 | --- | --- |
 | AWS ECS + Supabase (recommended) | Supplied release template: API/PWA, notification publisher and worker, HTTPS ALB, WAF, private networking, SQS/DLQ, monitoring, optional encrypted Multi-AZ Redis |
+| Vercel + Supabase + ECS workers | Existing web/API deployment can remain; supply the same secrets, shared TLS Redis and queue configuration to both API and separate ECS workers |
 | Docker Compose | Local demonstration with fixed demo accounts; not a hosted production authentication system |
 | Complete AWS blueprint | A subsequent migration: RDS identity integration, CloudFront, Route 53 automation, private S3 media and independent ML/allocation services are not provisioned here |
 

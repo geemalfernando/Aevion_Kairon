@@ -338,7 +338,7 @@ export interface OpsData {
   analysis?: PlanAnalysis
   /**
    * Demo days only: the reference rows the day was built from (calendar and allowances are already above), so a demo
-   * reset on a server without the CSVs rebuilds the same network and fleet.
+   * reset on a server without the CSVs (Vercel) rebuilds the same network and fleet.
    */
   demoSource?: { outlets: OutletRow[]; vehicles: VehicleRow[]; districts: DistrictTravelRow[]; fleet: FleetStatusRow[]; sources: Record<CsvName, 'csv' | 'placeholder' | 'missing'> }
 }
