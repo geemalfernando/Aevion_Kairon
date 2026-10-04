@@ -150,8 +150,10 @@ The CSVs are validated on load (`core/src/csv.ts`) and never committed to the re
 
 ## 2. Storage model
 
-Three tables and one function, the same in Supabase
-(`supabase/migrations/202610010001_kairon.sql`) and in the local PostgreSQL (`server/src/db-postgres.ts`).
+The operation itself is stored the same way everywhere: three tables and one commit function, in AWS RDS
+(`database/migrations/001_rds.sql`), the local PostgreSQL (`server/src/db-postgres.ts`) and Supabase
+(`supabase/migrations/202610010001_kairon.sql`). On AWS, RDS also holds accounts, sessions and notifications
+(section 2b).
 
 ```mermaid
 erDiagram
@@ -187,6 +189,72 @@ erDiagram
 2. It checks the stored version against the one the server read. If they differ, it raises error `40001` and the API
    answers 409.
 3. It inserts the event ids and media (skipping ids it already has), then saves the new state with version + 1.
+
+## 2b. Accounts, sessions and notifications (AWS RDS)
+
+```mermaid
+erDiagram
+  kairon_users ||--o{ kairon_sessions : "signs in"
+  kairon_sessions ||--o{ kairon_refresh_tokens : "renewed by"
+  kairon_contacts ||--o{ kairon_push_devices : "registers"
+  kairon_notification_outbox ||--o{ kairon_notification_deliveries : "sent as"
+
+  kairon_users {
+    uuid id PK
+    text email "unique, lower case"
+    text password_hash "scrypt"
+    jsonb app_metadata "name, role, depot, assigned vehicle or outlet"
+    boolean disabled
+  }
+  kairon_sessions {
+    uuid id PK
+    uuid user_id FK
+    timestamptz expires_at
+    timestamptz revoked_at
+  }
+  kairon_refresh_tokens {
+    text token_hash PK "only the hash is stored"
+    uuid session_id FK
+    timestamptz used_at "single use"
+  }
+  kairon_contacts {
+    text user_id PK
+    text role
+    text depot
+    text encrypted_phone
+    jsonb preferences "push, email, SMS, critical only"
+  }
+  kairon_push_devices {
+    text id PK
+    text user_id FK
+    text encrypted_subscription
+    text kind "web or fcm"
+  }
+  kairon_notification_outbox {
+    text id PK
+    jsonb payload
+    timestamptz published_at "set by the publisher"
+    timestamptz expires_at
+  }
+  kairon_notification_deliveries {
+    text id PK
+    text notification_id FK
+    text channel "push, email, sms"
+    text status "sending, sent, skipped, failed"
+  }
+```
+
+| Table | Holds |
+|---|---|
+| `kairon_users` | Accounts: email, scrypt password hash, role and assignments in `app_metadata`, disabled flag |
+| `kairon_sessions`, `kairon_refresh_tokens` | Sign-in sessions with expiry and revocation; refresh tokens stored only as hashes and used once |
+| `kairon_contacts`, `kairon_push_devices` | Who to notify and how: preferences, encrypted phone number, encrypted push subscriptions |
+| `kairon_notification_outbox` | Notifications written in the same transaction as the change; the publisher sends them to SQS |
+| `kairon_notification_deliveries` | One row per user and channel, with status and attempts |
+| `kairon_security_audit`, `kairon_operational_audit` | Sign-ins, sign-outs and settings changes; operational records |
+| `kairon_schema_migrations` | Which migrations have run |
+
+On AWS, `kairon_media` keeps only an `object_key`; the photo itself is in the private S3 proof bucket.
 
 ## 3. Why one versioned snapshot, not one table per entity
 

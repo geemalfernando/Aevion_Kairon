@@ -22,9 +22,27 @@ For AWS staging, security prerequisites, notification delivery work and the path
 
 ## For judges
 
-**Deployed site:** TODO (team): add the public URL. Sign in with the four accounts below. Each judge should start
-with **Demo → Reset demo data** as the dispatcher, so the walkthrough starts from the seeded delivery day. All judges
-share one operation, so a reset also resets what other judges see.
+### Deployed site (AWS)
+
+**<https://d10j8dr2q1dn87.cloudfront.net>**, hosted on AWS in Sydney (CloudFront, ECS Fargate, RDS PostgreSQL, S3),
+seeded with one delivery day built from the competition datasets. Every hosted account uses the password
+**`kairon2026`**:
+
+| Role | Email | In the story |
+|---|---|---|
+| Dispatcher | `dispatcher@kairon.example` | Geemal, Peliyagoda depot |
+| Loader | `loader@kairon.example` | Kamal, Peliyagoda loading bay |
+| Driver | `driver@kairon.example` | Nimal, reefer truck VEH002 (trip TRP-002-1) |
+| Store manager | `store@kairon.example` | Dilini, Fresh Borella (OUT005) |
+
+1. Sign in as the dispatcher first and use **Demo → Reset demo data**, so the walkthrough starts from a clean day.
+2. Then follow the [judge walkthrough](#judge-walkthrough), with one browser window per role (each window keeps its
+   own sign-in). Use phone-sized windows for the loader and driver.
+
+The **Demo** pill moves the operation clock and resets the day; on the hosted site only the dispatcher sees its
+operation controls, and every role can simulate going offline. All judges share one operation, so a reset also
+resets what other judges see. The architecture of the live site is in
+[`docs/architecture.md`](docs/architecture.md).
 
 ### Run it in one command
 
@@ -103,23 +121,23 @@ AWS continues to pull production images from ECR through its existing deployment
 | Web | React 19, TypeScript, Vite, Tailwind CSS v4, Zustand, React Router, i18next (English, Sinhala, Tamil), Leaflet; Capacitor for the Android and iOS apps |
 | Offline | vite-plugin-pwa (Workbox service worker), IndexedDB outbox, conflict detection in `web/src/store/conflict.ts` |
 | Server | Fastify 5, TypeScript run with tsx, server-sent events at `GET /api/stream` |
-| Storage | AWS RDS PostgreSQL + private S3 on the new AWS deployment; legacy Supabase on the current site; local PostgreSQL for Docker demos |
+| Storage | AWS RDS PostgreSQL + private S3 on the live site; local PostgreSQL for Docker; Supabase on the legacy Vercel site |
 | Auth | RDS administrator-managed identities with salted scrypt passwords, JWTs and rotating/revocable refresh sessions; legacy Supabase Auth; demo accounts locally |
-| Deploy | AWS ECS/Fargate + RDS + S3 + CloudFront ([guide](docs/deployment.md)); legacy Vercel/Supabase; Docker Compose demos |
+| Deploy | AWS: CloudFront, WAF, ECS Fargate, RDS, S3, SQS, Secrets Manager, CloudWatch, as CloudFormation in `infra/aws/` ([guide](docs/deployment.md)); continuous deployment from `main` through AWS CodeBuild; Docker Compose locally; legacy Vercel/Supabase |
 
 ## Select the backend
 
-The AWS deployment sets `BACKEND=rds` explicitly and injects private PostgreSQL/S3/signing settings from its stack. The defaults below retain the source site and local demo while the RDS migration is verified.
+The server picks its storage and sign-in with `BACKEND` (or, without it, from whether `SUPABASE_URL` is set).
 
-| | Hosted (live site) | Local (`docker compose up`) |
-|---|---|---|
-| Selected by | `SUPABASE_URL` is set | `SUPABASE_URL` is empty, `DATABASE_URL` is set |
-| Storage | Supabase PostgreSQL (`server/src/db-supabase.ts`) | Local PostgreSQL (`server/src/db-postgres.ts`) |
-| Sign-in | Supabase Auth accounts created by `seed:users` | The four `…@kairon.demo` accounts |
-| Starting data | Empty; real data via `import:data` | One seeded delivery day (`SEED_DEMO_DAY=true`) |
-| Demo tools | Off | On (`DEMO_MODE=true`, web built with `VITE_DEMO_MODE=true`) |
+| | AWS (live site) | Local (`docker compose up`) | Legacy (Vercel) |
+|---|---|---|---|
+| Selected by | `BACKEND=rds` | No `SUPABASE_URL`; `DATABASE_URL` set | `SUPABASE_URL` set |
+| Storage | RDS PostgreSQL + S3 proof bucket (`db-rds.ts`) | Local PostgreSQL (`db-postgres.ts`) | Supabase PostgreSQL (`db-supabase.ts`) |
+| Sign-in | RDS accounts, scrypt hashes, revocable sessions (`auth-rds.ts`) | The `…@kairon.demo` accounts (`auth-local.ts`) | Supabase Auth |
+| Starting data | The demo day from the competition CSVs, imported once | One seeded delivery day on every start | Imported with `import:data` |
+| Demo tools | On for the judge site | On | Off |
 
-Both backends use the same tables and the same `kairon_commit` function, so the server code above the storage layer is
+All three keep the same versioned state and the same `kairon_commit`, so the server code above the storage layer is
 identical. Keep `DEMO_MODE` and `SEED_DEMO_DAY` off for real use.
 
 ## Repository structure
@@ -141,10 +159,12 @@ server/       Fastify API
   src/vercel.ts    Serverless entry for Vercel
   test/            Unit tests, Supabase flow test, smoke and walkthrough tests
   scripts/         seed-users, import-data, Vercel bundle, planner calibration
-supabase/     SQL migrations for the hosted database
+infra/aws/    CloudFormation: network, application stack (rds.json), CodeBuild deployment
+database/     SQL migrations for AWS RDS
+supabase/     SQL migrations for the legacy Supabase database
 web/          React app: pages per role in src/pages/, demo states in src/demo/; android/ and ios/ (Capacitor)
 data/         Put the competition CSVs and catalog.json here (git-ignored)
-docs/         Architecture, data model (with diagrams) and AI disclosure
+docs/         Architecture (poster and diagrams), data model, AWS deployment guide, AI disclosure
 Dockerfile, docker-compose.yml, .env.example, .github/workflows/ci.yml
 ```
 
@@ -228,10 +248,10 @@ To develop in local mode instead, leave `SUPABASE_URL` empty and point `DATABASE
 
 ### Seed the judges' demo day
 
-The deployed site serves the judges' walkthrough, so it runs with the demo day:
+This was the setup for the earlier Vercel site; the judges now use the AWS site above.
 
 1. Create the four accounts with `seed:users`, using the emails and password in the table at the top
-   (`SEED_*_EMAIL=dispatcher@kairon.demo` and so on, every `SEED_*_PASSWORD=kairon-demo`), with
+   (`SEED_*_EMAIL=dispatcher@kairon.demo` and so on, every `SEED_*_PASSWORD=kairon2026`), with
    `SEED_DRIVER_VEHICLE=VEH002` and `SEED_STORE_OUTLET=OUT005`.
 2. In Vercel, set `DEMO_MODE=true` (API) and `VITE_DEMO_MODE=true` (web build), then redeploy.
 3. On a machine that has the competition CSVs in `data/` and the Supabase keys in `.env`, run once:
@@ -275,11 +295,16 @@ file, every vehicle is available. `traffic_speed.csv` and `road_conditions.csv` 
 
 ## Architecture and data model
 
-- [`docs/architecture.md`](docs/architecture.md): components, the two deployments, how one delivery moves through the
-  system (including an offline driver), how every write is committed, the planner pipeline, and security.
+![Kairon cloud architecture](docs/architecture/kairon-architecture.png)
+
+- [`docs/architecture.md`](docs/architecture.md): the poster above, components, the AWS and local deployments, how one
+  delivery moves through the system (including an offline driver), how every write is committed, the planner,
+  security and notifications.
 - [`docs/data-model.md`](docs/data-model.md): the domain model (outlets, vehicles, orders, trips and what happens to
   them), how each competition CSV maps onto it, the storage tables, and why the operation is stored as one versioned
-  snapshot.
+  snapshot, plus the account, session and notification tables on AWS.
+- [`docs/deployment.md`](docs/deployment.md): how the AWS stack is deployed and released, and
+  [`docs/architecture/kairon-aws-deployment.png`](docs/architecture/kairon-aws-deployment.png), the deployment as built.
 
 The diagrams are Mermaid, so GitHub draws them in place; PNG copies are in [`docs/diagrams/`](docs/diagrams/).
 
@@ -315,13 +340,14 @@ stack with the 4-role walkthrough, the Android and iOS builds, and a production 
 
 ## Judge walkthrough
 
-This follows one delivery day across all four roles on the local stack (`docker compose up`). Use one browser window per role (each browser tab keeps its own
-sign-in, so roles can sit side by side), and phone-sized windows for the loader and driver. **Demo** is the pill at
-the bottom left of the app; it is presenter-only.
+This follows one delivery day across all four roles. It works on the deployed site (accounts `…@kairon.example`)
+and on `docker compose up` (accounts `…@kairon.demo`); the steps below name the local accounts. Use one browser window
+per role (each window keeps its own sign-in, so roles can sit side by side), and phone-sized windows for the loader
+and driver. **Demo** is the pill at the bottom left of the app; it is presenter-only. Start with **Demo → Reset demo
+data** as the dispatcher.
 
-> **TODO (team): this walkthrough was written from the routes, demo presets and code, not by clicking through the
-> running app. Walk through it once on a fresh `docker compose up` and correct any step, button name or ID.** Order and
-> outlet IDs come from the seeded data and can differ when the real CSVs are loaded.
+The team clicked through these steps end to end on the competition data while recording the demo video. Order IDs
+other than the story's can differ from day to day.
 
 **Ordering day**
 
@@ -337,9 +363,9 @@ the bottom left of the app; it is presenter-only.
    and vehicles that fit are suggested. Shortcut: `/dispatcher/planning?modal=blocked&demo=blocked`.
 4. **A deferral.** Open `/dispatcher/deferred` to review each deferral with its constraint, calculation and next run.
    Then defer one order by hand from its drawer (choose a reason; `dispatcher_choice` needs a note) and check the store
-   manager's `/store` shows the notice with the reason and the new date. TODO: confirm which of OUT005's orders to
-   defer without breaking the VEH002 story below (its chilled order is on TRP-002-1). Shortcut showing the store's
-   view: `/store?demo=store-deferred`.
+   manager's `/store` shows the notice with the reason and the new date. To keep the story below intact, defer
+   Borella's dry-goods order, which travels on another truck, not its chilled order on TRP-002-1. Shortcut showing the
+   store's view: `/store?demo=store-deferred`.
 5. **Dispatcher**: Demo, **Publish plan to loaders & drivers**. Loader, driver and store are notified.
 
 **Loading (phone-sized, loader)**

@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kairon architecture</title>
+<!-- Source of docs/architecture/kairon-architecture.png. Render: chrome --headless --screenshot --window-size=2400,1350 --force-device-scale-factor=2 -->
+<style>
+  :root {
+    --ink: #13201f; --muted: #52615f; --line: #d5dedc; --bg: #f6f8f7; --card: #ffffff;
+    --teal: #0f7b78; --teal-soft: #e3f3f2; --aws: #e7811a; --aws-soft: #fff4e8; --vpc: #2f8f4e; --vpc-soft: #eef8f1;
+    --priv: #1f6fb2; --priv-soft: #eaf3fb; --data: #6c4bc4; --data-soft: #f2eefc; --red: #c2402b; --red-soft: #fdeeea;
+    --gray-soft: #f1f3f3;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { width: 2400px; height: 1350px; background: var(--bg); font-family: 'Segoe UI', Inter, Arial, sans-serif; color: var(--ink); padding: 34px 40px; }
+  .row { display: flex; gap: 22px; }
+  h1 { font-size: 46px; letter-spacing: -0.5px; }
+  h1 span { color: var(--teal); }
+  .sub { color: var(--muted); font-size: 19px; margin-top: 4px; }
+  .tag { font-size: 15px; font-weight: 700; letter-spacing: 3px; color: var(--teal); text-transform: uppercase; margin-top: 8px; }
+  .live { margin-left: auto; border: 2px solid var(--teal); background: var(--teal-soft); border-radius: 14px; padding: 14px 22px; align-self: flex-start; }
+  .live b { font-family: Consolas, monospace; font-size: 22px; color: var(--teal); }
+  .live div { color: var(--muted); font-size: 15px; margin-top: 4px; }
+  .panel { border: 2px solid var(--line); background: var(--card); border-radius: 16px; padding: 14px 16px; }
+  .ptitle { font-weight: 800; font-size: 19px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+  .chip { display: inline-grid; place-items: center; min-width: 30px; height: 30px; padding: 0 7px; border-radius: 8px; color: #fff; font-size: 13px; font-weight: 800; }
+  .box { border: 1.5px solid var(--line); border-radius: 12px; background: #fff; padding: 10px 12px; font-size: 14.5px; line-height: 1.38; }
+  .box h4 { font-size: 16px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+  .box ul { margin-left: 18px; color: var(--muted); }
+  .box p { color: var(--muted); }
+  .muted { color: var(--muted); }
+  .arrow { display: grid; place-items: center; color: var(--muted); font-size: 26px; font-weight: 700; }
+  .lbl { font-size: 12.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; }
+  .off { border-style: dashed; background: #fbfcfc; }
+  .badge { font-size: 11.5px; font-weight: 800; border-radius: 999px; padding: 2px 8px; margin-left: auto; letter-spacing: .5px; }
+  .on { background: #dff3e6; color: #1d6b3a; }
+  .opt { background: #eef0f0; color: #5d6b69; }
+  ol { margin-left: 20px; color: var(--muted); font-size: 14.5px; line-height: 1.45; }
+  li b { color: var(--ink); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  td { padding: 6px 6px; border-top: 1px solid var(--line); vertical-align: top; color: var(--muted); }
+  td:first-child { font-weight: 700; color: var(--ink); white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="row" style="align-items:flex-start">
+  <div>
+    <h1>Kairon <span>· cloud architecture</span></h1>
+    <div class="sub">Waypoint Group delivery planning for dispatchers, loaders, drivers and store managers · Team Aevion · Tech-Triathlon 2026</div>
+    <div class="tag">Plan · Deliver · Connect</div>
+  </div>
+  <div class="live">
+    <b>LIVE&nbsp; https://d10j8dr2q1dn87.cloudfront.net</b>
+    <div>AWS · Sydney (ap-southeast-2) · deployed from GitHub main by AWS CodeBuild · <b style="font-size:15px;color:var(--ink);font-family:inherit">docker compose up</b> runs the same app locally</div>
+  </div>
+</div>
+
+<!-- Users -->
+<div class="panel" style="margin-top:20px; border-color:#9bc9c7; background:#f7fcfc">
+  <div class="ptitle"><span class="chip" style="background:var(--teal)">4</span> Users · one React app for every role (PWA in the browser, Android and iOS through Capacitor) · English, Sinhala, Tamil</div>
+  <div class="row">
+    <div class="box" style="flex:1"><h4>Dispatcher <span class="muted" style="font-weight:600">· large screen</span></h4><p>Close orders, generate and publish the plan, every allocation checked, decide shortfalls, move stops mid-route, recover breakdowns</p></div>
+    <div class="box" style="flex:1"><h4>Loader <span class="muted" style="font-weight:600">· shared tablet</span></h4><p>Load in reverse stop order, count every item, report shortfalls before departure, confirm late plan changes</p></div>
+    <div class="box" style="flex:1"><h4>Driver <span class="muted" style="font-weight:600">· phone, often offline</span></h4><p>Route and windows, arrive, deliver with photo or signature, report road blocks, keep working offline, see route changes on reconnect</p></div>
+    <div class="box" style="flex:1"><h4>Store manager <span class="muted" style="font-weight:600">· desktop or phone</span></h4><p>Order before the 16:00 cutoff, live ETA or deferral with the reason, vehicle changes, confirm receipt or report an issue</p></div>
+    <div class="box" style="flex:1.15; background:var(--teal-soft); border-color:#9bc9c7"><h4>On every device</h4><p>Service worker (app shell offline) · IndexedDB outbox for field events · shared <b style="color:var(--ink)">core/</b> rules run in the browser for instant answers · live updates by server-sent events</p></div>
+  </div>
+</div>
+
+<div class="arrow" style="height:34px">↓ HTTPS · REST + server-sent events (sync when online)</div>
+
+<div class="row" style="align-items:stretch">
+
+  <!-- AWS -->
+  <div class="panel" style="flex:1; border-color:#f0b878; background:var(--aws-soft)">
+    <div class="ptitle"><span class="chip" style="background:var(--aws)">AWS</span> AWS cloud · Sydney (ap-southeast-2)</div>
+
+    <div class="row">
+      <div class="box" style="flex:1"><h4><span class="chip" style="background:#8c4fd1">CF</span> Amazon CloudFront</h4><p>Public HTTPS address, TLS at the edge, no caching of API responses; a CloudFront function passes the real client IP</p></div>
+      <div class="arrow">→</div>
+      <div class="box" style="flex:1"><h4><span class="chip" style="background:#8c4fd1">VO</span> CloudFront VPC origin</h4><p>Private link into the VPC: the load balancer has no public address</p></div>
+      <div class="arrow">→</div>
+      <div class="box" style="flex:1"><h4><span class="chip" style="background:var(--red)">WAF</span> AWS WAF</h4><p>Managed rule sets in front of the application</p></div>
+      <div class="arrow">→</div>
+      <div class="box" style="flex:1"><h4><span class="chip" style="background:#8c4fd1">ALB</span> Internal load balancer</h4><p>Health check <b>/api/health</b>, routes to healthy tasks only</p></div>
+    </div>
+
+    <div class="panel" style="margin-top:14px; border-color:#8cc9a0; background:var(--vpc-soft); padding:12px 14px">
+      <div class="ptitle" style="font-size:17px"><span class="chip" style="background:var(--vpc)">VPC</span> VPC · 2 availability zones · public subnets: NAT gateways ×2 (outbound only) · <span class="muted" style="font-weight:600">everything below runs in private subnets</span></div>
+
+      <div class="panel" style="border-color:#9cc3e6; background:var(--priv-soft); padding:12px 14px">
+        <div class="ptitle" style="font-size:16px"><span class="chip" style="background:var(--priv)">ECS</span> Amazon ECS on Fargate · containers from Amazon ECR</div>
+        <div class="row">
+          <div class="box" style="flex:1.7; border-color:var(--priv); border-width:2px">
+            <h4>API + web app <span class="muted" style="font-weight:600">· Fastify, TypeScript</span><span class="badge on">RUNNING</span></h4>
+            <ul>
+              <li>Serves the built React app and the REST API</li>
+              <li>Sign-in: scrypt password hashes, access + refresh sessions, revocation</li>
+              <li>Role checks on every command and field event; depot and assignment isolation</li>
+              <li><b style="color:var(--ink)">core/ rules engine</b>: 12 booklet rules, multi-start planner, independent audit</li>
+              <li>Offline outbox replay, exactly once · live updates (SSE) · rate limits</li>
+            </ul>
+          </div>
+          <div class="box off" style="flex:1"><h4>Notification publisher<span class="badge opt">SCALED TO 0</span></h4><p>Reads the notification outbox, written in the same transaction as the change, and sends jobs to SQS</p></div>
+          <div class="box off" style="flex:1"><h4>Notification worker<span class="badge opt">SCALED TO 0</span></h4><p>Takes jobs from SQS and delivers web push, Android/iOS push (FCM), email (SES), SMS (SNS)</p></div>
+          <div class="box" style="flex:0.9"><h4>Migration task</h4><p>One-off: schema migrations, data import, accounts</p></div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <div class="box" style="flex:1.6; border-color:var(--data); border-width:2px"><h4><span class="chip" style="background:var(--data)">RDS</span> Amazon RDS PostgreSQL <span class="muted" style="font-weight:600">· encrypted</span></h4>
+          <ul>
+            <li><b style="color:var(--ink)">kairon_state</b>: the day's operation, one versioned document</li>
+            <li><b style="color:var(--ink)">kairon_events</b>: one receipt per replayed field event</li>
+            <li>users, sessions, refresh tokens · notification outbox and deliveries · security and operational audit</li>
+            <li>Every write: <b style="color:var(--ink)">kairon_commit</b>, version check in one transaction</li>
+          </ul></div>
+        <div class="box" style="flex:1"><h4><span class="chip" style="background:#3d8b37">S3</span> Proof bucket</h4><p>Delivery photos and signatures · private, encrypted, versioned · served by signed 10-minute links</p></div>
+        <div class="box" style="flex:1"><h4><span class="chip" style="background:#b0377e">SQS</span> Notification queue</h4><p>Notification jobs plus a dead-letter queue for failed sends</p></div>
+        <div class="box off" style="flex:0.95"><h4><span class="chip" style="background:#c5432f">EC</span> ElastiCache Redis<span class="badge opt">OPTIONAL</span></h4><p>Shared rate limits across API tasks (required for production)</p></div>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:12px">
+      <div class="box" style="flex:1"><h4><span class="chip" style="background:var(--red)">SM</span> Secrets Manager</h4><p>Database credentials, session and media signing keys, contact encryption key, initial accounts</p></div>
+      <div class="box" style="flex:1"><h4><span class="chip" style="background:#b0377e">CW</span> CloudWatch</h4><p>Logs · alarms on 5xx, CPU, memory, unhealthy tasks, queue age, dead letters → SNS alert topic</p></div>
+      <div class="box" style="flex:1"><h4><span class="chip" style="background:#d1452f">SES</span> SES + SNS</h4><p>Email configuration set with bounce feedback · SMS · alert topic</p></div>
+      <div class="box" style="flex:1"><h4><span class="chip" style="background:#5a6b7a">CFN</span> CloudFormation</h4><p>Network, application and CI stacks as code (infra/aws)</p></div>
+    </div>
+
+    <div class="panel" style="margin-top:12px; border-color:#f0b0a3; background:var(--red-soft); padding:10px 14px">
+      <div class="ptitle" style="font-size:16px; margin-bottom:6px"><span class="chip" style="background:var(--red)">CI/CD</span> Continuous deployment</div>
+      <div class="row" style="align-items:center; font-size:14.5px; gap:10px">
+        <div class="box" style="flex:1"><b>GitHub main</b><br><span class="muted">pull requests, reviews</span></div><div class="arrow">→</div>
+        <div class="box" style="flex:1"><b>CodeConnections</b><br><span class="muted">push to main triggers a build</span></div><div class="arrow">→</div>
+        <div class="box" style="flex:1.2"><b>AWS CodeBuild</b><br><span class="muted">build image, schema guard, push to ECR</span></div><div class="arrow">→</div>
+        <div class="box" style="flex:1.2"><b>Rolling update</b><br><span class="muted">CloudFormation release, then smoke test</span></div><div class="arrow">→</div>
+        <div class="box" style="flex:1"><b>GitHub Deployments</b><br><span class="muted">record of each release</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right column -->
+  <div style="width:560px; display:flex; flex-direction:column; gap:16px">
+
+    <div class="panel" style="border-color:#9bc9c7">
+      <div class="ptitle"><span class="chip" style="background:var(--teal)">core</span> One rules engine, two places</div>
+      <ol>
+        <li><b>validate()</b>: capacity (kg, m³), temperature, outlet access, mall windows, delivery windows, fuel quota, time budgets, two-trip limit, depot, vehicle status</li>
+        <li><b>Planner</b>: priority queue, 4 ways to build the plan, independent audit, greedy fallback</li>
+        <li><b>Deferrals</b> carry the rule and the calculation; the store sees the reason</li>
+        <li>Same code in the browser (instant feedback) and on the server (authoritative)</li>
+      </ol>
+    </div>
+
+    <div class="panel">
+      <div class="ptitle"><span class="chip" style="background:var(--priv)">⇅</span> Offline operation and sync</div>
+      <ol>
+        <li>No signal: deliveries, counts and road reports are saved in the phone's <b>outbox</b></li>
+        <li>Signal back: events replay in order; each id is stored once in <b>kairon_events</b></li>
+        <li>Stale version: refused (409), the device reloads; nothing is overwritten</li>
+        <li>Route changed meanwhile: the driver sees what moved and acknowledges it; the dispatcher gets a sync report</li>
+      </ol>
+    </div>
+
+    <div class="panel">
+      <div class="ptitle"><span class="chip" style="background:var(--red)">🔒</span> Security</div>
+      <ol>
+        <li>HTTPS at the edge, WAF, no public address for load balancer, tasks or database</li>
+        <li>scrypt passwords, short sessions with refresh and revocation, rate-limited sign-in</li>
+        <li>Each role, depot and assignment sees only its own data</li>
+        <li>Secrets in Secrets Manager; database and proof storage encrypted; least-privilege runtime role</li>
+      </ol>
+    </div>
+
+    <div class="panel">
+      <div class="ptitle"><span class="chip" style="background:#5a6b7a">ENV</span> Environments</div>
+      <table>
+        <tr><td>AWS staging</td><td>The live judge site: real competition data, demo controls on, 1 API task, single-AZ database, workers scaled to 0</td></tr>
+        <tr><td>Local</td><td><b style="color:var(--ink)">docker compose up</b>: web (nginx), API, PostgreSQL 16, seeded day and 4 accounts</td></tr>
+        <tr><td>Production plan</td><td>Same templates: Multi-AZ database, 2+ API tasks, Redis, notification workers on</td></tr>
+        <tr><td>Legacy</td><td>Vercel + Supabase: the first hosted version, still supported</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="row" style="margin-top:14px; font-size:14px; color:var(--muted); justify-content:space-between">
+  <div>Solid border: running on the live site · dashed border: built and configured, off on staging (cost) · source: <b>infra/aws/rds.json</b>, <b>server/</b>, <b>core/</b></div>
+  <div>Details: docs/architecture.md · docs/data-model.md · docs/deployment.md</div>
+</div>
+
+</body>
+</html>
