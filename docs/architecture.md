@@ -131,8 +131,7 @@ Redis, and the notification workers scaled to 0. The same templates (`infra/aws/
 Multi-AZ database, two or more API tasks, Redis for shared rate limits, and the workers on. Several API tasks don't
 share memory, so every write checks the stored version (section 4) and every open stream polls for new versions.
 
-**Legacy.** The first hosted version ran on Vercel with Supabase ([deployment-supabase.md](deployment-supabase.md));
-the code still supports it.
+**Migration support.** The Supabase adapter remains available for source-data export; the hosted judge site uses AWS RDS.
 
 ## 3. One delivery, through the system
 

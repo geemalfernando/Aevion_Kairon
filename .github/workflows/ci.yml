@@ -16,11 +16,11 @@ concurrency:
 env:
   NODE_VERSION: 24
   # The hosted API the mobile apps talk to.
-  PRODUCTION_URL: https://kairon-eight.vercel.app
+  PRODUCTION_URL: https://d10j8dr2q1dn87.cloudfront.net
 
 jobs:
   server:
-    name: API · typecheck, tests, Vercel bundle
+    name: API · typecheck and tests
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -48,8 +48,6 @@ jobs:
       - run: npm run test:notifications:db
       - name: Verify RDS authentication, permissions and atomic commits
         run: npm run test:rds
-      - name: Bundle the Vercel function
-        run: npm run bundle:vercel
 
   web:
     name: Web · lint and build
@@ -158,8 +156,6 @@ jobs:
     name: Production · smoke test
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    env:
-      HAS_SEED_SECRETS: ${{ secrets.SEED_DISPATCHER_EMAIL != '' }}
     steps:
       - name: Health, auth guard and APK download
         run: |
@@ -169,22 +165,19 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' "$PRODUCTION_URL/login")" = 200
           curl -fsSI "$PRODUCTION_URL/downloads/Kairon.apk" | grep -qi 'application/vnd.android.package-archive'
       - uses: actions/checkout@v4
-        if: env.HAS_SEED_SECRETS == 'true'
       - uses: actions/setup-node@v4
-        if: env.HAS_SEED_SECRETS == 'true'
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - name: Sign in as every role (needs SEED_* repository secrets)
-        if: env.HAS_SEED_SECRETS == 'true'
+      - name: Sign in as every AWS judge role
         working-directory: server
         run: npm ci && npm run test:smoke
         env:
           API_URL: ${{ env.PRODUCTION_URL }}
-          SEED_DISPATCHER_EMAIL: ${{ secrets.SEED_DISPATCHER_EMAIL }}
-          SEED_DISPATCHER_PASSWORD: ${{ secrets.SEED_DISPATCHER_PASSWORD }}
-          SEED_LOADER_EMAIL: ${{ secrets.SEED_LOADER_EMAIL }}
-          SEED_LOADER_PASSWORD: ${{ secrets.SEED_LOADER_PASSWORD }}
-          SEED_DRIVER_EMAIL: ${{ secrets.SEED_DRIVER_EMAIL }}
-          SEED_DRIVER_PASSWORD: ${{ secrets.SEED_DRIVER_PASSWORD }}
-          SEED_STORE_EMAIL: ${{ secrets.SEED_STORE_EMAIL }}
-          SEED_STORE_PASSWORD: ${{ secrets.SEED_STORE_PASSWORD }}
+          SEED_DISPATCHER_EMAIL: dispatcher@kairon.example
+          SEED_DISPATCHER_PASSWORD: kairon2026
+          SEED_LOADER_EMAIL: loader@kairon.example
+          SEED_LOADER_PASSWORD: kairon2026
+          SEED_DRIVER_EMAIL: driver@kairon.example
+          SEED_DRIVER_PASSWORD: kairon2026
+          SEED_STORE_EMAIL: store@kairon.example
+          SEED_STORE_PASSWORD: kairon2026
