@@ -63,6 +63,19 @@ if(mode==='activate'){
  const task=json(['ecs','describe-tasks','--cluster',outputs.ClusterName,'--tasks',receipt.taskArn]).tasks?.[0]
  if(task?.containers?.[0]?.exitCode!==0)throw new Error('Migration task success could not be verified; rerun migrate')
 }
+// Image builds take minutes; wait for any release that started meanwhile, and with KAIRON_EXPECT_IMAGE_TAG
+// refuse (exit 75) to overwrite a different image that went live, so the caller can decide.
+if(mode!=='bootstrap')for(let i=0;;i++){
+ const s=json(['cloudformation','describe-stacks','--stack-name',stack]).Stacks[0]
+ if(!s.StackStatus.endsWith('_IN_PROGRESS')){
+  const live=s.Parameters?.find(p=>p.ParameterKey==='ImageTag')?.ParameterValue
+  if(process.env.KAIRON_EXPECT_IMAGE_TAG&&live!==process.env.KAIRON_EXPECT_IMAGE_TAG){console.error(`${stack} now runs ${live}, not ${process.env.KAIRON_EXPECT_IMAGE_TAG}; not releasing.`);process.exit(75)}
+  break
+ }
+ if(i>=160)throw new Error(`${stack} stayed ${s.StackStatus} for 40 minutes`)
+ if(i===0)console.log(`Waiting for ${stack} (${s.StackStatus})…`)
+ Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,15000)
+}
 const temp=mkdtempSync(join(tmpdir(),'kairon-rds-'))
 try{
  const file=join(temp,'rds.json');writeFileSync(file,JSON.stringify(template))

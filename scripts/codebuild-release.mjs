@@ -67,8 +67,23 @@ await status('in_progress')
 const url=output('ApplicationUrl')
 try{
   const dir=mkdtempSync(join(tmpdir(),'kairon-release-')),file=join(dir,'parameters.json')
-  writeFileSync(file,run('node',['scripts/stack-parameters.mjs',stack],{capture:true}))
-  run('node',['scripts/deploy-rds.mjs','release',stack,file,`git-${sha.slice(0,12)}-${env.CODEBUILD_BUILD_NUMBER}`])
+  // Another release can go live while this image builds. deploy-rds waits for the stack again right before
+  // updating it and exits 75 if the live image is no longer `expected`; then only move forward or stand down.
+  for(let expected=deployed,attempt=0;;attempt++){
+    writeFileSync(file,run('node',['scripts/stack-parameters.mjs',stack],{capture:true}))
+    process.env.KAIRON_EXPECT_IMAGE_TAG=expected
+    const code=run('node',['scripts/deploy-rds.mjs','release',stack,file,`git-${sha.slice(0,12)}-${env.CODEBUILD_BUILD_NUMBER}`],{allowFail:true})
+    if(code===0)break
+    if(code!==75||attempt>=2)throw new Error(`deploy-rds.mjs release failed (${code})`)
+    const now=describe().Parameters.find(p=>p.ParameterKey==='ImageTag')?.ParameterValue
+    if(now?.startsWith('git-')&&run('git',['merge-base','--is-ancestor',now.split('-')[1],sha],{allowFail:true})!==0){
+      console.log(`${now} went live while this build ran and is newer than ${sha.slice(0,12)}. Nothing to do.`)
+      await status('inactive',{description:`Superseded by ${now}`})
+      process.exit(0)
+    }
+    console.log(`${now} went live while this build ran; releasing ${sha.slice(0,12)} after it.`)
+    expected=now
+  }
   // 4. Smoke test the public address.
   let ok=false
   for(let i=0;i<20&&!ok;i++){ok=await fetch(`${url}/api/health`).then(r=>r.json()).then(b=>b.ok===true).catch(()=>false);if(!ok)await sleep(15000)}
