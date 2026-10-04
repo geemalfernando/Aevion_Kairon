@@ -1,5 +1,13 @@
 # Kairon architecture
 
+![Kairon cloud architecture](architecture/kairon-architecture.png)
+
+*The overview above shows what runs on AWS for the live site. Its source is
+[architecture/kairon-architecture.html](architecture/kairon-architecture.html). The deployment as it was built,
+including the CI/CD accounts and the fixes made during the first deploy, is in
+[architecture/kairon-aws-deployment.png](architecture/kairon-aws-deployment.png), and the steps are in
+[deployment.md](deployment.md).*
+
 Kairon is one TypeScript codebase in three parts. The planning and operating rules live once, in `core/`, and run in
 both the browser and the server. The server holds the one shared operation and is the only place that saves it.
 
@@ -7,8 +15,9 @@ both the browser and the server. The server holds the one shared operation and i
   commands and field events.
 - `web/`: the React app for all four roles. It is installable as a PWA, works offline for drivers and loaders, and
   is wrapped as Android and iOS apps with Capacitor.
-- `server/`: the Fastify API. It handles sign-in, role checks, commands, the offline outbox replay, live updates and
-  storage.
+- `server/`: the Fastify API. It handles sign-in, role checks, commands, the offline outbox replay, live updates,
+  storage and notifications.
+- `infra/aws/`: the AWS deployment as CloudFormation templates (network, application stack, CI/CD).
 
 The data model is in [data-model.md](data-model.md). The diagrams below are Mermaid (GitHub draws them); PNG copies
 are in [diagrams/](diagrams/).
@@ -33,16 +42,22 @@ flowchart LR
   end
 
   subgraph API["server/ · Fastify API"]
-    AU["Sign-in<br/>auth.ts"]
+    AU["Sign-in and sessions<br/>auth.ts"]
     RT["Endpoints<br/>app.ts"]
     OP["Operation<br/>operation.ts"]
     CS["core/ on the server<br/>authoritative rules"]
     DB["Storage switch<br/>db.ts"]
+    NO["Notification outbox<br/>notifications/"]
   end
 
-  subgraph Store["Storage (PostgreSQL)"]
-    SB[("Supabase<br/>hosted")]
-    PG[("Local PostgreSQL<br/>docker compose")]
+  subgraph Store["Storage"]
+    RDS[("PostgreSQL<br/>AWS RDS (live) · local<br/>· Supabase (legacy)")]
+    S3[("Proof photos<br/>S3 (AWS) or database")]
+  end
+
+  subgraph Workers["Notification workers"]
+    PUB["Publisher<br/>outbox → SQS"]
+    WRK["Worker<br/>SQS → push, email, SMS"]
   end
 
   D & L & R & S --> UI
@@ -56,8 +71,11 @@ flowchart LR
   RT --> OP
   OP --> CS
   OP --> DB
-  DB --> SB
-  DB --> PG
+  OP --> NO
+  DB --> RDS
+  DB --> S3
+  NO --> RDS
+  RDS --> PUB --> WRK
 ```
 
 | Component | Where | What it does |
@@ -66,42 +84,55 @@ flowchart LR
 | Client store | `web/src/store/index.ts` | Holds the latest operation from the server, runs commands optimistically through `core/`, and queues field events while offline. |
 | Outbox | IndexedDB (Dexie) | Field events (load counts, deliveries, proof photos, road reports) are saved on the device first and sent in order when online. |
 | Conflict check | `web/src/store/conflict.ts` | After an offline period, compares the route the driver had with the server's. Moved stops are shown on a screen the driver must acknowledge. |
-| Endpoints | `server/src/app.ts` | `/api/auth/*`, `/api/state`, `/api/commands/:name`, `/api/events`, `/api/stream` (SSE), `/api/media/:id`, `/api/predictions`, `/api/export/allocation.csv`, `/api/demo/reset` (demo mode only). |
-| Sign-in | `server/src/auth.ts` | Supabase Auth on the hosted site (JWT checked against the project's JWKS); the four demo accounts with HMAC-signed tokens in local mode (`auth-local.ts`). |
-| Operation | `server/src/operation.ts` | Checks each user's role and scope (a store manager only sees their outlet, a driver only their vehicle), then runs the command or event. Writes are serialised. |
+| Endpoints | `server/src/app.ts` | `/api/auth/*`, `/api/state`, `/api/commands/:name`, `/api/events`, `/api/stream` (SSE), `/api/media/:id`, `/api/predictions`, `/api/export/allocation.csv`, `/api/demo/reset` (demo mode only). Rate-limited, with a stricter limit on sign-in. |
+| Sign-in | `server/src/auth.ts` | AWS: accounts in RDS with scrypt password hashes, short access sessions, refresh tokens and revocation (`auth-rds.ts`). Local: the demo accounts with HMAC-signed tokens (`auth-local.ts`). Legacy: Supabase Auth. |
+| Operation | `server/src/operation.ts` | Checks each user's role and scope (depot, a store manager's outlet, a driver's vehicle), then runs the command or event. Writes are serialised. |
 | Rules engine | `core/src/rules.ts`, `ops.ts` | `validate()` for the 12 hard constraints, trip time, the multi-start planner with `auditPlan`, deferral reasons, and every command and field event. |
-| Storage switch | `server/src/db.ts` | Supabase when `SUPABASE_URL` is set (`db-supabase.ts`), otherwise a local PostgreSQL (`db-postgres.ts`). Same tables and commit function. |
+| Storage switch | `server/src/db.ts` | `BACKEND=rds` (AWS: `db-rds.ts`), local PostgreSQL (`db-postgres.ts`) or Supabase (`db-supabase.ts`). Same versioned state and the same commit. |
+| Notifications | `server/src/notifications/` | A change writes its notification to an outbox table in the same transaction. The publisher sends it to SQS; the worker delivers web push, Android/iOS push (FCM), email (SES) or SMS (SNS), with retries and a dead-letter queue. |
 
 ## 2. Deployments
 
 ```mermaid
 flowchart TB
-  subgraph Hosted["Hosted (judges' public URL)"]
+  subgraph AWS["AWS · Sydney (the live site)"]
     direction LR
-    B1["Browser / Android / iOS"] --> V1["Vercel<br/>static web app"]
-    B1 --> V2["Vercel function<br/>/api/* (server bundle)"]
-    V2 --> SBA["Supabase Auth"]
-    V2 --> SBD[("Supabase PostgreSQL")]
+    B1["Browser / Android / iOS"] --> CF["CloudFront<br/>HTTPS"]
+    CF --> VO["VPC origin<br/>(private)"]
+    VO --> ALB["Internal load balancer<br/>+ WAF"]
+    ALB --> API["ECS Fargate<br/>API + web app"]
+    API --> RDSA[("RDS PostgreSQL")]
+    API --> S3A[("S3 proof bucket")]
+    RDSA --> PUBA["Publisher"] --> Q["SQS"] --> WRKA["Worker"]
   end
   subgraph Local["docker compose up"]
     direction LR
     B2["Browser"] --> FE["frontend<br/>nginx :8080, web app,<br/>proxies /api"]
-    FE --> BE["backend<br/>Fastify API,<br/>4 demo accounts"]
+    FE --> BE["backend<br/>Fastify API,<br/>demo accounts"]
     BE --> DBL[("database<br/>PostgreSQL 16")]
   end
 ```
 
-| | Hosted | `docker compose up` |
+| | AWS (live site) | `docker compose up` |
 |---|---|---|
-| Web app | Vercel static hosting | nginx container (`docker/frontend.conf`) |
-| API | One Vercel serverless function (`web/api/index.mjs`, bundled from `server/`) | `backend` container |
-| Database | Supabase PostgreSQL | `database` container (PostgreSQL 16, volume `db-data`) |
-| Sign-in | Supabase Auth accounts (`seed:users`) | The four `…@kairon.demo` accounts |
-| Starting data | The demo day, seeded once with `seed:demo` from the CSVs | The demo day, seeded on first start |
-| Live updates | SSE, closed before the function time limit and reopened by the browser; each instance polls the version | SSE |
+| Address | `https://d10j8dr2q1dn87.cloudfront.net` | `http://localhost:8080` |
+| Edge and network | CloudFront (HTTPS) → private VPC origin → internal load balancer with WAF; no public address for tasks or database | nginx container (`docker/nginx.conf`) |
+| API and web app | ECS Fargate tasks from images in ECR | `backend` and `frontend` containers |
+| Database | RDS PostgreSQL, encrypted (`database/migrations/001_rds.sql`) | `database` container (PostgreSQL 16) |
+| Proof photos | Private, encrypted S3 bucket; signed 10-minute links | In the database |
+| Sign-in | RDS accounts (`…@kairon.example`) | Demo accounts (`…@kairon.demo`) |
+| Starting data | The demo day built from the competition CSVs, imported once; Demo → Reset rebuilds it from the stored rows | The demo day, from `data/` CSVs when present, otherwise placeholders |
+| Notifications | Publisher and worker on ECS with SQS and a dead-letter queue (scaled to 0 on staging) | Off |
+| Secrets and monitoring | Secrets Manager; CloudWatch logs and alarms to an SNS topic | Container logs |
+| Deploys | Push to `main` → CodeConnections → CodeBuild builds the image, pushes to ECR, releases with CloudFormation and smoke-tests | `docker compose up --build` |
 
-Several Vercel instances can serve one operation at once. They don't share memory, so every write checks the stored
-version (section 4), and every open stream polls for new versions every 3 seconds.
+**Staging and production.** The live site is a lean staging configuration: a single-AZ database, one API task, no
+Redis, and the notification workers scaled to 0. The same templates (`infra/aws/rds.json`) run production with a
+Multi-AZ database, two or more API tasks, Redis for shared rate limits, and the workers on. Several API tasks don't
+share memory, so every write checks the stored version (section 4) and every open stream polls for new versions.
+
+**Legacy.** The first hosted version ran on Vercel with Supabase ([deployment-supabase.md](deployment-supabase.md));
+the code still supports it.
 
 ## 3. One delivery, through the system
 
@@ -182,12 +213,39 @@ shown to the store manager.
 
 ## 6. Security
 
+- **HTTPS and a private network.** CloudFront terminates HTTPS. The load balancer, the tasks and the database have no
+  public address; CloudFront reaches the load balancer through a private VPC origin, and AWS WAF managed rules sit in
+  front of it.
+- **Sign-in.** Passwords are stored as scrypt hashes. Access sessions are short and renewed with refresh tokens; a
+  password change or account update revokes existing sessions. Sign-in and the whole API are rate-limited.
 - **Who may do what is checked on the server.** Each command has a list of allowed roles (`COMMAND_ROLES`), and each
-  field event a list of roles that may record it (`EVENT_ROLES`). A store manager can only order for, and confirm, their
-  own outlet. A driver can only record events for their own vehicle. A loader can only load their own depot's trips.
-- **Database access goes through the API.** On Supabase, row-level security blocks direct browser access, and the
-  secret key stays on the server.
+  field event a list of roles that may record it (`EVENT_ROLES`). Every response is projected for its user
+  (`core/src/access.ts`): a dispatcher sees their depot, a store manager only their outlet, a driver only their
+  vehicle. A depot's dispatcher can't change the other depot's operation.
+- **Secrets and data at rest.** Database credentials, signing keys and the contact encryption key are in AWS Secrets
+  Manager. The database and the proof bucket are encrypted; phone numbers are encrypted in the database. The
+  runtime database role can read and write application data only.
+- **Proof photos** are private and served by signed links that expire after 10 minutes.
+- **Audit.** Security events (sign-ins, refused sign-ins, sign-outs, notification and push settings) and operational
+  events are logged in their own tables; every change to the operation is also in the operation's audit trail.
 - **Demo tools are switched off by configuration.** The operation clock, fleet simulation and demo reset need
-  `DEMO_MODE=true` on the server. The demo panel and demo-account buttons are only in a web build made with
-  `VITE_DEMO_MODE=true`.
-- Proof photos are served by unguessable 128-bit ids.
+  `DEMO_MODE=true` on the server. The demo panel is only in a web build made with `VITE_DEMO_MODE=true`; on the hosted
+  site only the dispatcher can use its operation controls.
+
+## 7. Notifications
+
+```mermaid
+flowchart LR
+  C["Command or field event"] --> T["Same transaction:<br/>new state + outbox row"]
+  T --> P["Publisher<br/>(ECS)"] --> Q["SQS queue"] --> W["Worker<br/>(ECS)"]
+  W --> WP["Web push"]
+  W --> FCM["Android / iOS push (FCM)"]
+  W --> SES["Email (SES)"]
+  W --> SNS["SMS (SNS)"]
+  Q -. "failed repeatedly" .-> DLQ["Dead-letter queue<br/>+ CloudWatch alarm"]
+```
+
+In-app notifications (the bell in every role's header) are part of the operation and arrive with the live update.
+Messages outside the app go through an outbox: the notification is written in the same transaction as the change,
+so a change is never saved without its notification and no notification is sent for a change that failed. Each
+delivery is recorded in `kairon_notification_deliveries`.
